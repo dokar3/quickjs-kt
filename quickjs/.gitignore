@@ -1,0 +1,5 @@
+build/
+.cxx/
+.gradle/
+
+*.log

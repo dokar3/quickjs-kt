@@ -1,0 +1,4 @@
+-keep,allowoptimization class com.dokar.quickjs.QuickJs { *; }
+-keep,allowoptimization class com.dokar.quickjs.QuickJsException { *; }
+-keep,allowoptimization class com.dokar.quickjs.binding.JsProperty { *; }
+-keep,allowoptimization class com.dokar.quickjs.binding.JsObject { *; }
