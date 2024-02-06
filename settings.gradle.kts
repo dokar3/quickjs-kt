@@ -25,3 +25,4 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 include(":quickjs")
 include(":samples:js-eval")
+include(":samples:repl")
