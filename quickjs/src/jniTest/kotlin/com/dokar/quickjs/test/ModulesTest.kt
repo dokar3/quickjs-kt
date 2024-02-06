@@ -1,6 +1,8 @@
 package com.dokar.quickjs.test
 
 import com.dokar.quickjs.QuickJs
+import com.dokar.quickjs.binding.ModuleReturns
+import com.dokar.quickjs.binding.func
 import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -13,6 +15,8 @@ class ModulesTest {
     fun codeAsModule() = runTest {
         quickJs {
             setupHelloModule()
+
+            func("returns", ModuleReturns())
 
             val result = evaluate<String>(
                 """
@@ -29,6 +33,8 @@ class ModulesTest {
     fun bytecodeAsModule() = runTest {
         quickJs {
             setupHelloModuleBytecode()
+
+            func("returns", ModuleReturns())
 
             val result = evaluate<String>(
                 """
@@ -60,6 +66,8 @@ class ModulesTest {
     @Test
     fun returnsInBytecode() = runTest {
         quickJs {
+            func("returns", ModuleReturns())
+
             val bytecode = compile(
                 code = "returns('OK');",
                 asModule = true,

@@ -1,18 +1,16 @@
 package com.dokar.quickjs.test
 
 import com.dokar.quickjs.QuickJs
+import com.dokar.quickjs.binding.ModuleReturns
 import com.dokar.quickjs.binding.asyncFunc
 import com.dokar.quickjs.binding.func
 import com.dokar.quickjs.quickJs
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
-import java.util.concurrent.Executors
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -156,6 +154,8 @@ class AsyncFunctionsTest {
     @Test
     fun compileAndEvalAsyncModule() = runTest {
         quickJs {
+            func("returns", ModuleReturns())
+
             asyncFunc("delay") { delay(it[0] as Long) }
 
             val bytecode = compile(

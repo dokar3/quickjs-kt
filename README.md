@@ -204,6 +204,9 @@ When evaluating ES module code, no return values will be captured unless you use
 ```kotlin
 quickJs {
     // ...
+    
+    func("returns", ModuleReturns())
+    
     val result = evaluate<String>(
         """
             import * as hello from "hello";

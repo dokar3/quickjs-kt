@@ -1,10 +1,25 @@
 package com.dokar.quickjs.binding
 
 /**
- * Global function to pass a result in a module.
+ * A utility function binding to pass a result in a module.
+ *
+ * ### Example
+ *
+ * ```kotlin
+ * quickJs {
+ *     func("returns", ModuleReturns())
+ *
+ *     val code = """
+ *         import * as hello from "hello";
+ *
+ *         returns(hello.greeting());
+ *     """.trimIndent()
+ *     val result = evaluate<String>(code = code, asModule = true)
+ * }
+ * ```
  */
-internal class ModuleReturns : FunctionBinding<Any?> {
-    var returnValue: Any? = Unset
+class ModuleReturns : FunctionBinding<Any?> {
+    internal var returnValue: Any? = Unset
 
     override fun invoke(args: Array<Any?>): Any {
         returnValue = args.firstOrNull()
@@ -12,6 +27,6 @@ internal class ModuleReturns : FunctionBinding<Any?> {
     }
 
     companion object {
-        val Unset = Any()
+        internal val Unset = Any()
     }
 }

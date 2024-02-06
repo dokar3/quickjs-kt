@@ -173,11 +173,6 @@ actual class QuickJs(
     @Throws(QuickJsException::class)
     actual fun compile(code: String, filename: String, asModule: Boolean): ByteArray {
         ensureNotClosed()
-        if (asModule) {
-            // Just for compiling
-            // TODO: Remove binding after the code is compiled
-            defineBinding("returns", FunctionBinding<Any?> {})
-        }
         return compile(context, globals, filename, code, asModule)
     }
 
@@ -197,7 +192,7 @@ actual class QuickJs(
 
     @PublishedApi
     internal suspend fun executeInternal(buffer: ByteArray): Any? = evalMutex.withLock {
-        evalAndAwait(defineReturns = true) {
+        evalAndAwait {
             execute(context = context, globals = globals, buffer = buffer)
         }
     }
@@ -208,29 +203,18 @@ actual class QuickJs(
         filename: String,
         asModule: Boolean,
     ): Any? = evalMutex.withLock {
-        evalAndAwait(defineReturns = asModule) {
+        evalAndAwait {
             evaluate(context, globals, filename, code, asModule)
         }
     }
 
-    private suspend fun evalAndAwait(
-        defineReturns: Boolean,
-        evalBlock: suspend () -> Any?,
-    ): Any? {
+    private suspend fun evalAndAwait(evalBlock: suspend () -> Any?): Any? {
         ensureNotClosed()
         loadModules()
-        // TODO: Remove binding after evaluating
-        val moduleReturns = if (defineReturns) {
-            val returns = ModuleReturns()
-            defineBinding("returns", returns)
-            evalBlock()
-            returns
-        } else {
-            evalBlock()
-            null
-        }
+        evalBlock()
         awaitAsyncJobs()
-        val result = if (moduleReturns != null &&
+        val moduleReturns = globalFunctions.values.find { it is ModuleReturns }
+        val result = if (moduleReturns is ModuleReturns &&
             moduleReturns.returnValue != ModuleReturns.Unset
         ) {
             // Get result from returns()
