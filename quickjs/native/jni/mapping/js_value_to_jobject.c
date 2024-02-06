@@ -339,7 +339,9 @@ jobject js_value_to_jobject(JNIEnv *env, JSContext *context, JSValue value) {
 
         return result;
     } else {
-        jni_throw_exception(env, "Unsupported js value type.");
+        const char *string = JS_ToCString(context, value);
+        jni_throw_exception(env, "Unsupported js value type: %s, tag: %d", string, tag);
+        JS_FreeCString(context, string);
         return NULL;
     }
 }

@@ -139,6 +139,37 @@ class AsyncFunctionsTest {
     }
 
     @Test
+    fun compileAndEvalAsync() = runTest {
+        quickJs {
+            asyncFunc("delay") { delay(it[0] as Long) }
+
+            val bytecode = compile(
+                code = """
+                    await delay(100);
+                    "OK";
+                """.trimIndent()
+            )
+            assertEquals("OK", execute(bytecode))
+        }
+    }
+
+    @Test
+    fun compileAndEvalAsyncModule() = runTest {
+        quickJs {
+            asyncFunc("delay") { delay(it[0] as Long) }
+
+            val bytecode = compile(
+                code = """
+                    await delay(100);
+                    returns("OK");
+                """.trimIndent(),
+                asModule = true,
+            )
+            assertEquals("OK", execute(bytecode))
+        }
+    }
+
+    @Test
     fun cancelParentCoroutine() = runTest {
         var instance: QuickJs? = null
         launch {

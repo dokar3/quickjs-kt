@@ -23,8 +23,13 @@ import java.io.Closeable
  *
  * This function provides a [type] parameter, useful when the inline version of
  * [QuickJs.execute] is not available.
+ *
+ * @see [QuickJs.execute]
  */
-suspend fun <T> QuickJs.execute(buffer: ByteArray, type: Class<T>): T {
+suspend fun <T> QuickJs.execute(
+    buffer: ByteArray,
+    type: Class<T>
+): T {
     return jsAutoCastOrThrow(executeInternal(buffer), type)
 }
 
@@ -33,6 +38,8 @@ suspend fun <T> QuickJs.execute(buffer: ByteArray, type: Class<T>): T {
  *
  * This function provides a [type] parameter, useful when the inline version of
  * [QuickJs.evaluate] is not available.
+ *
+ * @see [QuickJs.evaluate]
  */
 suspend fun <T> QuickJs.evaluate(
     code: String,
@@ -166,12 +173,17 @@ actual class QuickJs(
     @Throws(QuickJsException::class)
     actual fun compile(code: String, filename: String, asModule: Boolean): ByteArray {
         ensureNotClosed()
+        if (asModule) {
+            // Just for compiling
+            // TODO: Remove binding after the code is compiled
+            defineBinding("returns", FunctionBinding<Any?> {})
+        }
         return compile(context, globals, filename, code, asModule)
     }
 
     @Throws(QuickJsException::class)
-    actual suspend inline fun <reified T> execute(buffer: ByteArray): T {
-        return jsAutoCastOrThrow(executeInternal(buffer), T::class.java)
+    actual suspend inline fun <reified T> execute(bytecode: ByteArray): T {
+        return jsAutoCastOrThrow(executeInternal(bytecode), T::class.java)
     }
 
     @Throws(QuickJsException::class)
@@ -185,12 +197,9 @@ actual class QuickJs(
 
     @PublishedApi
     internal suspend fun executeInternal(buffer: ByteArray): Any? = evalMutex.withLock {
-        ensureNotClosed()
-        loadModules()
-        val result = execute(context = context, globals = globals, buffer = buffer)
-        awaitAsyncJobs()
-        handleException()
-        return result
+        evalAndAwait(defineReturns = true) {
+            execute(context = context, globals = globals, buffer = buffer)
+        }
     }
 
     @PublishedApi
@@ -199,19 +208,31 @@ actual class QuickJs(
         filename: String,
         asModule: Boolean,
     ): Any? = evalMutex.withLock {
+        evalAndAwait(defineReturns = asModule) {
+            evaluate(context, globals, filename, code, asModule)
+        }
+    }
+
+    private suspend fun evalAndAwait(
+        defineReturns: Boolean,
+        evalBlock: suspend () -> Any?,
+    ): Any? {
         ensureNotClosed()
         loadModules()
-        val moduleReturns = if (asModule) {
+        // TODO: Remove binding after evaluating
+        val moduleReturns = if (defineReturns) {
             val returns = ModuleReturns()
             defineBinding("returns", returns)
-            evaluate(context, globals, filename, code, true)
+            evalBlock()
             returns
         } else {
-            evaluate(context, globals, filename, code, false)
+            evalBlock()
             null
         }
         awaitAsyncJobs()
-        val result = if (moduleReturns != null) {
+        val result = if (moduleReturns != null &&
+            moduleReturns.returnValue != ModuleReturns.Unset
+        ) {
             // Get result from returns()
             moduleReturns.returnValue
         } else {

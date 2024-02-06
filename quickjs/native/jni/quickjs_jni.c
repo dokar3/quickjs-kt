@@ -315,7 +315,9 @@ jobject handle_eval_result(JNIEnv *env,
         return NULL;
     }
 
-    if (async) {
+    int tag = JS_VALUE_GET_NORM_TAG(value);
+    int is_compiled_value = tag == JS_TAG_FUNCTION_BYTECODE || tag == JS_TAG_MODULE;
+    if (async && !is_compiled_value) {
         // Ensure the result is a promise
         if (!js_is_promise(context, value)) {
             jni_throw_exception(env, "Require the async eval flag.");
@@ -395,7 +397,7 @@ Java_com_dokar_quickjs_QuickJs_compile(JNIEnv *env, jobject this, jlong context_
                                        jstring jfilename,
                                        jstring jcode,
                                        jboolean as_module) {
-    int eval_flags = JS_EVAL_FLAG_COMPILE_ONLY;
+    int eval_flags = JS_EVAL_FLAG_COMPILE_ONLY | JS_EVAL_FLAG_ASYNC;
     if (as_module) {
         eval_flags |= JS_EVAL_TYPE_MODULE;
     }
@@ -457,7 +459,7 @@ Java_com_dokar_quickjs_QuickJs_execute(JNIEnv *env, jobject this, jlong context_
 
     (*env)->ReleaseByteArrayElements(env, jbuffer, buffer, 0);
 
-    return handle_eval_result(env, context, globals, value, 0);
+    return handle_eval_result(env, context, globals, value, 1);
 }
 
 /**
@@ -594,7 +596,12 @@ Java_com_dokar_quickjs_QuickJs_tryResolveExecuteResult(JNIEnv *env,
     jobject result;
     if (state == JS_PROMISE_FULFILLED) {
         JSValue js_result = js_promise_get_fulfilled_value(context, result_promise);
-        result = js_value_to_jobject(env, context, js_result);
+        if (JS_IsException(js_result)) {
+            // Is it safe to ignore the exception? This happens when executing a compiled module.
+            result = NULL;
+        } else {
+            result = js_value_to_jobject(env, context, js_result);
+        }
         JS_FreeValue(context, js_result);
     } else if (state == JS_PROMISE_REJECTED) {
         JSValue js_result = JS_PromiseResult(context, result_promise);

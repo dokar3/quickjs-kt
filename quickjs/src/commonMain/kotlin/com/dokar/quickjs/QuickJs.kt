@@ -143,11 +143,11 @@ expect class QuickJs {
      * Evaluate QuickJS-compiled bytecode.
      *
      * @param T The result type.
-     * @param buffer The bytecode buffer.
+     * @param bytecode The bytecode buffer.
      * @throws QuickJsException If error occurred when executing code or converting values.
      */
     @Throws(QuickJsException::class)
-    suspend inline fun <reified T> execute(buffer: ByteArray): T
+    suspend inline fun <reified T> execute(bytecode: ByteArray): T
 
     /**
      * Evaluate javascript code.
