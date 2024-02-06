@@ -469,12 +469,12 @@ Java_com_dokar_quickjs_QuickJs_execute(JNIEnv *env, jobject this, jlong context_
  * Other functions not currently supported.
  */
 JNIEXPORT void JNICALL
-Java_com_dokar_quickjs_QuickJs_callJsFunction(JNIEnv *env,
-                                              jobject this,
-                                              jlong context_ptr,
-                                              jlong globals_ptr,
-                                              jlong handle,
-                                              jobjectArray args) {
+Java_com_dokar_quickjs_QuickJs_invokeJsFunction(JNIEnv *env,
+                                                jobject this,
+                                                jlong context_ptr,
+                                                jlong globals_ptr,
+                                                jlong handle,
+                                                jobjectArray args) {
     JSContext *context = context_from_ptr(env, context_ptr);
     if (context == NULL) {
         return;
@@ -544,9 +544,9 @@ Java_com_dokar_quickjs_QuickJs_callJsFunction(JNIEnv *env,
  * @return true if executed, false if no job, or failed to execute.
  */
 JNIEXPORT jboolean JNICALL
-Java_com_dokar_quickjs_QuickJs_tryExecutePendingJob(JNIEnv *env,
-                                                    jobject this,
-                                                    jlong context_ptr) {
+Java_com_dokar_quickjs_QuickJs_executePendingJob(JNIEnv *env,
+                                                 jobject this,
+                                                 jlong context_ptr) {
     JSContext *context = context_from_ptr(env, context_ptr);
     if (context == NULL) {
         return JNI_FALSE;
@@ -569,10 +569,10 @@ Java_com_dokar_quickjs_QuickJs_tryExecutePendingJob(JNIEnv *env,
  * Try get result from the evaluate result promise. This function cannot be called multiple times.
  */
 JNIEXPORT jobject JNICALL
-Java_com_dokar_quickjs_QuickJs_tryResolveExecuteResult(JNIEnv *env,
-                                                       jobject this,
-                                                       jlong context_ptr,
-                                                       jlong globals_ptr) {
+Java_com_dokar_quickjs_QuickJs_getExecuteResult(JNIEnv *env,
+                                                jobject this,
+                                                jlong context_ptr,
+                                                jlong globals_ptr) {
     JSContext *context = context_from_ptr(env, context_ptr);
     if (context == NULL) {
         return NULL;

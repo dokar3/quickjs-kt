@@ -221,7 +221,7 @@ actual class QuickJs(
             moduleReturns.returnValue
         } else {
             // Get result from promise
-            tryResolveExecuteResult(context, globals)
+            getExecuteResult(context, globals)
         }
         handleException()
         return result
@@ -258,7 +258,7 @@ actual class QuickJs(
          * This is our simple 'event loop'.
          */
         do {
-            while (tryExecutePendingJob(context)) {
+            while (executePendingJob(context)) {
                 // Job executed
             }
             val jobs = asyncJobs.filter { it.isActive }
@@ -301,7 +301,7 @@ actual class QuickJs(
             try {
                 val result = block(args.sliceArray(2..<args.size))
                 // Call resolve() on JNI side
-                callJsFunction(
+                invokeJsFunction(
                     context = context,
                     globals = globals,
                     handle = resolveHandle,
@@ -315,7 +315,7 @@ actual class QuickJs(
                     }
                 }
                 // Call reject() on JNI side
-                callJsFunction(
+                invokeJsFunction(
                     context = context,
                     globals = globals,
                     handle = rejectHandle,
@@ -482,7 +482,7 @@ actual class QuickJs(
     private external fun execute(context: Long, globals: Long, buffer: ByteArray): Any?
 
     @Throws(QuickJsException::class)
-    private external fun callJsFunction(
+    private external fun invokeJsFunction(
         context: Long,
         globals: Long,
         handle: Long,
@@ -490,10 +490,10 @@ actual class QuickJs(
     )
 
     @Throws(QuickJsException::class)
-    private external fun tryExecutePendingJob(context: Long): Boolean
+    private external fun executePendingJob(context: Long): Boolean
 
     @Throws(QuickJsException::class)
-    private external fun tryResolveExecuteResult(context: Long, globals: Long): Any?
+    private external fun getExecuteResult(context: Long, globals: Long): Any?
 
     actual companion object {
         init {
