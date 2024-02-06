@@ -163,7 +163,7 @@ const responses = await Promise.all([
 
 ### Modules
 
-[ES modules](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules) are supported when `evaluate()` or `compile()` has the parameter `asModule = true`. 
+[ES Modules](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules) are supported when `evaluate()` or `compile()` has the parameter `asModule = true`. 
 
 ```kotlin
 quickJs {
@@ -233,7 +233,7 @@ Some built-in types are mapped automatically between C and Kotlin, this table sh
 | Error           | Error               |
 | Object          | Map<Any?, Any?> (4) |
 
-(1) A Kotlin `Unit` will be mapped to a JavaScript `undefined`, on the contrary, JavaScript `undefined` won't be mapped to Kotlin `Unit`. 
+(1) A Kotlin `Unit` will be mapped to a JavaScript `undefined`, conversely, JavaScript `undefined` won't be mapped to Kotlin `Unit`. 
 
 (2) A `Number` in JavaScript can be cast to an `Int` or a `Float` to match the Kotlin type.
 
