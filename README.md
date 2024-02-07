@@ -14,13 +14,15 @@ Zipline is great and KMP-friendly, but it focuses on executing Kotlin/JS modules
 That's why I created this library, with some good features:
 
 - Simple and idiomatic Kotlin APIs, it's easy to define binding and execute arbitrary code
-- Highly integrated with Kotlin Coroutines, it is `async` and `suspend`ed. See [#Async](#async)
+- Highly integrated with **Kotlin Coroutines**, it is `async` and `suspend`ed. See [#Async](#async)
 - Kotlin Multiplatform targets, currently `Android` and `JVM` are supported
 - The latest version of QuickJS
 
 # Usages
 
-Add the dependency in `build.gradle.kts`:
+### Installation
+
+In `build.gradle.kts`:
 
 ```kotlin
 implementation("io.github.dokar3:quickjs-kt:<VERSION>")
@@ -32,7 +34,7 @@ Or in `libs.versions.toml`:
 quickjs-kt = { module = "io.github.dokar3:quickjs-kt", version = "<VERSION>" }
 ```
 
-### Execute code
+### Execute
 
 with DSL (This is recommended if you don't need long live instance):
 
