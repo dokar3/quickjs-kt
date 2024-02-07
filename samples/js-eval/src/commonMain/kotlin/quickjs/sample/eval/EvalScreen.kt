@@ -138,6 +138,10 @@ private fun ScreenContent(
                     }
 
                     func<Unit>("log") {
+                        logs.add(LogItem.debug(it.joinToString(" ")))
+                    }
+
+                    func<Unit>("info") {
                         logs.add(LogItem.info(it.joinToString(" ")))
                     }
 
@@ -328,7 +332,7 @@ private fun rememberOutput(logs: List<LogItem>, result: Result<String>): Annotat
                     val color = when (log.level) {
                         LogLevel.Error -> errorColor
                         LogLevel.Warn -> warnColor
-                        LogLevel.Info -> textColor
+                        LogLevel.Debug, LogLevel.Info -> textColor
                     }
                     pushStyle(SpanStyle(color = color))
                     append("[${log.level}]: ")
@@ -354,6 +358,7 @@ private fun rememberOutput(logs: List<LogItem>, result: Result<String>): Annotat
 }
 
 enum class LogLevel {
+    Debug,
     Info,
     Warn,
     Error,
@@ -364,6 +369,7 @@ data class LogItem(
     val content: String,
 ) {
     companion object {
+        fun debug(content: String) = LogItem(level = LogLevel.Debug, content = content)
         fun info(content: String) = LogItem(level = LogLevel.Info, content = content)
         fun warn(content: String) = LogItem(level = LogLevel.Warn, content = content)
         fun error(content: String) = LogItem(level = LogLevel.Error, content = content)
