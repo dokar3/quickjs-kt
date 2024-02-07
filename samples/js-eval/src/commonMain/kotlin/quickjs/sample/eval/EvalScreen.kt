@@ -161,7 +161,8 @@ private fun ScreenContent(
                     delay(millis)
                 }
 
-                asyncFunc("asyncError") { error(it.joinToString(" ")) }
+                var moduleResult: Any? = null
+                asyncFunc("returns") { moduleResult = it.firstOrNull() }
 
                 func("passObject") {
                     require(it.isNotEmpty())
@@ -190,7 +191,7 @@ private fun ScreenContent(
                     code = code,
                     filename = codeSnippet.filename,
                     asModule = codeSnippet.asModule,
-                )
+                ).let { moduleResult ?: it }
             }.toString()
         }
         val end = System.currentTimeMillis()
