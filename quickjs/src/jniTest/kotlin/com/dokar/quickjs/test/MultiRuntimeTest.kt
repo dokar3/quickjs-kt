@@ -2,9 +2,6 @@ package com.dokar.quickjs.test
 
 import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.binding.define
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
