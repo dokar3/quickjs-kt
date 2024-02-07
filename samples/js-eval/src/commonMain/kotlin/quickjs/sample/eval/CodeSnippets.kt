@@ -16,7 +16,6 @@ val CodeSnippets = listOf(
                 return "Hi from JavaScript!";
             }
             hello();
-            await asyncError()
          """.trimIndent(),
         asModule = false,
     ),

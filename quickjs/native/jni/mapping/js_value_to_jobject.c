@@ -8,7 +8,7 @@
 #include "jni_types_util.h"
 
 jobject to_java_string(JNIEnv *env, const char *str) {
-    return (*env)->NewStringUTF(env, str);
+    return str != NULL ? (*env)->NewStringUTF(env, str) : NULL;
 }
 
 void replace_dots_with_slashes(char *str) {
@@ -23,7 +23,7 @@ void replace_dots_with_slashes(char *str) {
     }
 }
 
-jobject js_error_to_java_error(JNIEnv *env, JSContext *context, JSValue error) {
+jthrowable js_error_to_java_error(JNIEnv *env, JSContext *context, JSValue error) {
     // Get name
     JSValue js_name = JS_GetPropertyStr(context, error, "name");
 
@@ -34,7 +34,7 @@ jobject js_error_to_java_error(JNIEnv *env, JSContext *context, JSValue error) {
         if (c_str != NULL) {
             JS_FreeCString(context, c_str);
         }
-        jobject java_error = new_java_error(env, str);
+        jthrowable java_error = new_java_error(env, str);
         JS_FreeValue(context, js_name);
         return java_error;
     }
@@ -223,6 +223,18 @@ jobject to_java_map(JNIEnv *env, JSContext *context, JSValue map) {
 }
 
 jobject object_to_java_map(JNIEnv *env, JSContext *context, JSValue value) {
+    // This can check circular references for us
+    JSValue json = JS_JSONStringify(context, value, JS_UNDEFINED, JS_UNDEFINED);
+    if (JS_IsException(json)) {
+        JSValue js_err = JS_GetException(context);
+        if (!JS_IsNull(js_err)) {
+            (*env)->Throw(env, js_error_to_java_error(env, context, js_err));
+        }
+        JS_FreeValue(context, js_err);
+        JS_FreeValue(context, json);
+        return NULL;
+    }
+
     JSPropertyEnum *props;
     uint32_t prop_len;
     JS_GetOwnPropertyNames(context, &props, &prop_len, value,
@@ -233,19 +245,52 @@ jobject object_to_java_map(JNIEnv *env, JSContext *context, JSValue value) {
     jmethodID put_method = method_linked_hash_map_put(env);
     jobject java_map = (*env)->NewObject(env, map_cls, constructor);
 
+    int value_tag = JS_VALUE_GET_TAG(value);
+    void *value_ptr = JS_VALUE_GET_PTR(value);
+
     for (uint32_t i = 0; i < prop_len; i++) {
         JSAtom prop_atom = props[i].atom;
         JSValue key = JS_AtomToValue(context, prop_atom);
         JSValue val = JS_GetProperty(context, value, prop_atom);
 
+        if (JS_IsNull(key) || JS_IsUndefined(key)) {
+            goto free_values;
+        }
+
+        if (JS_VALUE_GET_TAG(key) == value_tag &&
+            JS_VALUE_GET_PTR(key) == value_ptr) {
+            // Avoid infinite recursion
+            goto free_values;
+        }
+
         jobject java_key = js_value_to_jobject(env, context, key);
-        jobject java_val = js_value_to_jobject(env, context, val);
+        if (try_catch_java_exceptions(env) != NULL) {
+            goto free_values;
+        }
+
+        jobject java_val;
+        if (JS_VALUE_GET_TAG(val) == value_tag &&
+            JS_VALUE_GET_PTR(val) == value_ptr) {
+            // Avoid infinite recursion
+            const char *val_str = JS_ToCString(context, val);
+            java_val = to_java_string(env, val_str);
+            JS_FreeCString(context, val_str);
+        } else if (JS_IsFunction(context, val)) {
+            java_val = to_java_string(env, "[Function]");
+        } else {
+            java_val = js_value_to_jobject(env, context, val);
+            if (try_catch_java_exceptions(env) != NULL) {
+                goto free_values;
+            }
+        }
+
         // Map.put(k, v)
         (*env)->CallObjectMethod(env, java_map, put_method, java_key, java_val);
 
         (*env)->DeleteLocalRef(env, java_key);
         (*env)->DeleteLocalRef(env, java_val);
 
+        free_values:
         JS_FreeValue(context, key);
         JS_FreeValue(context, val);
         JS_FreeAtom(context, prop_atom);

@@ -6,6 +6,12 @@
 #include "log_util.h"
 #include "jni_globals_generated.h"
 
+void throw_circular_ref_error(JSContext *context) {
+    const char *msg = "Unable to map objects with circular reference.";
+    JSValue err = new_simple_js_error(context, msg);
+    JS_Throw(context, err);
+}
+
 JSValue java_list_to_js_array(JNIEnv *env, JSContext *context, jobject java_list) {
     JSValue js_array = JS_NewArray(context);
     jmethodID method_get = method_list_get(env);
@@ -13,6 +19,13 @@ JSValue java_list_to_js_array(JNIEnv *env, JSContext *context, jobject java_list
     int has_exception = 0;
     for (int i = 0; i < size && has_exception == 0; i++) {
         jobject element = (*env)->CallObjectMethod(env, java_list, method_get, i);
+        // Check circular refs
+        if ((*env)->IsSameObject(env, java_list, element)) {
+            (*env)->DeleteLocalRef(env, element);
+            throw_circular_ref_error(context);
+            has_exception = 1;
+            break;
+        }
         JSValue js_element = jobject_to_js_value(env, context, element);
         if (!JS_IsException(js_element)) {
             JS_SetPropertyUint32(context, js_array, i, js_element);
@@ -61,6 +74,13 @@ JSValue java_set_to_js_set(JNIEnv *env, JSContext *context, jobject java_set) {
 
     while ((*env)->CallBooleanMethod(env, iterator, method_has_next)) {
         jobject key = (*env)->CallObjectMethod(env, iterator, method_next);
+        // Check circular refs
+        if ((*env)->IsSameObject(env, java_set, key)) {
+            throw_circular_ref_error(context);
+            JS_FreeValue(context, js_array);
+            (*env)->DeleteLocalRef(env, key);
+            return JS_EXCEPTION;
+        }
         JSValue item = jobject_to_js_value(env, context, key);
         if (JS_IsException(item)) {
             (*env)->DeleteLocalRef(env, key);
@@ -95,8 +115,17 @@ JSValue java_map_to_js_map(JNIEnv *env, JSContext *context, jobject java_map) {
 
     while ((*env)->CallBooleanMethod(env, iterator, method_has_next)) {
         jobject entry = (*env)->CallObjectMethod(env, iterator, method_next);
-
         jobject key = (*env)->CallObjectMethod(env, entry, method_get_key);
+
+        // Check circular refs
+        if ((*env)->IsSameObject(env, java_map, key)) {
+            throw_circular_ref_error(context);
+            JS_FreeValue(context, js_array);
+            (*env)->DeleteLocalRef(env, entry);
+            (*env)->DeleteLocalRef(env, key);
+            return JS_EXCEPTION;
+        }
+
         JSValue js_key = jobject_to_js_value(env, context, key);
         if (JS_IsException(js_key)) {
             (*env)->DeleteLocalRef(env, entry);
@@ -105,6 +134,17 @@ JSValue java_map_to_js_map(JNIEnv *env, JSContext *context, jobject java_map) {
         }
 
         jobject value = (*env)->CallObjectMethod(env, entry, method_get_val);
+
+        // Check circular refs
+        if ((*env)->IsSameObject(env, java_map, value)) {
+            throw_circular_ref_error(context);
+            JS_FreeValue(context, js_array);
+            (*env)->DeleteLocalRef(env, entry);
+            (*env)->DeleteLocalRef(env, key);
+            (*env)->DeleteLocalRef(env, value);
+            return JS_EXCEPTION;
+        }
+
         JSValue js_value = jobject_to_js_value(env, context, value);
         if (JS_IsException(js_value)) {
             (*env)->DeleteLocalRef(env, entry);
@@ -212,6 +252,16 @@ JSValue java_map_to_js_object(JNIEnv *env, JSContext *context, jobject java_map)
         jobject entry = (*env)->CallObjectMethod(env, iterator, method_next);
 
         jobject key = (*env)->CallObjectMethod(env, entry, method_get_key);
+
+        // Check circular refs
+        if ((*env)->IsSameObject(env, java_map, key)) {
+            throw_circular_ref_error(context);
+            JS_FreeValue(context, js_object);
+            (*env)->DeleteLocalRef(env, entry);
+            (*env)->DeleteLocalRef(env, key);
+            return JS_EXCEPTION;
+        }
+
         // Check key type
         if ((*env)->IsInstanceOf(env, key, cls_str) == JNI_FALSE) {
             (*env)->DeleteLocalRef(env, entry);
@@ -224,6 +274,16 @@ JSValue java_map_to_js_object(JNIEnv *env, JSContext *context, jobject java_map)
         const char *str_key = (*env)->GetStringUTFChars(env, key, NULL);
 
         jobject value = (*env)->CallObjectMethod(env, entry, method_get_val);
+
+        // Check circular refs
+        if ((*env)->IsSameObject(env, java_map, value)) {
+            throw_circular_ref_error(context);
+            JS_FreeValue(context, js_object);
+            (*env)->DeleteLocalRef(env, entry);
+            (*env)->DeleteLocalRef(env, key);
+            (*env)->DeleteLocalRef(env, value);
+            return JS_EXCEPTION;
+        }
 
         JSAtom js_key = JS_NewAtom(context, str_key);
         JSValue js_value = jobject_to_js_value(env, context, value);
@@ -371,13 +431,26 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject value) {
         // Object array
         int size = (*env)->GetArrayLength(env, value);
         JSValue js_array = JS_NewArray(context);
+        int has_exception = 0;
         for (uint32_t i = 0; i < size; i++) {
             jobject element = (*env)->GetObjectArrayElement(env, value, i);
+            // Check circular refs
+            if ((*env)->IsSameObject(env, value, element)) {
+                JS_FreeValue(context, js_array);
+                (*env)->DeleteLocalRef(env, element);
+                throw_circular_ref_error(context);
+                has_exception = 1;
+                break;
+            }
             JSValue js_element = jobject_to_js_value(env, context, element);
             JS_SetPropertyUint32(context, js_array, i, js_element);
             (*env)->DeleteLocalRef(env, element);
         }
-        result = js_array;
+        if (has_exception) {
+            result = JS_EXCEPTION;
+        } else {
+            result = js_array;
+        }
     } else {
         char message[100];
         sprintf(message, "Cannot convert java type '%s' to a js value.", cls_name);

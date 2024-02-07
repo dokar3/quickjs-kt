@@ -5,6 +5,7 @@ import com.dokar.quickjs.binding.toJsObject
 import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
@@ -169,6 +170,133 @@ class TypeMappingTest {
                     objects(new Map([["ok", false], ["error", "Nothing"]]))
                 """.trimIndent()
             )
+        }
+    }
+
+    @Test
+    fun jsNestedObjects() = runTest {
+        quickJs {
+            val result = evaluate<Map<Any?, Any?>>(
+                """
+                    const obj = {
+                        id: 1,
+                        request: {
+                            method: "GET",
+                            http: {
+                                http_proxy: "NO_PROXY",
+                            },
+                        },
+                        response: {
+                            status: 200,
+                        }
+                    };
+                    obj;
+                """.trimIndent()
+            )
+            assertEquals(1L, result["id"])
+            val request = result["request"] as Map<*, *>
+            assertEquals(request["method"], "GET")
+            assertEquals((request["http"] as Map<*, *>)["http_proxy"], "NO_PROXY")
+            val response = result["response"] as Map<*, *>
+            assertEquals(200L, response["status"])
+        }
+    }
+
+    @Test
+    fun ktNestedObjects() = runTest {
+        quickJs {
+            val request = mutableMapOf<String, Any?>()
+            request["request"] = mapOf(
+                "url" to "https://www.example.com",
+                "method" to "GET",
+                "headers" to mapOf(
+                    "Content-Type" to "application/json",
+                ),
+            )
+
+            func("getRequest") { request }
+
+            assertEquals(request, evaluate("getRequest()"))
+        }
+    }
+
+    @Test
+    fun jsListNodes() = runTest {
+        quickJs {
+            assertFails {
+                evaluate<Any?>(
+                    """
+                    const head = { prev: null, next: null, val: 0 };
+                    const next = { prev: null, next: null, val: 1 }
+                    const tail = { prev: null, next: null, val: 2 }
+                    head.next = next;
+                    next.prev = head;
+                    next.next = tail;
+                    tail.prev = next;
+                    head;
+                """.trimIndent()
+                )
+            }.also {
+                assertContains(it.message!!, "circular reference")
+            }
+        }
+    }
+
+    @Test
+    fun jsCircularRefObjects() = runTest {
+        quickJs {
+            assertFails {
+                evaluate<Any?>(
+                    """
+                    const object = {};
+                    object.self = object;
+                    object;
+                """.trimIndent()
+                )
+            }.also {
+                assertContains(it.message!!, "circular reference")
+            }
+
+            val globalThis = evaluate<Map<Any?, Any?>>("globalThis")
+            assertEquals("[object Object]", globalThis["globalThis"])
+        }
+    }
+
+    @Test
+    fun ktCircularRefObjects() = runTest {
+        quickJs {
+            func("circularRefArray") {
+                val arr = arrayOf<Any?>(null)
+                arr[0] = arr
+                arr
+            }
+
+            func("circularRefList") {
+                val list = mutableListOf<Any?>(null)
+                list[0] = list
+                list
+            }
+
+            func("circularRefSet") {
+                val set = mutableSetOf<Any?>()
+                set.add(set)
+                set
+            }
+
+            func("circularRefMap") {
+                val map = mutableMapOf<String, Map<*, *>?>()
+                map["next"] = map
+                map
+            }
+
+            assertFails { evaluate("circularRefArray()") }
+                .also { assertContains(it.message!!, "circular reference") }
+            assertFails { evaluate("circularRefList()") }
+                .also { assertContains(it.message!!, "circular reference") }
+            assertFails { evaluate("circularRefSet()") }
+                .also { assertContains(it.message!!, "circular reference") }
+            assertFails { evaluate("circularRefMap()") }
+                .also { assertContains(it.message!!, "circular reference") }
         }
     }
 }

@@ -25,7 +25,6 @@ static jclass _cls_memory_usage = NULL;
 static jclass _cls_js_property = NULL;
 static jclass _cls_js_function = NULL;
 static jclass _cls_js_object = NULL;
-static jclass _cls_coroutine_suspended = NULL;
 
 // Cached methods
 static jmethodID _method_integer_value_of = NULL;
@@ -480,7 +479,7 @@ jmethodID method_memory_usage_init(JNIEnv *env) {
 
 jfieldID field_double_na_n(JNIEnv *env) {
     if (_field_double_na_n == NULL) {
-        _field_double_na_n = (*env)->GetFieldID(env, cls_double(env), "NaN", "D");
+        _field_double_na_n = (*env)->GetStaticFieldID(env, cls_double(env), "NaN", "D");
     }
     return _field_double_na_n;
 }
@@ -597,9 +596,6 @@ void clear_jni_refs_cache(JNIEnv *env) {
     if (_cls_js_object != NULL) {
         (*env)->DeleteGlobalRef(env, _cls_js_object);
     }
-    if (_cls_coroutine_suspended != NULL) {
-        (*env)->DeleteGlobalRef(env, _cls_coroutine_suspended);
-    }
 
     _cls_integer = NULL;
     _cls_long = NULL;
@@ -624,7 +620,6 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _cls_js_property = NULL;
     _cls_js_function = NULL;
     _cls_js_object = NULL;
-    _cls_coroutine_suspended = NULL;
 
     _method_integer_value_of = NULL;
     _method_integer_int_value = NULL;

@@ -8,14 +8,12 @@
 jthrowable new_java_error(JNIEnv *env, const char *format, ...) {
     va_list args;
     va_start(args, format);
-
     int length = vsnprintf(NULL, 0, format, args);
     va_end(args);
 
     char *result = (char *) malloc(length + 1);
 
     va_start(args, format);
-
     vsnprintf(result, length + 1, format, args);
     va_end(args);
 
@@ -26,14 +24,12 @@ jthrowable new_java_error(JNIEnv *env, const char *format, ...) {
 void jni_throw_exception(JNIEnv *env, const char *format, ...) {
     va_list args;
     va_start(args, format);
-
     int length = vsnprintf(NULL, 0, format, args);
     va_end(args);
 
     char *result = (char *) malloc(length + 1);
 
     va_start(args, format);
-
     vsnprintf(result, length + 1, format, args);
     va_end(args);
 

@@ -33,7 +33,7 @@ const JNI_REFS = [
       { name: "valueOf", sign: "(D)Ljava/lang/Double;", isStatic: true },
       { name: "doubleValue", sign: "()D" },
     ],
-    fields: [{ name: "NaN", type: "D" }],
+    fields: [{ name: "NaN", type: "D", isStatic: true }],
   },
   {
     className: "java/lang/Boolean",

@@ -50,8 +50,6 @@ jclass cls_js_function(JNIEnv *env);
 
 jclass cls_js_object(JNIEnv *env);
 
-jclass cls_coroutine_suspended(JNIEnv *env);
-
 jmethodID method_integer_value_of(JNIEnv *env);
 
 jmethodID method_integer_int_value(JNIEnv *env);
