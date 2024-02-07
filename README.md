@@ -1,9 +1,11 @@
 <div align="center">
 <h1> QuickJS - KT </h1>
+<p>Run your JavaScript code in Kotlin, asynchronously.</p>
+<img src="./media/async-eval-demo.gif" alt="The async eval demo">
 </div>
 
 
-A [QuickJS](https://bellard.org/quickjs/) binding for idiomatic Kotlin. Inspired by Cash App's [Zipline](https://github.com/cashapp/zipline) (previously Duktape Android) but with more flexibility.
+This is a [QuickJS](https://bellard.org/quickjs/) binding for idiomatic Kotlin, inspired by Cash App's [Zipline](https://github.com/cashapp/zipline) (previously Duktape Android) but with more flexibility.
 
 ### Another QuickJS wrapper?
 
@@ -36,7 +38,7 @@ quickjs-kt = { module = "io.github.dokar3:quickjs-kt", version = "<VERSION>" }
 
 ### Execute
 
-with DSL (This is recommended if you don't need long live instance):
+with DSL (This is recommended if you don't need long-live instances):
 
 ```kotlin
 coroutineScope.launch {
@@ -57,13 +59,13 @@ coroutineScope.launch {
 }
 ```
 
-Compile and execute the bytecode:
+Compile and execute:
 
 ```kotlin
 coroutineScope.launch {
     quickJs {
-        val buffer = compile("1 + 2")
-        val result = execute<Int>(buffer)
+        val bytecode = compile("1 + 2")
+        val result = execute<Int>(bytecode)
     }
 }
 ```
