@@ -1,5 +1,8 @@
 package com.dokar.quickjs
 
+/**
+ * QuickJS runtime memory usage.
+ */
 class MemoryUsage(
     val mallocLimit: Long,
     val mallocSize: Long,
