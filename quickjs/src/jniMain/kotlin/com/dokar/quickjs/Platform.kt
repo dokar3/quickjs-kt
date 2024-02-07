@@ -1,3 +1,3 @@
 package com.dokar.quickjs
 
-expect fun loadNativeLibrary(libraryName: String)
+internal expect fun loadNativeLibrary(libraryName: String)

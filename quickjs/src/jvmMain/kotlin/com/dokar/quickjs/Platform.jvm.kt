@@ -9,7 +9,7 @@ import java.util.Locale.US
 // Based on https://github.com/cashapp/zipline/blob/trunk/zipline/src/jvmMain/kotlin/app/cash/zipline/QuickJsNativeLoader.kt
 // Add windows support
 @Suppress("UnsafeDynamicallyLoadedCode")
-actual fun loadNativeLibrary(libraryName: String) {
+internal actual fun loadNativeLibrary(libraryName: String) {
     val osName = System.getProperty("os.name").lowercase(US)
     val arch = when (val osArch = System.getProperty("os.arch").lowercase(US)) {
         "amd64" -> "x64"
