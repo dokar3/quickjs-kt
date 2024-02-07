@@ -6,7 +6,6 @@ import com.dokar.quickjs.binding.FunctionBinding
 import com.dokar.quickjs.binding.JsFunction
 import com.dokar.quickjs.binding.JsObjectHandle
 import com.dokar.quickjs.binding.JsProperty
-import com.dokar.quickjs.binding.ModuleReturns
 import com.dokar.quickjs.binding.ObjectBinding
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -213,16 +212,7 @@ actual class QuickJs(
         loadModules()
         evalBlock()
         awaitAsyncJobs()
-        val moduleReturns = globalFunctions.values.find { it is ModuleReturns }
-        val result = if (moduleReturns is ModuleReturns &&
-            moduleReturns.returnValue != ModuleReturns.Unset
-        ) {
-            // Get result from returns()
-            moduleReturns.returnValue
-        } else {
-            // Get result from promise
-            getExecuteResult(context, globals)
-        }
+        val result = getExecuteResult(context, globals)
         handleException()
         return result
     }

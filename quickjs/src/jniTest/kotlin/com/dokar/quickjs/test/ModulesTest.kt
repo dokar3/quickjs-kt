@@ -1,7 +1,6 @@
 package com.dokar.quickjs.test
 
 import com.dokar.quickjs.QuickJs
-import com.dokar.quickjs.binding.ModuleReturns
 import com.dokar.quickjs.binding.func
 import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.test.runTest
@@ -16,9 +15,10 @@ class ModulesTest {
         quickJs {
             setupHelloModule()
 
-            func("returns", ModuleReturns())
+            var result: String? = null
+            func("returns") { result = it.first() as String}
 
-            val result = evaluate<String>(
+            evaluate<Any?>(
                 """
                     import * as hello from "hello";
                     returns(hello.greeting());
@@ -34,9 +34,10 @@ class ModulesTest {
         quickJs {
             setupHelloModuleBytecode()
 
-            func("returns", ModuleReturns())
+            var result: String? = null
+            func("returns") { result = it.first() as String }
 
-            val result = evaluate<String>(
+            evaluate<Any?>(
                 """
                     import * as hello from "hello";
                     returns(hello.greeting());
@@ -66,13 +67,14 @@ class ModulesTest {
     @Test
     fun returnsInBytecode() = runTest {
         quickJs {
-            func("returns", ModuleReturns())
+            var result: String? = null
+            func("returns") { result = it.first() as String }
 
             val bytecode = compile(
                 code = "returns('OK');",
                 asModule = true,
             )
-            val result = execute<String>(bytecode)
+            execute<Any?>(bytecode)
             assertEquals("OK", result)
         }
     }

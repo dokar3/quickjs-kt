@@ -199,15 +199,15 @@ quickJs {
 }
 ```
 
-When evaluating ES module code, no return values will be captured unless you use the global utility function `returns()` to pass your result to Kotlin.
+When evaluating ES module code, no return values will be captured, you may need a function binding to receive the result.
 
 ```kotlin
 quickJs {
     // ...
+    var result: Any? = null
+    func("returns") { result = it.first() }
     
-    func("returns", ModuleReturns())
-    
-    val result = evaluate<String>(
+    evaluate<Any?>(
         """
             import * as hello from "hello";
             // Pass the script result here

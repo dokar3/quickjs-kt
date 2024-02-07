@@ -127,9 +127,7 @@ expect class QuickJs {
     /**
      * Compile javascript code to QuickJS bytecode.
      *
-     * ES modules syntax is available when [asModule] is true. When evaluating a module, no
-     * result will be captured unless an explicit result value was passed in the global function
-     * `returns()`
+     * ES modules syntax is available when [asModule] is true.
      *
      * @param code The code to compile.
      * @param filename The script filename.
@@ -152,9 +150,7 @@ expect class QuickJs {
     /**
      * Evaluate javascript code.
      *
-     * ES modules syntax is available when [asModule] is true. When evaluating a module, no
-     * result will be captured unless an explicit result value was passed in the global function
-     * `returns()`
+     * ES modules syntax is available when [asModule] is true.
      *
      * @param T The result type.
      * @param code The code to evaluate.

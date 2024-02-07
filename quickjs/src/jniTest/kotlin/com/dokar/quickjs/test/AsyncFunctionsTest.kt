@@ -1,7 +1,6 @@
 package com.dokar.quickjs.test
 
 import com.dokar.quickjs.QuickJs
-import com.dokar.quickjs.binding.ModuleReturns
 import com.dokar.quickjs.binding.asyncFunc
 import com.dokar.quickjs.binding.func
 import com.dokar.quickjs.quickJs
@@ -154,7 +153,8 @@ class AsyncFunctionsTest {
     @Test
     fun compileAndEvalAsyncModule() = runTest {
         quickJs {
-            func("returns", ModuleReturns())
+            var result: String? = null
+            func("returns") { result = it.first() as String }
 
             asyncFunc("delay") { delay(it[0] as Long) }
 
@@ -165,7 +165,8 @@ class AsyncFunctionsTest {
                 """.trimIndent(),
                 asModule = true,
             )
-            assertEquals("OK", execute(bytecode))
+            execute<Any?>(bytecode)
+            assertEquals("OK", result)
         }
     }
 
