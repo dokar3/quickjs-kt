@@ -74,7 +74,6 @@ android {
                     "-DTARGET_PLATFORM=android",
                 )
                 cFlags("-fstrict-aliasing")
-                cppFlags("-fstrict-aliasing")
             }
         }
 
@@ -95,13 +94,6 @@ android {
                         "-DNDEBUG",
                         "-fvisibility=hidden"
                     )
-                    cppFlags(
-                        "-g0",
-                        "-Os",
-                        "-fomit-frame-pointer",
-                        "-DNDEBUG",
-                        "-fvisibility=hidden"
-                    )
                 }
             }
         }
@@ -110,7 +102,6 @@ android {
             externalNativeBuild {
                 cmake {
                     cFlags("-g", "-DDEBUG", "-DDUMP_LEAKS")
-                    cppFlags("-g", "-DDEBUG", "-DDUMP_LEAKS")
                 }
             }
         }
