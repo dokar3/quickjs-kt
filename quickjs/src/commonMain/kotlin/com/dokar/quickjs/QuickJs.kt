@@ -23,11 +23,11 @@ suspend inline fun <T : Any?> quickJs(block: QuickJs.() -> T): T {
 /**
  * DSL for [QuickJs]. The instance will be closed automatically when the [block] is finished.
  *
- * @param dispatcher The dispatcher for executing async jobs. Not used for [QuickJs.evaluate]
+ * @param jobDispatcher The dispatcher for executing async jobs. Not used for [QuickJs.evaluate]
  * and [QuickJs.execute].
  */
-inline fun <T : Any?> quickJs(dispatcher: CoroutineDispatcher, block: QuickJs.() -> T): T {
-    val quickJs = QuickJs.create(jobDispatcher = dispatcher)
+inline fun <T : Any?> quickJs(jobDispatcher: CoroutineDispatcher, block: QuickJs.() -> T): T {
+    val quickJs = QuickJs.create(jobDispatcher = jobDispatcher)
     return try {
         quickJs.block()
     } finally {

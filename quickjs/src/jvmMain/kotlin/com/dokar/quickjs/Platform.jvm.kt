@@ -7,7 +7,7 @@ import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import java.util.Locale.US
 
 // Based on https://github.com/cashapp/zipline/blob/trunk/zipline/src/jvmMain/kotlin/app/cash/zipline/QuickJsNativeLoader.kt
-// Add windows support
+// Updated to support Windows dll
 @Suppress("UnsafeDynamicallyLoadedCode")
 internal actual fun loadNativeLibrary(libraryName: String) {
     val osName = System.getProperty("os.name").lowercase(US)
@@ -26,7 +26,7 @@ internal actual fun loadNativeLibrary(libraryName: String) {
     } else {
         throw IllegalStateException("Unsupported OS and arch: $osName, $arch")
     }
-    val classLoader = QuickJs::class.java.classLoader
+    val classLoader = QuickJs::class.java.classLoader!!
     val nativeLibraryUrl = classLoader.getResource(nativeLibraryJarPath)
         ?: classLoader.getResource(nativeLibraryJarPath.substring(1)) // Relative path
         ?: throw IllegalStateException("Unable to read $nativeLibraryJarPath from JAR")
