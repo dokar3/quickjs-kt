@@ -56,7 +56,7 @@ suspend inline fun <reified T> QuickJs.eval(
  */
 @ExperimentalQuickJsApi
 @Throws(QuickJsException::class)
-suspend inline fun <reified T> QuickJs.exec(bytecode: ByteArray): T {
+suspend inline fun <reified T> QuickJs.eval(bytecode: ByteArray): T {
     return evaluate(bytecode = bytecode)
 }
 
