@@ -12,11 +12,11 @@ This is a [QuickJS](https://bellard.org/quickjs/) binding for idiomatic Kotlin, 
 
 There are a few QuickJS wrappers for Android already. Some written in Java are not Kotlin Multiplatform friendly, and some lack updates.
 
-Zipline is great and KMP-friendly, but it focuses on executing Kotlin/JS modules. Its API is limited to running arbitrary JavaScript code with platform bindings. 
+Zipline is great and KMP-friendly, but it focuses on running Kotlin/JS modules. Its API is limited to running arbitrary JavaScript code with platform bindings. 
 
 That's why I created this library, with some good features:
 
-- Simple and idiomatic Kotlin APIs, it's easy to define binding and execute arbitrary code
+- Simple and idiomatic Kotlin APIs, it's easy to define binding and evaluate arbitrary code
 - Highly integrated with **Kotlin Coroutines**, it is `async` and `suspend`ed. See [#Async](#async)
 - Kotlin Multiplatform targets, currently `Android` and `JVM` are supported
 - The latest version of QuickJS
@@ -37,7 +37,7 @@ Or in `libs.versions.toml`:
 quickjs-kt = { module = "io.github.dokar3:quickjs-kt", version = "<VERSION>" }
 ```
 
-### Execute
+### Evaluate
 
 with DSL (This is recommended if you don't need long-live instances):
 
@@ -60,13 +60,13 @@ coroutineScope.launch {
 }
 ```
 
-Compile and execute:
+Evaluate the compiled bytecode:
 
 ```kotlin
 coroutineScope.launch {
     quickJs {
         val bytecode = compile("1 + 2")
-        val result = execute<Int>(bytecode)
+        val result = evaluate<Int>(bytecode)
     }
 }
 ```
@@ -131,7 +131,7 @@ Binding classes need to be added to ProGuard rules files.
 
 This library gives you the ability to define [async functions](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function). Within the `QuickJs` instance, a coroutine scope is created to launch async jobs, a job `Dispatcher` can also be passed when creating the instance.
 
-`evaluate()`, `execute()`, and `quickJs{}` are `suspend` functions, which make your async jobs await in the caller scope. All pending jobs will be canceled when the caller scope is canceled or the instance is closed.
+`evaluate()` and `quickJs{}` are `suspend` functions, which make your async jobs await in the caller scope. All pending jobs will be canceled when the caller scope is canceled or the instance is closed.
 
 To define async functions, easily call `asyncFunc()`:
 
@@ -243,7 +243,7 @@ quickJs {
     asyncFunc("delay") { delay(1000) }
 
     eval<Any?>("fetch()")
-    exec<Any?>(compile(code = "fetch()"))
+    eval<Any?>(compile(code = "fetch()"))
 }
 ```
 
@@ -253,12 +253,10 @@ Use the DSL aliases then!
 -import com.dokar.quickjs.binding.define
 -import com.dokar.quickjs.binding.function
 -import com.dokar.quickjs.binding.asyncFunction
--import com.dokar.quickjs.execute
 -import com.dokar.quickjs.evaluate
 +import com.dokar.quickjs.alias.def
 +import com.dokar.quickjs.alias.func
 +import com.dokar.quickjs.alias.asyncFunc
-+import com.dokar.quickjs.alias.exec
 +import com.dokar.quickjs.alias.eval
 +import com.dokar.quickjs.alias.prop
 ```

@@ -33,9 +33,9 @@ class TypeMappingTest {
             )
             val result = evaluate<Map<String, Any>>(
                 """
-                const result = { ok: false, error: 'Seems good' };
-                result
-                """.trimIndent()
+                        const result = { ok: false, error: 'Seems good' };
+                        result
+                        """.trimIndent()
             )
             assertEquals(mapOf("ok" to false, "error" to "Seems good"), result)
         }
@@ -129,16 +129,16 @@ class TypeMappingTest {
             }
             evaluate<Any?>(
                 """
-                    arrays([
-                        1,
-                        1.2,
-                        false,
-                        "hello",
-                        [1, 2],
-                        null,
-                        undefined,
-                    ])
-                """.trimIndent()
+                            arrays([
+                                1,
+                                1.2,
+                                false,
+                                "hello",
+                                [1, 2],
+                                null,
+                                undefined,
+                            ])
+                        """.trimIndent()
             )
         }
     }
@@ -166,9 +166,9 @@ class TypeMappingTest {
             }
             evaluate<Any?>(
                 """
-                    objects({ ok: false, error: "Nothing" })
-                    objects(new Map([["ok", false], ["error", "Nothing"]]))
-                """.trimIndent()
+                            objects({ ok: false, error: "Nothing" })
+                            objects(new Map([["ok", false], ["error", "Nothing"]]))
+                        """.trimIndent()
             )
         }
     }
@@ -178,20 +178,20 @@ class TypeMappingTest {
         quickJs {
             val result = evaluate<Map<Any?, Any?>>(
                 """
-                    const obj = {
-                        id: 1,
-                        request: {
-                            method: "GET",
-                            http: {
-                                http_proxy: "NO_PROXY",
-                            },
-                        },
-                        response: {
-                            status: 200,
-                        }
-                    };
-                    obj;
-                """.trimIndent()
+                            const obj = {
+                                id: 1,
+                                request: {
+                                    method: "GET",
+                                    http: {
+                                        http_proxy: "NO_PROXY",
+                                    },
+                                },
+                                response: {
+                                    status: 200,
+                                }
+                            };
+                            obj;
+                        """.trimIndent()
             )
             assertEquals(1L, result["id"])
             val request = result["request"] as Map<*, *>
@@ -226,15 +226,15 @@ class TypeMappingTest {
             assertFails {
                 evaluate<Any?>(
                     """
-                    const head = { prev: null, next: null, val: 0 };
-                    const next = { prev: null, next: null, val: 1 }
-                    const tail = { prev: null, next: null, val: 2 }
-                    head.next = next;
-                    next.prev = head;
-                    next.next = tail;
-                    tail.prev = next;
-                    head;
-                """.trimIndent()
+                                const head = { prev: null, next: null, val: 0 };
+                                const next = { prev: null, next: null, val: 1 }
+                                const tail = { prev: null, next: null, val: 2 }
+                                head.next = next;
+                                next.prev = head;
+                                next.next = tail;
+                                tail.prev = next;
+                                head;
+                            """.trimIndent()
                 )
             }.also {
                 assertContains(it.message!!, "circular reference")
@@ -248,10 +248,10 @@ class TypeMappingTest {
             assertFails {
                 evaluate<Any?>(
                     """
-                    const object = {};
-                    object.self = object;
-                    object;
-                """.trimIndent()
+                                const object = {};
+                                object.self = object;
+                                object;
+                            """.trimIndent()
                 )
             }.also {
                 assertContains(it.message!!, "circular reference")

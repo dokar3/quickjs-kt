@@ -68,12 +68,12 @@ class AsyncFunctionsTest {
             val evalJob = launch {
                 evaluate<String>(
                     """
-                    update("Started");
-                    await delay(1000);
-                    update("Next");
-                    await delay(1000);
-                    update("Done");
-                """.trimIndent()
+                                update("Started");
+                                await delay(1000);
+                                update("Next");
+                                await delay(1000);
+                                update("Done");
+                            """.trimIndent()
                 )
             }
 
@@ -97,9 +97,9 @@ class AsyncFunctionsTest {
             val evalJob = launch {
                 result = evaluate<String>(
                     """
-                    await Promise.all([delay(1000), delay(2000)]);
-                    "OK";
-                """.trimIndent()
+                                await Promise.all([delay(1000), delay(2000)]);
+                                "OK";
+                            """.trimIndent()
                 )
             }
             advanceTimeBy(500)
@@ -126,9 +126,9 @@ class AsyncFunctionsTest {
             assertFails {
                 evaluate<String>(
                     """
-                    await Promise.all([delay(1000), delay(2000), fail()]);
-                    "OK";
-                """.trimIndent()
+                                await Promise.all([delay(1000), delay(2000), fail()]);
+                                "OK";
+                            """.trimIndent()
                 )
             }
             assertEquals(1, delayedCount)
@@ -146,7 +146,7 @@ class AsyncFunctionsTest {
                     "OK";
                 """.trimIndent()
             )
-            assertEquals("OK", execute(bytecode))
+            assertEquals("OK", evaluate(bytecode))
         }
     }
 
@@ -165,7 +165,7 @@ class AsyncFunctionsTest {
                 """.trimIndent(),
                 asModule = true,
             )
-            execute<Any?>(bytecode)
+            evaluate<Any?>(bytecode)
             assertEquals("OK", result)
         }
     }

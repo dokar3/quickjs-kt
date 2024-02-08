@@ -64,13 +64,13 @@ class BindingTest {
 
             evaluate<Any>(
                 """
-                    if(app.version !== "1.2.0") {
-                       throw new Error("Failed to validate version");
-                    }
-                    app.name = "My App";
-                    app.launch();
-                    app.launch();
-                """.trimIndent()
+                            if(app.version !== "1.2.0") {
+                               throw new Error("Failed to validate version");
+                            }
+                            app.name = "My App";
+                            app.launch();
+                            app.launch();
+                        """.trimIndent()
             )
         }
 

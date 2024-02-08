@@ -4,10 +4,10 @@ Using zig for cross-compiling, based on [zig-cross](https://github.com/mrexodia/
 
 ### Requirements
 
-- [zig](https://ziglang.org/)
-- Windows x64 JDK and Linux x64 JDK
+- [Zig](https://ziglang.org/)
+- Windows, Linux, and macOS JDK
 - [CMake](https://cmake.org/)
-- Android SDK
+- Android NDK
 
 ### Build
 

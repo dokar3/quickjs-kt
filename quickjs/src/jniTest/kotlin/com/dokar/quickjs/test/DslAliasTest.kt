@@ -4,7 +4,6 @@ import com.dokar.quickjs.ExperimentalQuickJsApi
 import com.dokar.quickjs.alias.asyncFunc
 import com.dokar.quickjs.alias.def
 import com.dokar.quickjs.alias.eval
-import com.dokar.quickjs.alias.exec
 import com.dokar.quickjs.alias.func
 import com.dokar.quickjs.alias.prop
 import com.dokar.quickjs.quickJs
@@ -47,7 +46,7 @@ class DslAliasTest {
             assertEquals("Hello", eval("fetch()"))
 
             val bytecode = compile(code = "fetch()")
-            assertEquals("Hello", exec(bytecode))
+            assertEquals("Hello", eval(bytecode))
         }
     }
 }

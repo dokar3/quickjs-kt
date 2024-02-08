@@ -52,12 +52,12 @@ suspend inline fun <reified T> QuickJs.eval(
 }
 
 /**
- * Alias for [QuickJs.execute].
+ * Alias for [QuickJs.evaluate].
  */
 @ExperimentalQuickJsApi
 @Throws(QuickJsException::class)
-suspend inline fun <reified T> QuickJs.exec(bytecode: ByteArray): T {
-    return execute(bytecode = bytecode)
+suspend inline fun <reified T> QuickJs.eval(bytecode: ByteArray): T {
+    return evaluate(bytecode = bytecode)
 }
 
 /**
