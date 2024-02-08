@@ -1,8 +1,8 @@
 package com.dokar.quickjs.test
 
 import com.dokar.quickjs.QuickJs
-import com.dokar.quickjs.binding.asyncFunc
-import com.dokar.quickjs.binding.func
+import com.dokar.quickjs.binding.asyncFunction
+import com.dokar.quickjs.binding.function
 import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -21,7 +21,7 @@ class AsyncFunctionsTest {
     @Test
     fun runAsyncResolved() = runTest {
         quickJs {
-            asyncFunc("fetch") { "Hello" }
+            asyncFunction("fetch") { "Hello" }
 
             assertEquals("Hello", evaluate("await fetch()"))
         }
@@ -30,7 +30,7 @@ class AsyncFunctionsTest {
     @Test
     fun runAsyncRejected() = runTest {
         quickJs {
-            asyncFunc("fetch") { error("Unavailable") }
+            asyncFunction("fetch") { error("Unavailable") }
 
             assertFails {
                 evaluate<Any?>("await fetch()")
@@ -43,7 +43,7 @@ class AsyncFunctionsTest {
     @Test
     fun runDelayAsPromise() = runTest {
         quickJs {
-            asyncFunc("delay") { delay(it[0] as Long) }
+            asyncFunction("delay") { delay(it[0] as Long) }
 
             var result: String? = null
             launch {
@@ -61,9 +61,9 @@ class AsyncFunctionsTest {
         quickJs {
             var result: Any? = null
 
-            func("update") { result = it[0] }
+            function("update") { result = it[0] }
 
-            asyncFunc("delay") { delay(it[0] as Long) }
+            asyncFunction("delay") { delay(it[0] as Long) }
 
             val evalJob = launch {
                 evaluate<String>(
@@ -91,7 +91,7 @@ class AsyncFunctionsTest {
     @Test
     fun runPromiseDotAll() = runTest {
         quickJs {
-            asyncFunc("delay") { delay(it[0] as Long) }
+            asyncFunction("delay") { delay(it[0] as Long) }
 
             var result: String? = null
             val evalJob = launch {
@@ -114,11 +114,11 @@ class AsyncFunctionsTest {
     fun runPromiseDotAllWithOneRejected() = runTest {
         quickJs {
             var delayedCount = 0
-            asyncFunc("delay") {
+            asyncFunction("delay") {
                 delay(it[0] as Long)
                 delayedCount++
             }
-            asyncFunc("fail") {
+            asyncFunction("fail") {
                 delay(1500)
                 error("Fails")
             }
@@ -138,7 +138,7 @@ class AsyncFunctionsTest {
     @Test
     fun compileAndEvalAsync() = runTest {
         quickJs {
-            asyncFunc("delay") { delay(it[0] as Long) }
+            asyncFunction("delay") { delay(it[0] as Long) }
 
             val bytecode = compile(
                 code = """
@@ -154,9 +154,9 @@ class AsyncFunctionsTest {
     fun compileAndEvalAsyncModule() = runTest {
         quickJs {
             var result: String? = null
-            func("returns") { result = it.first() as String }
+            function("returns") { result = it.first() as String }
 
-            asyncFunc("delay") { delay(it[0] as Long) }
+            asyncFunction("delay") { delay(it[0] as Long) }
 
             val bytecode = compile(
                 code = """
@@ -182,7 +182,7 @@ class AsyncFunctionsTest {
 
             quickJs {
                 instance = this
-                asyncFunc("delay") {
+                asyncFunction("delay") {
                     delay(it[0] as Long)
                 }
 

@@ -17,14 +17,14 @@ fun QuickJs.define(
 /**
  * Define a function and attach to 'globalThis'.
  */
-fun <R> QuickJs.func(name: String, block: FunctionBinding<R>) {
+fun <R> QuickJs.function(name: String, block: FunctionBinding<R>) {
     defineBinding(name = name, binding = block)
 }
 
 /**
  * Define an `async` function and attach to 'globalThis'.
  */
-fun <R> QuickJs.asyncFunc(name: String, block: AsyncFunctionBinding<R>) {
+fun <R> QuickJs.asyncFunction(name: String, block: AsyncFunctionBinding<R>) {
     defineBinding(name = name, binding = block)
 }
 
@@ -40,17 +40,17 @@ interface ObjectBindingScope {
     /**
      * Define a property on parent.
      */
-    fun <T> prop(name: String, block: PropertyScope<T>.() -> Unit)
+    fun <T> property(name: String, block: PropertyScope<T>.() -> Unit)
 
     /**
      * Define a function on parent.
      */
-    fun <R> func(name: String, block: FunctionBinding<R>)
+    fun <R> function(name: String, block: FunctionBinding<R>)
 
     /**
      * Define an `async` function on parent.
      */
-    fun <R> asyncFunc(name: String, block: AsyncFunctionBinding<R>)
+    fun <R> asyncFunction(name: String, block: AsyncFunctionBinding<R>)
 }
 
 interface PropertyScope<T> {

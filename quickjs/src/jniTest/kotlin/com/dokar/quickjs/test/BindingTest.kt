@@ -1,7 +1,7 @@
 package com.dokar.quickjs.test
 
 import com.dokar.quickjs.binding.define
-import com.dokar.quickjs.binding.func
+import com.dokar.quickjs.binding.function
 import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -13,7 +13,7 @@ class BindingTest {
     @Test
     fun bindFunction() = runTest {
         val result = quickJs {
-            func("hello") { "World" }
+            function("hello") { "World" }
             evaluate<String>("hello()")
         }
         assertEquals("World", result)
@@ -22,18 +22,17 @@ class BindingTest {
     @Test
     fun bindObject() = runTest  {
         val result = quickJs {
-            func("console") {}
+            function("console") {}
             evaluate<Boolean>("console != null")
         }
         assertTrue(result)
     }
 
-
     @Test
     fun bindObjectWithReadOnlyProp() = runTest  {
         quickJs {
             define("logger") {
-                prop("level") {
+                property("level") {
                     writable = false
                     getter { "Debug" }
                 }
@@ -51,16 +50,16 @@ class BindingTest {
 
         quickJs {
             define("app") {
-                prop("version") {
+                property("version") {
                     getter { version }
                 }
 
-                prop("name") {
+                property("name") {
                     getter { name }
                     setter { name = it }
                 }
 
-                func("launch") { launchCount++ }
+                function("launch") { launchCount++ }
             }
 
             evaluate<Any>(

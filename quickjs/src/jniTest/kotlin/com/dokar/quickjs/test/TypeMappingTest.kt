@@ -1,6 +1,6 @@
 package com.dokar.quickjs.test
 
-import com.dokar.quickjs.binding.func
+import com.dokar.quickjs.binding.function
 import com.dokar.quickjs.binding.toJsObject
 import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.test.runTest
@@ -44,19 +44,19 @@ class TypeMappingTest {
     @Test
     fun ktReturns() = runTest {
         quickJs {
-            func("returnsBoolean") { false }
-            func("returnsInt") { 1 }
-            func("returnsLong") { 1L }
-            func("returnsFloat") { 1.2f }
-            func("returnsDouble") { 1.2 }
-            func("returnsString") { "hello" }
-            func("returnsArray") { arrayOf("hello") }
-            func("returnsUnsupportedArray") { arrayOf("hello", Any()) }
-            func("returnsList") { listOf("hello") }
-            func("returnsSet") { setOf("hello") }
-            func("returnsMap") { mapOf("hello" to "world") }
-            func("returnsJsObject") { mapOf("hello" to "world").toJsObject() }
-            func("returnsAny") { Any() }
+            function("returnsBoolean") { false }
+            function("returnsInt") { 1 }
+            function("returnsLong") { 1L }
+            function("returnsFloat") { 1.2f }
+            function("returnsDouble") { 1.2 }
+            function("returnsString") { "hello" }
+            function("returnsArray") { arrayOf("hello") }
+            function("returnsUnsupportedArray") { arrayOf("hello", Any()) }
+            function("returnsList") { listOf("hello") }
+            function("returnsSet") { setOf("hello") }
+            function("returnsMap") { mapOf("hello" to "world") }
+            function("returnsJsObject") { mapOf("hello" to "world").toJsObject() }
+            function("returnsAny") { Any() }
 
             assertEquals(false, evaluate("returnsBoolean()"))
             assertEquals(1, evaluate("returnsInt()"))
@@ -77,10 +77,10 @@ class TypeMappingTest {
     @Test
     fun jsPassesNumbers() = runTest {
         quickJs {
-            func("ints") {
+            function("ints") {
                 assertEquals(1L, it[0])
             }
-            func("floats") {
+            function("floats") {
                 if (it[0] is Long) {
                     // 1.0 will be converted to a long
                     assertEquals(1L, it[0])
@@ -95,7 +95,7 @@ class TypeMappingTest {
     @Test
     fun jsPassesBooleans() = runTest {
         quickJs {
-            func("booleans") {
+            function("booleans") {
                 assertTrue(it[0] is Boolean)
             }
             evaluate<Any?>("booleans(false); booleans(true)")
@@ -105,7 +105,7 @@ class TypeMappingTest {
     @Test
     fun jsPassesStrings() = runTest {
         quickJs {
-            func("strings") {
+            function("strings") {
                 assertEquals("Hello", it[0])
             }
             evaluate<Any?>("strings('Hello')")
@@ -115,7 +115,7 @@ class TypeMappingTest {
     @Test
     fun jsPassesArrays() = runTest {
         quickJs {
-            func("arrays") {
+            function("arrays") {
                 val arr = it[0]
                 assertTrue(arr is Array<*>)
                 assertTrue(arr[0] is Long)
@@ -146,7 +146,7 @@ class TypeMappingTest {
     @Test
     fun jsPassesSets() = runTest {
         quickJs {
-            func("sets") {
+            function("sets") {
                 val set = it[0]
                 assertTrue(set is Set<*>)
                 assertEquals(setOf(0L, 1L), set)
@@ -158,7 +158,7 @@ class TypeMappingTest {
     @Test
     fun jsPassesObjectsAndMaps() = runTest {
         quickJs {
-            func("objects") {
+            function("objects") {
                 val map = it[0]
                 assertTrue(map is Map<*, *>)
                 assertEquals(false, map["ok"])
@@ -214,7 +214,7 @@ class TypeMappingTest {
                 ),
             )
 
-            func("getRequest") { request }
+            function("getRequest") { request }
 
             assertEquals(request, evaluate("getRequest()"))
         }
@@ -265,25 +265,25 @@ class TypeMappingTest {
     @Test
     fun ktCircularRefObjects() = runTest {
         quickJs {
-            func("circularRefArray") {
+            function("circularRefArray") {
                 val arr = arrayOf<Any?>(null)
                 arr[0] = arr
                 arr
             }
 
-            func("circularRefList") {
+            function("circularRefList") {
                 val list = mutableListOf<Any?>(null)
                 list[0] = list
                 list
             }
 
-            func("circularRefSet") {
+            function("circularRefSet") {
                 val set = mutableSetOf<Any?>()
                 set.add(set)
                 set
             }
 
-            func("circularRefMap") {
+            function("circularRefMap") {
                 val map = mutableMapOf<String, Map<*, *>?>()
                 map["next"] = map
                 map

@@ -13,10 +13,10 @@ class ReplMain : CliktCommand() {
     override fun run() = runBlocking {
         quickJs {
             define("console") {
-                func("log") { terminal.println(it.joinToString(" ")) }
-                func("info") { terminal.println(it.joinToString(" ")) }
-                func("warn") { terminal.println(it.joinToString(" ")) }
-                func("error") { terminal.danger(it.joinToString(" "), stderr = true) }
+                function("log") { terminal.println(it.joinToString(" ")) }
+                function("info") { terminal.println(it.joinToString(" ")) }
+                function("warn") { terminal.println(it.joinToString(" ")) }
+                function("error") { terminal.danger(it.joinToString(" "), stderr = true) }
             }
 
             while (isActive) {

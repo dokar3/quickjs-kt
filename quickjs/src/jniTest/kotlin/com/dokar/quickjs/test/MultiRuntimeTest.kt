@@ -33,15 +33,15 @@ class MultiRuntimeTest {
 
     private fun initRuntime(app: App) = QuickJs.create().apply {
         define("app") {
-            prop("name") {
+            property("name") {
                 getter { app.name }
             }
 
-            prop("version") {
+            property("version") {
                 getter { app.version }
             }
 
-            func("launch") { app.launched = true }
+            function("launch") { app.launched = true }
         }
     }
 

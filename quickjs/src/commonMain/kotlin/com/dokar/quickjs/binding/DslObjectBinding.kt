@@ -68,7 +68,7 @@ internal class ObjectBindingScopeImpl(
         subScopes.add(ObjectBindingScopeImpl(name = name).also(block))
     }
 
-    override fun <T> prop(name: String, block: PropertyScope<T>.() -> Unit) {
+    override fun <T> property(name: String, block: PropertyScope<T>.() -> Unit) {
         val prop = DslProperty<T>(name = name).also(block)
         if (prop.getter == null) {
             qjsError("property($name) requires a getter {}.")
@@ -76,11 +76,11 @@ internal class ObjectBindingScopeImpl(
         properties.add(prop)
     }
 
-    override fun <R> func(name: String, block: FunctionBinding<R>) {
+    override fun <R> function(name: String, block: FunctionBinding<R>) {
         functions.add(DslFunction(name = name, call = block))
     }
 
-    override fun <R> asyncFunc(name: String, block: AsyncFunctionBinding<R>) {
+    override fun <R> asyncFunction(name: String, block: AsyncFunctionBinding<R>) {
         functions.add(DslFunction(name = name, call = block))
     }
 }

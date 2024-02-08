@@ -48,9 +48,9 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.dokar.quickjs.binding.asyncFunc
+import com.dokar.quickjs.binding.asyncFunction
 import com.dokar.quickjs.binding.define
-import com.dokar.quickjs.binding.func
+import com.dokar.quickjs.binding.function
 import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -131,30 +131,30 @@ private fun ScreenContent(
                 define("console") {
                     // Define a nested object
                     define("configs") {
-                        prop("level") {
+                        property("level") {
                             getter { logLevel.name }
                             setter { logLevel = LogLevel.valueOf(it) }
                         }
                     }
 
-                    func<Unit>("log") {
+                    function<Unit>("log") {
                         logs.add(LogItem.debug(it.joinToString(" ")))
                     }
 
-                    func<Unit>("info") {
+                    function<Unit>("info") {
                         logs.add(LogItem.info(it.joinToString(" ")))
                     }
 
-                    func<Unit>("warn") {
+                    function<Unit>("warn") {
                         logs.add(LogItem.warn(it.joinToString(" ")))
                     }
 
-                    func<Unit>("error") {
+                    function<Unit>("error") {
                         logs.add(LogItem.error(it.joinToString(" ")))
                     }
                 }
 
-                asyncFunc("delay") {
+                asyncFunction("delay") {
                     val millis = it.firstOrNull()
                     require(millis is Long && it.size == 1) {
                         "Delay requires exactly 1 int parameter."
@@ -166,30 +166,30 @@ private fun ScreenContent(
                 }
 
                 var moduleResult: Any? = null
-                asyncFunc("returns") { moduleResult = it.firstOrNull() }
+                asyncFunction("returns") { moduleResult = it.firstOrNull() }
 
-                func("passObject") {
+                function("passObject") {
                     require(it.isNotEmpty())
                     println(it[0])
                 }
 
                 @Suppress("unchecked_cast")
-                func("passArray") {
+                function("passArray") {
                     require(it.isNotEmpty())
                     println((it[0] as Array<Any?>).contentToString())
                 }
 
-                func("passSet") {
+                function("passSet") {
                     require(it.isNotEmpty())
                     println(it[0])
                 }
 
-                func("passMap") {
+                function("passMap") {
                     require(it.isNotEmpty())
                     println(it[0])
                 }
 
-                func("fetch") { "Hey, your IP is: 192.168.2.100" }
+                function("fetch") { "Hey, your IP is: 192.168.2.100" }
 
                 evaluate<Any?>(
                     code = code,

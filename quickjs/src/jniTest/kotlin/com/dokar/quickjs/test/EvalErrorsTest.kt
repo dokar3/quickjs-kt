@@ -1,7 +1,7 @@
 package com.dokar.quickjs.test
 
 import com.dokar.quickjs.binding.define
-import com.dokar.quickjs.binding.func
+import com.dokar.quickjs.binding.function
 import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -60,7 +60,7 @@ class EvalErrorsTest {
     fun evalWithFunctionCallErrors() = runTest {
         val exception = assertFails {
             quickJs {
-                func("call") { error("Something wrong") }
+                function("call") { error("Something wrong") }
                 evaluate<Any?>("call()")
             }
         }
@@ -71,12 +71,12 @@ class EvalErrorsTest {
     fun evalWithObjectBindingErrors() = runTest {
         quickJs {
             define("app") {
-                prop<String>("version") {
+                property<String>("version") {
                     getter { error("Get not allowed") }
                     setter { error("Set not allowed") }
                 }
 
-                func("launch") { error("Call not allowed") }
+                function("launch") { error("Call not allowed") }
             }
 
             assertFails { evaluate<Any?>("app.version") }.also {

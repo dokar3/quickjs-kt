@@ -1,7 +1,7 @@
 package com.dokar.quickjs.test
 
 import com.dokar.quickjs.QuickJs
-import com.dokar.quickjs.binding.func
+import com.dokar.quickjs.binding.function
 import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -16,7 +16,7 @@ class ModulesTest {
             setupHelloModule()
 
             var result: String? = null
-            func("returns") { result = it.first() as String}
+            function("returns") { result = it.first() as String}
 
             evaluate<Any?>(
                 """
@@ -35,7 +35,7 @@ class ModulesTest {
             setupHelloModuleBytecode()
 
             var result: String? = null
-            func("returns") { result = it.first() as String }
+            function("returns") { result = it.first() as String }
 
             evaluate<Any?>(
                 """
@@ -68,7 +68,7 @@ class ModulesTest {
     fun returnsInBytecode() = runTest {
         quickJs {
             var result: String? = null
-            func("returns") { result = it.first() as String }
+            function("returns") { result = it.first() as String }
 
             val bytecode = compile(
                 code = "returns('OK');",
