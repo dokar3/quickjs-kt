@@ -24,7 +24,7 @@ suspend inline fun <T : Any?> quickJs(block: QuickJs.() -> T): T {
  * DSL for [QuickJs]. The instance will be closed automatically when the [block] is finished.
  *
  * @param jobDispatcher The dispatcher for executing async jobs. Not used for [QuickJs.evaluate]
- * and [QuickJs.execute].
+ * and [QuickJs.evaluate].
  */
 inline fun <T : Any?> quickJs(jobDispatcher: CoroutineDispatcher, block: QuickJs.() -> T): T {
     val quickJs = QuickJs.create(jobDispatcher = jobDispatcher)
@@ -132,7 +132,7 @@ expect class QuickJs {
      * @param code The code to compile.
      * @param filename The script filename.
      * @param asModule Whether compile the code as a module.
-     * @throws QuickJsException If error occurred when executing code or converting values.
+     * @throws QuickJsException If an error occurred when evaluating code or mapping values.
      */
     @Throws(QuickJsException::class)
     fun compile(code: String, filename: String = "main.js", asModule: Boolean = false): ByteArray
@@ -142,10 +142,10 @@ expect class QuickJs {
      *
      * @param T The result type.
      * @param bytecode The bytecode buffer.
-     * @throws QuickJsException If error occurred when executing code or converting values.
+     * @throws QuickJsException If an error occurred when evaluating code or mapping values.
      */
     @Throws(QuickJsException::class)
-    suspend inline fun <reified T> execute(bytecode: ByteArray): T
+    suspend inline fun <reified T> evaluate(bytecode: ByteArray): T
 
     /**
      * Evaluate javascript code.
@@ -156,7 +156,7 @@ expect class QuickJs {
      * @param code The code to evaluate.
      * @param filename The script filename.
      * @param asModule Whether evaluate the code as a module or evaluate it globally.
-     * @throws QuickJsException If error occurred when executing code or converting values.
+     * @throws QuickJsException If an error occurred when evaluating code or mapping values.
      */
     @Throws(QuickJsException::class)
     suspend inline fun <reified T> evaluate(
@@ -188,7 +188,7 @@ expect class QuickJs {
          * Create new QuickJS runtime.
          *
          * @param jobDispatcher The dispatcher for executing async jobs. Not used for [evaluate]
-         * and [execute]. Defaults to [Dispatchers.Unconfined].
+         * and [evaluate]. Defaults to [Dispatchers.Unconfined].
          * @throws QuickJsException If failed to create a runtime.
          */
         @Throws(QuickJsException::class)

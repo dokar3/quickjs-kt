@@ -21,16 +21,16 @@ import java.io.Closeable
  * Evaluate QuickJS-compiled bytecode.
  *
  * This function provides a [type] parameter, useful when the inline version of
- * [QuickJs.execute] is not available.
+ * [QuickJs.evaluate] is not available.
  *
- * @see [QuickJs.execute]
+ * @see [QuickJs.evaluate]
  */
 @Throws(QuickJsException::class)
-suspend fun <T> QuickJs.execute(
+suspend fun <T> QuickJs.evaluate(
     bytecode: ByteArray,
     type: Class<T>
 ): T {
-    return jsAutoCastOrThrow(executeInternal(bytecode), type)
+    return jsAutoCastOrThrow(evaluateInternal(bytecode), type)
 }
 
 /**
@@ -73,7 +73,7 @@ actual class QuickJs(
     private val coroutineScope = CoroutineScope(jobDispatcher + exceptionHandler)
 
     /**
-     * Concurrent [evaluate]/[execute] is not supported.
+     * Concurrent [evaluate] is not supported.
      */
     private val evalMutex = Mutex()
 
@@ -178,8 +178,8 @@ actual class QuickJs(
     }
 
     @Throws(QuickJsException::class)
-    actual suspend inline fun <reified T> execute(bytecode: ByteArray): T {
-        return jsAutoCastOrThrow(executeInternal(bytecode), T::class.java)
+    actual suspend inline fun <reified T> evaluate(bytecode: ByteArray): T {
+        return jsAutoCastOrThrow(evaluateInternal(bytecode), T::class.java)
     }
 
     @Throws(QuickJsException::class)
@@ -192,9 +192,9 @@ actual class QuickJs(
     }
 
     @PublishedApi
-    internal suspend fun executeInternal(bytecode: ByteArray): Any? = evalMutex.withLock {
+    internal suspend fun evaluateInternal(bytecode: ByteArray): Any? = evalMutex.withLock {
         evalAndAwait {
-            execute(context = context, globals = globals, buffer = bytecode)
+            evaluateBytecode(context = context, globals = globals, buffer = bytecode)
         }
     }
 
@@ -214,7 +214,7 @@ actual class QuickJs(
         loadModules()
         evalBlock()
         awaitAsyncJobs()
-        val result = getExecuteResult(context, globals)
+        val result = getEvaluateResult(context, globals)
         handleException()
         return result
     }
@@ -278,7 +278,7 @@ actual class QuickJs(
         val iterator = modules.iterator()
         while (iterator.hasNext()) {
             val module = iterator.next()
-            execute(context = context, globals = globals, buffer = module)
+            evaluateBytecode(context = context, globals = globals, buffer = module)
             iterator.remove()
         }
     }
@@ -471,7 +471,11 @@ actual class QuickJs(
     ): Any?
 
     @Throws(QuickJsException::class)
-    private external fun execute(context: Long, globals: Long, buffer: ByteArray): Any?
+    private external fun evaluateBytecode(
+        context: Long,
+        globals: Long,
+        buffer: ByteArray,
+    ): Any?
 
     @Throws(QuickJsException::class)
     private external fun invokeJsFunction(
@@ -485,7 +489,7 @@ actual class QuickJs(
     private external fun executePendingJob(context: Long): Boolean
 
     @Throws(QuickJsException::class)
-    private external fun getExecuteResult(context: Long, globals: Long): Any?
+    private external fun getEvaluateResult(context: Long, globals: Long): Any?
 
     actual companion object {
         init {

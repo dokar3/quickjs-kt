@@ -6,7 +6,6 @@ import com.dokar.quickjs.QuickJsException
 import com.dokar.quickjs.binding.JsObjectHandle
 import com.dokar.quickjs.binding.define
 import com.dokar.quickjs.evaluate
-import com.dokar.quickjs.execute
 
 /**
  * Alias for inline version of [QuickJs.define].
@@ -34,15 +33,15 @@ fun <T> QuickJs.def(
 }
 
 /**
- * Alias for [QuickJs.execute].
+ * Alias for [QuickJs.evaluate].
  */
 @ExperimentalQuickJsApi
 @Throws(QuickJsException::class)
-suspend fun <T> QuickJs.exec(
+suspend fun <T> QuickJs.eval(
     bytecode: ByteArray,
     type: Class<T>
 ): T {
-    return execute(bytecode = bytecode, type = type)
+    return evaluate(bytecode = bytecode, type = type)
 }
 
 /**

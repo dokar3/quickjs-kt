@@ -8,17 +8,17 @@ import kotlin.test.assertFails
 
 class CompileTest {
     @Test
-    fun compileAndExecute() = runTest {
+    fun compileAndEvaluate() = runTest {
         quickJs {
             val buffer = compile("1 + 2")
-            assertEquals(3, execute(buffer))
+            assertEquals(3, evaluate(buffer))
         }
     }
 
     @Test
-    fun executeMalformedBytecode() = runTest {
+    fun evaluateMalformedBytecode() = runTest {
         quickJs {
-            assertFails { execute(byteArrayOf(0, 1, 2, 3, 4)) }
+            assertFails { evaluate(byteArrayOf(0, 1, 2, 3, 4)) }
         }
     }
 }
