@@ -1,5 +1,6 @@
 <div align="center">
 <h1> QuickJS - KT </h1>
+<img alt="Maven Central" src="https://img.shields.io/maven-central/v/io.github.dokar3/quickjs-kt?style=flat-square&color=%23ea197e">
 <p>Run your JavaScript code in Kotlin, asynchronously.</p>
 <img src="./media/async-eval-demo.gif" alt="The async eval demo">
 </div>
