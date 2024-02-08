@@ -247,7 +247,7 @@ actual class QuickJs(
         /**
          * This is our simple 'event loop'.
          */
-        do {
+        while (true) {
             while (executePendingJob(context)) {
                 // Job executed
             }
@@ -257,7 +257,7 @@ actual class QuickJs(
                 break
             }
             jobs.joinAll()
-        } while (true)
+        }
     }
 
     private fun handleException() {
