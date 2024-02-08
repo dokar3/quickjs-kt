@@ -25,11 +25,12 @@ import java.io.Closeable
  *
  * @see [QuickJs.execute]
  */
+@Throws(QuickJsException::class)
 suspend fun <T> QuickJs.execute(
-    buffer: ByteArray,
+    bytecode: ByteArray,
     type: Class<T>
 ): T {
-    return jsAutoCastOrThrow(executeInternal(buffer), type)
+    return jsAutoCastOrThrow(executeInternal(bytecode), type)
 }
 
 /**
@@ -40,6 +41,7 @@ suspend fun <T> QuickJs.execute(
  *
  * @see [QuickJs.evaluate]
  */
+@Throws(QuickJsException::class)
 suspend fun <T> QuickJs.evaluate(
     code: String,
     type: Class<T>,
@@ -190,9 +192,9 @@ actual class QuickJs(
     }
 
     @PublishedApi
-    internal suspend fun executeInternal(buffer: ByteArray): Any? = evalMutex.withLock {
+    internal suspend fun executeInternal(bytecode: ByteArray): Any? = evalMutex.withLock {
         evalAndAwait {
-            execute(context = context, globals = globals, buffer = buffer)
+            execute(context = context, globals = globals, buffer = bytecode)
         }
     }
 

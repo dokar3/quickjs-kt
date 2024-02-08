@@ -77,12 +77,12 @@ With DSL:
 ```kotlin
 quickJs {
     define("console") {
-        func("log") { args -> 
-            println(args.contentToString()) 
+        function("log") { args -> 
+            println(args.joinToString(" ")) 
         }
     }
     
-    func("fetch") { args -> 
+    function("fetch") { args -> 
         someClient.request(args[0]) 
     }
     
@@ -137,12 +137,12 @@ To define async functions, easily call `asyncFunc()`:
 ```kotlin
 quickJs {
     define("http") {
-        asyncFunc("request") {
+        asyncFunction("request") {
             // Call suspend functions here
         }
     }
 
-    asyncFunc("fetch") {
+    asyncFunction("fetch") {
         // Call suspend functions here
     }
 }
@@ -209,7 +209,7 @@ When evaluating ES module code, no return values will be captured, you may need 
 quickJs {
     // ...
     var result: Any? = null
-    func("returns") { result = it.first() }
+    function("returns") { result = it.first() }
     
     evaluate<Any?>(
         """
@@ -221,6 +221,45 @@ quickJs {
     )
     assertEquals("Hi from the hello module!", result)
 }
+```
+
+### Alias
+
+Want shorter DSL names?
+
+```kotlin
+quickJs {
+    def("console") {
+        prop("level") {
+            getter { "DEBUG" }
+        }
+
+        func("log") { }
+    }
+
+    func("fetch") { "Hello" }
+
+    asyncFunc("delay") { delay(1000) }
+
+    eval<Any?>("fetch()")
+    exec<Any?>(compile(code = "fetch()"))
+}
+```
+
+Use the DSL aliases then!
+
+```diff
+-import com.dokar.quickjs.binding.define
+-import com.dokar.quickjs.binding.function
+-import com.dokar.quickjs.binding.asyncFunction
+-import com.dokar.quickjs.execute
+-import com.dokar.quickjs.evaluate
++import com.dokar.quickjs.alias.def
++import com.dokar.quickjs.alias.func
++import com.dokar.quickjs.alias.asyncFunc
++import com.dokar.quickjs.alias.exec
++import com.dokar.quickjs.alias.eval
++import com.dokar.quickjs.alias.prop
 ```
 
 # Type mappings
