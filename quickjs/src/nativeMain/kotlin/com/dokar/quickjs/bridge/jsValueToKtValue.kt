@@ -141,17 +141,17 @@ internal fun CValue<JSValue>.toKtString(context: CPointer<JSContext>): String? {
 internal fun jsErrorToKtError(context: CPointer<JSContext>, error: CValue<JSValue>): Throwable {
     val name = JS_GetPropertyStr(context, error, "name")
         .use(context = context) { toKtString(context) }
-        ?: return QuickJsException(error.toKtString(context) ?: "<NULL>")
+        ?: return Error(error.toKtString(context) ?: "<NULL>")
     val message = JS_GetPropertyStr(context, error, "message")
         .use(context) { toKtString(context) }
     val stack = JS_GetPropertyStr(context, error, "stack")
     if (JS_IsUndefined(stack) == 1) {
         JS_FreeValue(context, stack)
-        return QuickJsException("$name: $message")
+        return newKtError(name, message, null)
     }
     if (JS_IsString(stack) == 1) {
         return stack.use(context) {
-            QuickJsException("$name: $message\n\b${toKtString(context)}")
+            newKtError(name, "$message\n\b${toKtString(context)}", null)
         }
     }
     val stackLineCount = JS_GetPropertyStr(context, stack, "length").use(context) {
@@ -167,7 +167,7 @@ internal fun jsErrorToKtError(context: CPointer<JSContext>, error: CValue<JSValu
     }
     if (stackLineCount == null) {
         JS_FreeValue(context, stack)
-        return QuickJsException("$name: $message")
+        return newKtError(name, message, null)
     }
     return memScoped {
         val lines = Array(stackLineCount) {
@@ -175,7 +175,35 @@ internal fun jsErrorToKtError(context: CPointer<JSContext>, error: CValue<JSValu
             line.use(context) { toKtString(context) }
         }
         JS_FreeValue(context, stack)
-        QuickJsException("$name: $message\n${lines.joinToString("\n")}")
+        newKtError(name, message, lines)
+    }
+}
+
+private fun newKtError(name: String, message: String?, stack: Array<String?>?): Throwable {
+    val m = if (!stack.isNullOrEmpty()) "$message\n${stack.joinToString("\n")}" else message
+    // Try to restore the error class from the js error name
+    @Suppress("DEPRECATION")
+    return when (name) {
+        Throwable::class.qualifiedName -> Throwable(m)
+        Error::class.qualifiedName -> Error(m)
+        Exception::class.qualifiedName -> Exception(m)
+        RuntimeException::class.qualifiedName -> RuntimeException(m)
+        NullPointerException::class.qualifiedName -> NullPointerException(m)
+        NoSuchElementException::class.qualifiedName -> NoSuchElementException(m)
+        IllegalArgumentException::class.qualifiedName -> IllegalStateException(m)
+        IllegalStateException::class.qualifiedName -> IllegalStateException(m)
+        UnsupportedOperationException::class.qualifiedName -> UnsupportedOperationException(m)
+        IndexOutOfBoundsException::class.qualifiedName -> IndexOutOfBoundsException(m)
+        ArrayIndexOutOfBoundsException::class.qualifiedName -> ArrayIndexOutOfBoundsException(m)
+        ClassCastException::class.qualifiedName -> ClassCastException(m)
+        ArithmeticException::class.qualifiedName -> ArithmeticException(m)
+        AssertionError::class.qualifiedName -> AssertionError(m)
+        OutOfMemoryError::class.qualifiedName -> OutOfMemoryError(m)
+        NumberFormatException::class.qualifiedName -> NumberFormatException(m)
+        ConcurrentModificationException::class.qualifiedName -> ConcurrentModificationException(m)
+        NotImplementedError::class.qualifiedName -> NotImplementedError(m ?: "")
+        QuickJsException::class.qualifiedName -> QuickJsException(m)
+        else -> Error("$name: $m") // Unknown error, add the name back
     }
 }
 

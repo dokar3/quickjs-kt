@@ -13,6 +13,7 @@ import com.dokar.quickjs.bridge.defineObject
 import com.dokar.quickjs.bridge.evaluate
 import com.dokar.quickjs.bridge.executePendingJob
 import com.dokar.quickjs.bridge.invokeJsFunction
+import com.dokar.quickjs.bridge.ktErrorToJsError
 import com.dokar.quickjs.bridge.ktMemoryUsage
 import com.dokar.quickjs.bridge.objectHandleToStableRef
 import kotlinx.cinterop.CPointer
@@ -230,12 +231,13 @@ actual class QuickJs private constructor(
                 context.invokeJsFunction(resolveFunc, arrayOf(result))
             } catch (e: Throwable) {
                 // Cancel all if any fails
+                context.invokeJsFunction(rejectFunc, arrayOf(e))
+                JS_Throw(context, ktErrorToJsError(context, e))
                 asyncJobs.toList().forEach {
                     if (it.isActive) {
                         it.cancel()
                     }
                 }
-                context.invokeJsFunction(rejectFunc, arrayOf(e))
             }
         }
         job.invokeOnCompletion {

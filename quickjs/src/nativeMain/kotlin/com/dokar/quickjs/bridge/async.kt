@@ -8,7 +8,9 @@ import com.dokar.quickjs.JS_ExecutePendingJob
 import com.dokar.quickjs.JS_FreeValue
 import com.dokar.quickjs.JS_GetException
 import com.dokar.quickjs.JS_GetPropertyStr
+import com.dokar.quickjs.JS_IsError
 import com.dokar.quickjs.JS_IsException
+import com.dokar.quickjs.JS_IsNull
 import com.dokar.quickjs.JS_PromiseResult
 import com.dokar.quickjs.JS_PromiseState
 import com.dokar.quickjs.QuickJsException
@@ -26,6 +28,17 @@ internal value class JsPromise(
     private val value: CValue<JSValue>
 ) {
     fun result(context: CPointer<JSContext>): Any? {
+        val ctxException = JS_GetException(context)
+        if (JS_IsNull(ctxException) != 1) {
+            ctxException.use(context) {
+                if (JS_IsError(context, this) == 1) {
+                    throw jsErrorToKtError(context, this)
+                } else {
+                    throw Error(toKtString(context))
+                }
+            }
+        }
+
         return when (JS_PromiseState(context, value)) {
             JSPromiseStateEnum.JS_PROMISE_FULFILLED -> {
                 JS_PromiseResult(context, value).use(context) {
