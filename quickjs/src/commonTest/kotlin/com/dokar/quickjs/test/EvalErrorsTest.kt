@@ -83,7 +83,7 @@ class EvalErrorsTest {
                 assertContains(it.message!!, "Get not allowed")
             }
             assertFails { evaluate<Any?>("app.version = '1.0.0'") }.also {
-                assertEquals(it.message!!, "Set not allowed")
+                assertContains(it.message!!, "Set not allowed")
             }
             assertFails { evaluate<Any?>("app.launch()") }.also {
                 assertContains(it.message!!, "Call not allowed")

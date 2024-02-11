@@ -48,8 +48,9 @@ internal value class JsPromise(
                 val result = JS_PromiseResult(context, value).use(context) { toKtValue(context) }
                 if (result is Throwable) {
                     throw result
+                } else {
+                    throw Error(result?.toString())
                 }
-                result
             }
 
             JSPromiseStateEnum.JS_PROMISE_PENDING -> {
