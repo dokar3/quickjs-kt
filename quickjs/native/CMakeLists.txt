@@ -4,10 +4,23 @@ string(REPLACE \\ / CURRENT_DIR ${CMAKE_CURRENT_LIST_DIR})
 
 # Check cmake arguments
 if (NOT DEFINED TARGET_PLATFORM)
-    message(FATAL_ERROR "'TARGET_PLATFORM' is no set!")
+    message(FATAL_ERROR "'TARGET_PLATFORM' is no set.")
 endif ()
+# Library type
+if (NOT DEFINED LIBRARY_TYPE)
+    message(FATAL_ERROR "'LIBRARY_TYPE' is not set.")
+endif ()
+if (NOT (LIBRARY_TYPE STREQUAL "shared" OR LIBRARY_TYPE STREQUAL "static"))
+    message(FATAL_ERROR "'LIBRARY_TYPE' can only be 'shared' or 'static'.")
+endif ()
+# JNI
+option(BUILD_WITH_JNI "Build with the JNI bridge" ON)
 
 function(configure_jni include_sub_dir)
+    if (NOT BUILD_WITH_JNI)
+        return()
+    endif ()
+
     if (NOT DEFINED PLATFORM_JAVA_HOME)
         message(FATAL_ERROR "'PLATFORM_JAVA_HOME' is no set!")
     endif ()
@@ -39,13 +52,15 @@ elseif (TARGET_PLATFORM STREQUAL "macos_aarch64")
 elseif (TARGET_PLATFORM STREQUAL "windows_x64")
     configure_jni("win32")
     set(CMAKE_TOOLCHAIN_FILE "${CURRENT_DIR}/cmake/zig-toolchain-windows_x64.cmake")
-    # pthread for Windows
-    include_directories("../../native/winpthreads/include")
-    file(GLOB_RECURSE pthread_sources
-            "../../native/winpthreads/src/*.c"
-            "../../native/winpthreads/src/*.S"
-    )
-    list(APPEND all_sources ${pthread_sources})
+    include_directories("winpthreads/include")
+    if (BUILD_WITH_JNI)
+        # pthread for Windows
+        file(GLOB_RECURSE pthread_sources
+                "winpthreads/src/*.c"
+                "winpthreads/src/*.S"
+        )
+        list(APPEND all_sources ${pthread_sources})
+    endif ()
     # For QuickJS
     add_compile_definitions(CONFIG_WIN32)
 elseif (TARGET_PLATFORM STREQUAL "android")
@@ -58,39 +73,51 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 11)
 
 # QuickJS version define, Gradle cmake cFlags doesn't work on Windows (maybe)
-file(READ "../../native/quickjs/VERSION" VERSION_CONTENT)
+file(READ "quickjs/VERSION" VERSION_CONTENT)
 string(STRIP "${VERSION_CONTENT}" CONFIG_VERSION)
 add_compile_definitions(CONFIG_VERSION=\"${CONFIG_VERSION}\")
 
 # QuickJS BigNum
 add_compile_definitions(CONFIG_BIGNUM)
 
-include_directories("../../native"
-        "../../native/quickjs"
-        "../../native/cvector"
-        "../../native/jni"
-        "../../native/jni/mapping")
+include_directories("quickjs")
+
+if (BUILD_WITH_JNI)
+    include_directories(
+            "cvector"
+            "jni"
+            "jni/mapping")
+endif ()
 
 # QuickJS sources
 file(GLOB_RECURSE quickjs_sources
-        "../../native/quickjs/cutils.c"
-        "../../native/quickjs/libbf.c"
-        "../../native/quickjs/libregexp.c"
-        "../../native/quickjs/libunicode.c"
-        "../../native/quickjs/quickjs.c"
+        "quickjs/cutils.c"
+        "quickjs/libbf.c"
+        "quickjs/libregexp.c"
+        "quickjs/libunicode.c"
+        "quickjs/quickjs.c"
 )
 list(APPEND all_sources ${quickjs_sources})
 
-# Bridge sources
-file(GLOB_RECURSE bridge_sources
-        "../../native/jni/*.c"
-        "../../native/jni/mapping/*.c")
-list(APPEND all_sources ${bridge_sources})
+if (BUILD_WITH_JNI)
+    # Bridge sources
+    file(GLOB_RECURSE bridge_sources
+            "jni/*.c"
+            "jni/mapping/*.c")
+    list(APPEND all_sources ${bridge_sources})
+endif ()
 
-add_library(quickjs SHARED ${all_sources})
+add_library(quickjs_obj OBJECT ${all_sources})
 
-if (TARGET_PLATFORM STREQUAL "android")
-    target_link_libraries(quickjs log)
-else ()
-    target_link_libraries(quickjs)
+set_property(TARGET quickjs_obj PROPERTY POSITION_INDEPENDENT_CODE 1)
+
+if (LIBRARY_TYPE STREQUAL "shared")
+    add_library(quickjs SHARED $<TARGET_OBJECTS:quickjs_obj>)
+    if (TARGET_PLATFORM STREQUAL "android")
+        target_link_libraries(quickjs log)
+    else ()
+        target_link_libraries(quickjs)
+    endif ()
+elseif (LIBRARY_TYPE STREQUAL "static")
+    add_library(quickjs STATIC $<TARGET_OBJECTS:quickjs_obj>)
 endif ()

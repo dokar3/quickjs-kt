@@ -51,7 +51,7 @@ JSValue jni_invoke_setter(JSContext *context, jobject call_host, int64_t object_
     if (argc < 1) {
         return JS_EXCEPTION;
     }
-    jarray value = js_value_to_jobject(env, context, argv[0]);
+    jobject value = js_value_to_jobject(env, context, argv[0]);
     // Check mapping exceptions
     jthrowable mapping_exception = try_catch_java_exceptions(env);
     if (mapping_exception != NULL) {
@@ -404,7 +404,6 @@ JSValue define_js_object(JNIEnv *env, JSContext *context,
         func_data[data_len - 1] = js_prop_name;
 
         JSValue getter = JS_NewCFunctionData(context, property_getter, 0, 0, data_len, func_data);
-        JSValue setter = JS_NewCFunctionData(context, property_setter, 0, 0, data_len, func_data);
         int flags = JS_PROP_C_W_E;
         if (configurable == JNI_FALSE) {
             flags = flags & ~JS_PROP_CONFIGURABLE;
@@ -419,7 +418,13 @@ JSValue define_js_object(JNIEnv *env, JSContext *context,
         JSAtom prop = JS_NewAtom(context, prop_name);
 
         // Define property
-        JS_DefinePropertyGetSet(context, object, prop, getter, setter, flags);
+        if (writable == JNI_FALSE) {
+            JS_DefinePropertyGetSet(context, object, prop, getter, JS_UNDEFINED, 0);
+        } else {
+            JSValue setter = JS_NewCFunctionData(context, property_setter, 0, 0, data_len,
+                                                 func_data);
+            JS_DefinePropertyGetSet(context, object, prop, getter, setter, flags);
+        }
 
         JS_FreeAtom(context, prop);
 

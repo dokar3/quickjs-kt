@@ -10,6 +10,7 @@ import com.dokar.quickjs.binding.PropertyScope
 import com.dokar.quickjs.binding.asyncFunction
 import com.dokar.quickjs.binding.define
 import com.dokar.quickjs.binding.function
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Alias for [QuickJs.define].
@@ -42,7 +43,7 @@ fun <R> QuickJs.asyncFunc(name: String, block: AsyncFunctionBinding<R>) {
  * Alias for [QuickJs.evaluate].
  */
 @ExperimentalQuickJsApi
-@Throws(QuickJsException::class)
+@Throws(QuickJsException::class, CancellationException::class)
 suspend inline fun <reified T> QuickJs.eval(
     code: String,
     filename: String = "main.js",
@@ -55,7 +56,7 @@ suspend inline fun <reified T> QuickJs.eval(
  * Alias for [QuickJs.evaluate].
  */
 @ExperimentalQuickJsApi
-@Throws(QuickJsException::class)
+@Throws(QuickJsException::class, CancellationException::class)
 suspend inline fun <reified T> QuickJs.eval(bytecode: ByteArray): T {
     return evaluate(bytecode = bytecode)
 }

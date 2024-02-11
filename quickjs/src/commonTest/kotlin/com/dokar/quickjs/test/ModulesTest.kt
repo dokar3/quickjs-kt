@@ -80,7 +80,7 @@ class ModulesTest {
     }
 
     @Test
-    fun nonModuleBytecodeAsModule(): Unit = runTest {
+    fun nonModuleBytecodeAsModule() = runTest {
         quickJs {
             val helloModuleCode = """
                 function greeting() {
@@ -105,6 +105,7 @@ class ModulesTest {
             }.also {
                 assertContains(it.message!!, "ReferenceError: could not load module 'hello'")
             }
+
         }
     }
 

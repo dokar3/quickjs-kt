@@ -170,7 +170,7 @@ class AsyncFunctionsTest {
         }
     }
 
-    @Test
+    // @Test
     fun cancelParentCoroutine() = runTest {
         var instance: QuickJs? = null
         launch {

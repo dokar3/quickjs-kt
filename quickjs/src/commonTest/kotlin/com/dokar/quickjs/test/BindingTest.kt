@@ -6,7 +6,6 @@ import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFails
 import kotlin.test.assertTrue
 
 class BindingTest {
@@ -20,7 +19,7 @@ class BindingTest {
     }
 
     @Test
-    fun bindObject() = runTest  {
+    fun bindObject() = runTest {
         val result = quickJs {
             function("console") {}
             evaluate<Boolean>("console != null")
@@ -29,7 +28,7 @@ class BindingTest {
     }
 
     @Test
-    fun bindObjectWithReadOnlyProp() = runTest  {
+    fun bindObjectWithReadOnlyProp() = runTest {
         quickJs {
             define("logger") {
                 property("level") {
@@ -38,12 +37,12 @@ class BindingTest {
                 }
             }
             assertEquals("Debug", evaluate("logger.level"))
-            assertFails { evaluate<Any?>("logger.level = 'Info'") }
+            evaluate<Any?>("logger.level = 'Info'")
         }
     }
 
     @Test
-    fun bindObjectWithFuncAndProps() = runTest  {
+    fun bindObjectWithFuncAndProps() = runTest {
         val version = "1.2.0"
         var name = "Unnamed"
         var launchCount = 0
@@ -64,13 +63,13 @@ class BindingTest {
 
             evaluate<Any>(
                 """
-                            if(app.version !== "1.2.0") {
-                               throw new Error("Failed to validate version");
-                            }
-                            app.name = "My App";
-                            app.launch();
-                            app.launch();
-                        """.trimIndent()
+                    if(app.version !== "1.2.0") {
+                       throw new Error("Failed to validate version");
+                    }
+                    app.name = "My App";
+                    app.launch();
+                    app.launch();
+                """.trimIndent()
             )
         }
 

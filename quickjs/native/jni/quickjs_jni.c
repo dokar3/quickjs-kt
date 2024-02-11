@@ -412,13 +412,13 @@ Java_com_dokar_quickjs_QuickJs_compile(JNIEnv *env, jobject this, jlong context_
  * Evaluate JavaScript code.
  */
 JNIEXPORT jobject JNICALL
-Java_com_dokar_quickjs_QuickJs_evaluate__JJLjava_lang_String_2Ljava_lang_String_2Z(JNIEnv *env,
-                                                                                   jobject this,
-                                                                                   jlong context_ptr,
-                                                                                   jlong globals_ptr,
-                                                                                   jstring jfilename,
-                                                                                   jstring jcode,
-                                                                                   jboolean as_module) {
+Java_com_dokar_quickjs_QuickJs_evaluate(JNIEnv *env,
+                                        jobject this,
+                                        jlong context_ptr,
+                                        jlong globals_ptr,
+                                        jstring jfilename,
+                                        jstring jcode,
+                                        jboolean as_module) {
     int eval_flags = JS_EVAL_FLAG_ASYNC;
     eval_flags |= as_module ? JS_EVAL_TYPE_MODULE : JS_EVAL_TYPE_GLOBAL;
     return eval(env, context_ptr, globals_ptr, jfilename, jcode, eval_flags);
