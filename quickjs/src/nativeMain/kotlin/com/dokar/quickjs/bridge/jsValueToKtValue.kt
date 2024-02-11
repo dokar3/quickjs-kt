@@ -18,6 +18,7 @@ import com.dokar.quickjs.JS_TAG_NULL
 import com.dokar.quickjs.JS_TAG_OBJECT
 import com.dokar.quickjs.JS_TAG_STRING
 import com.dokar.quickjs.JS_TAG_UNDEFINED
+import com.dokar.quickjs.JS_ToBool
 import com.dokar.quickjs.JS_ToCString
 import com.dokar.quickjs.JS_ToFloat64
 import com.dokar.quickjs.JS_ToInt32
@@ -26,7 +27,6 @@ import com.dokar.quickjs.JS_VALUE_IS_NAN
 import com.dokar.quickjs.JS_WRITE_OBJ_BYTECODE
 import com.dokar.quickjs.JS_WRITE_OBJ_REFERENCE
 import com.dokar.quickjs.JS_WriteObject
-import com.dokar.quickjs.JsTrue
 import com.dokar.quickjs.JsValueGetNormTag
 import com.dokar.quickjs.QuickJsException
 import com.dokar.quickjs.js_free
@@ -51,7 +51,7 @@ internal fun CValue<JSValue>.toKtValue(context: CPointer<JSContext>): Any? {
     if (tag == JS_TAG_NULL || tag == JS_TAG_UNDEFINED) {
         return null
     } else if (tag == JS_TAG_BOOL) {
-        return this == JsTrue()
+        return JS_ToBool(context, this) == 1
     } else if (tag == JS_TAG_INT) {
         memScoped {
             val out = alloc<int64_tVar>()

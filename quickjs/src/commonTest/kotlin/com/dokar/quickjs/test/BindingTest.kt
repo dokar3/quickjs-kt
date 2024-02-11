@@ -21,7 +21,7 @@ class BindingTest {
     @Test
     fun bindObject() = runTest {
         val result = quickJs {
-            function("console") {}
+            define("console") {}
             evaluate<Boolean>("console != null")
         }
         assertTrue(result)
