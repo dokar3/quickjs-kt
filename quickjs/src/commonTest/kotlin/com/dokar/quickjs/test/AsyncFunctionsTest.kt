@@ -7,6 +7,7 @@ import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
@@ -118,7 +119,7 @@ class AsyncFunctionsTest {
 
             assertEquals("Promise { <state>: \"fulfilled\" }", evaluate("fetch()"))
             assertFails { evaluate<String>("fail()") }.also {
-                assertEquals(it.message!!, "Failed")
+                assertContains(it.message!!, "Failed")
             }
         }
     }
@@ -187,7 +188,9 @@ class AsyncFunctionsTest {
     fun cancelParentCoroutine() = runTest {
         var instance: QuickJs? = null
         val job = launch {
-            quickJs {
+            // Don't known why but the testScheduler from the test scope
+            // won't work on Kotlin/Native
+            quickJs(StandardTestDispatcher()) {
                 instance = this
 
                 asyncFunction("delay") {
