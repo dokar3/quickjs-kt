@@ -68,12 +68,12 @@ class AsyncFunctionsTest {
             val evalJob = launch {
                 evaluate<String>(
                     """
-                                update("Started");
-                                await delay(1000);
-                                update("Next");
-                                await delay(1000);
-                                update("Done");
-                            """.trimIndent()
+                        update("Started");
+                        await delay(1000);
+                        update("Next");
+                        await delay(1000);
+                        update("Done");
+                    """.trimIndent()
                 )
             }
 
@@ -97,9 +97,9 @@ class AsyncFunctionsTest {
             val evalJob = launch {
                 result = evaluate<String>(
                     """
-                                await Promise.all([delay(1000), delay(2000)]);
-                                "OK";
-                            """.trimIndent()
+                        await Promise.all([delay(1000), delay(2000)]);
+                        "OK";
+                    """.trimIndent()
                 )
             }
             advanceTimeBy(500)
@@ -107,6 +107,17 @@ class AsyncFunctionsTest {
             advanceTimeBy(1501)
             assertEquals("OK", result)
             evalJob.join()
+        }
+    }
+
+    @Test
+    fun runWithOutAwait() = runTest {
+        quickJs {
+            asyncFunction("fetch") { delay(1000) }
+            asyncFunction("fail") { error("Failed") }
+
+            assertEquals("Promise { <state>: \"fulfilled\" }", evaluate("fetch()"))
+            assertEquals("Promise { <state>: \"rejected\" }", evaluate("fail()"))
         }
     }
 
@@ -126,9 +137,9 @@ class AsyncFunctionsTest {
             assertFails {
                 evaluate<String>(
                     """
-                                await Promise.all([delay(1000), delay(2000), fail()]);
-                                "OK";
-                            """.trimIndent()
+                        await Promise.all([delay(1000), delay(2000), fail()]);
+                        "OK";
+                    """.trimIndent()
                 )
             }
             assertEquals(1, delayedCount)
@@ -170,7 +181,7 @@ class AsyncFunctionsTest {
         }
     }
 
-    // @Test
+    @Test
     fun cancelParentCoroutine() = runTest {
         var instance: QuickJs? = null
         launch {

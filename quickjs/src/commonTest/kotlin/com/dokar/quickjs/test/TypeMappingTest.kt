@@ -15,27 +15,36 @@ class TypeMappingTest {
     @Test
     fun jsReturns() = runTest {
         quickJs {
+            // null
             assertEquals(null, evaluate<Any?>("null"))
+            // undefined
             assertEquals(null, evaluate<Any?>("undefined"))
+            // boolean
             assertEquals(false, evaluate("false"))
+            // string
             assertEquals("hello", evaluate("""'hello'"""))
+            // number
             assertEquals(1, evaluate("""1"""))
             assertEquals(1L, evaluate("""1"""))
             assertEquals(1.0f, evaluate("""1.0"""))
             assertEquals(1.1f, evaluate("""1.1"""))
             assertEquals(1.0, evaluate("""1.0"""))
             assertEquals(1.1, evaluate("""1.1"""))
+            // Array
             assertContentEquals(arrayOf<Any?>(0L, 1L, null), evaluate("[0, 1, null]"))
+            // Set
             assertEquals(linkedSetOf(0L, 1L), evaluate("new Set([0, 1])"))
+            // Map
             assertEquals(
                 mapOf(0L to "Red", 1L to "Pink"),
                 evaluate("new Map([[0, 'Red'], [1, 'Pink']])")
             )
+            // Object
             val result = evaluate<Map<String, Any>>(
                 """
-                        const result = { ok: false, error: 'Seems good' };
-                        result
-                        """.trimIndent()
+                    const result = { ok: false, error: 'Seems good' };
+                    result
+                """.trimIndent()
             )
             assertEquals(mapOf("ok" to false, "error" to "Seems good"), result)
         }

@@ -41,7 +41,7 @@ class DslAliasTest {
             eval<Any?>("console.log('Hi')")
             assertEquals("Hi", log)
 
-            assertEquals("Done", eval("console.upload()"))
+            assertEquals("Done", eval("await console.upload()"))
 
             assertEquals("Hello", eval("fetch()"))
 

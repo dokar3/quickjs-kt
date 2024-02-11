@@ -303,13 +303,11 @@ jobject object_to_java_map(JNIEnv *env, JSContext *context, JSValue value) {
 
 jobject try_handle_promise_result(JNIEnv *env, JSContext *context, JSValue promise) {
     JSPromiseStateEnum state = JS_PromiseState(context, promise);
-    if (state == JS_PROMISE_FULFILLED || state == JS_PROMISE_REJECTED) {
-        JSValue result = JS_PromiseResult(context, promise);
-        jobject java_result = js_value_to_jobject(env, context, result);
-        JS_FreeValue(context, result);
-        return java_result;
+    if (state == JS_PROMISE_FULFILLED) {
+        return (*env)->NewStringUTF(env, "Promise { <state>: \"fulfilled\" }");
+    } else if (state == JS_PROMISE_REJECTED) {
+        return (*env)->NewStringUTF(env, "Promise { <state>: \"rejected\" }");
     } else {
-        // Pending
         return (*env)->NewStringUTF(env, "Promise { <state>: \"pending\" }");
     }
 }
