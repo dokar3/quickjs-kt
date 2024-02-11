@@ -313,6 +313,7 @@ actual class QuickJs private constructor(
                     handle = rejectHandle,
                     args = arrayOf(e)
                 )
+                throw e
             }
         }
         job.invokeOnCompletion {
