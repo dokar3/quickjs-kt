@@ -167,7 +167,7 @@ private fun invokeGetter(
         quickJs
             .onCallBindingGetter(parentHandle = objectHandle, name = propName)
             .toJsValue(context = ctx)
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         JS_Throw(ctx, ktErrorToJsError(ctx, e))
         JsException()
     }
@@ -201,7 +201,7 @@ private fun invokeSetter(
             value = value,
         )
         JsUndefined()
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         JS_Throw(ctx, ktErrorToJsError(ctx, e))
         JsException()
     }

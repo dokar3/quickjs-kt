@@ -299,7 +299,7 @@ actual class QuickJs private constructor(
                     handle = resolveHandle,
                     args = arrayOf(result)
                 )
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 // Cancel all if any fails
                 asyncJobs.toList().forEach {
                     if (it.isActive) {

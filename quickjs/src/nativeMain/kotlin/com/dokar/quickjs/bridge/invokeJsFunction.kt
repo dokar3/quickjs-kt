@@ -22,7 +22,7 @@ internal fun CPointer<JSContext>.invokeJsFunction(
     for (i in jsArgs.indices) {
         try {
             jsArgs[i] = args[i].toJsValue(context)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             for (j in 0..<i) {
                 JS_FreeValue(context, jsArgs[j])
             }

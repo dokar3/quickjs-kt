@@ -109,10 +109,10 @@ private fun handleEvalResult(
         checkContextException(context)
         val ktValue = result.toKtValue(context)
         if (ktValue !is JsPromise) {
-             qjsError("Missing async flag to eval")
+            qjsError("Missing async flag to eval")
         }
         return ktValue
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         JS_FreeValue(context, result)
         throw e
     }

@@ -201,6 +201,7 @@ actual class QuickJs private constructor(
     actual fun close() {
         if (isClosed) return
         isClosed = true
+        evalException = null
         modules.clear()
         asyncJobs.forEach { it.cancel() }
         asyncJobs.clear()
@@ -227,7 +228,7 @@ actual class QuickJs private constructor(
             try {
                 val result = block(args.sliceArray(2..<args.size))
                 context.invokeJsFunction(resolveFunc, arrayOf(result))
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 // Cancel all if any fails
                 asyncJobs.toList().forEach {
                     if (it.isActive) {
@@ -235,7 +236,6 @@ actual class QuickJs private constructor(
                     }
                 }
                 context.invokeJsFunction(rejectFunc, arrayOf(e))
-                throw e
             }
         }
         job.invokeOnCompletion {
@@ -244,16 +244,17 @@ actual class QuickJs private constructor(
         asyncJobs.add(job)
     }
 
-    private suspend fun evalAndAwait(block: suspend () -> JsPromise): Any? {
+    private suspend inline fun evalAndAwait(block: () -> JsPromise): Any? {
         ensureNotClosed()
         loadModules()
-        val resultPromise = block()
+        var resultPromise: JsPromise? = null
         try {
+            resultPromise = block()
             awaitAsyncJobs()
             checkException()
             return resultPromise.result(context)
         } finally {
-            resultPromise.free(context)
+            resultPromise?.free(context)
         }
     }
 

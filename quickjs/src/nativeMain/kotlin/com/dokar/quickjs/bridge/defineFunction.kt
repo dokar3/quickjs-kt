@@ -116,7 +116,7 @@ private fun invokeFunction(
                 args = invokeArgs
             )
             .toJsValue(context = ctx)
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         JS_Throw(ctx, ktErrorToJsError(ctx, e))
         JsException()
     }
@@ -161,7 +161,7 @@ private fun invokeAsyncFunction(
             parentHandle = objectHandle,
             args = args
         )
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         JS_Throw(ctx, ktErrorToJsError(ctx, e))
         return@memScoped JsException()
     }

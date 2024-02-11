@@ -9,6 +9,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -199,11 +200,11 @@ class AsyncFunctionsTest {
             }
         }
 
-//        launch {
-//            delay(500)
-//            job.cancel()
-//            yield()
-//            assertTrue(instance!!.isClosed)
-//        }
+        launch {
+            delay(500)
+            job.cancel()
+            yield()
+            assertTrue(instance!!.isClosed)
+        }
     }
 }

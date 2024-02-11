@@ -87,7 +87,7 @@ private fun ktArrayToJsArray(context: CPointer<JSContext>, array: Array<*>): CVa
             }
             JS_SetPropertyUint32(context, jsArray, i.toUInt(), element.toJsValue(context))
         }
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         freeJsValues(context, jsArray)
         throw e
     }
@@ -107,7 +107,7 @@ private fun ktIterableToJsArray(
             }
             JS_SetPropertyUint32(context, jsArray, i.toUInt(), element.toJsValue(context))
         }
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         freeJsValues(context, jsArray)
         throw e
     }
@@ -127,7 +127,7 @@ private fun ktSetToJsSet(
             }
             JS_SetPropertyUint32(context, elements, i.toUInt(), element.toJsValue(context))
         }
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         freeJsValues(context, elements)
         throw e
     }
@@ -195,7 +195,7 @@ private fun ktMapToJsObject(
             }
             JS_SetPropertyStr(context, jsObject, key, value.toJsValue(context))
         }
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         freeJsValues(context, jsObject)
     }
     return jsObject
