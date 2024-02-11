@@ -56,7 +56,10 @@ kotlin {
 
             main.cinterops {
                 create("quickjs") {
-                    header(file("native/quickjs/quickjs.h"))
+                    headers(
+                        file("native/quickjs/quickjs.h"),
+                        file("native/common/quickjs_version.h"),
+                    )
                     packageName("com.dokar.quickjs")
                 }
             }

@@ -19,6 +19,7 @@ import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.StableRef
+import kotlinx.cinterop.toKStringFromUtf8
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -65,7 +66,7 @@ actual class QuickJs private constructor(
     actual val version: String
         get() {
             ensureNotClosed()
-            TODO("Not yet implemented")
+            return quickjs_version()!!.toKStringFromUtf8()
         }
 
     actual var memoryLimit: Long = -1

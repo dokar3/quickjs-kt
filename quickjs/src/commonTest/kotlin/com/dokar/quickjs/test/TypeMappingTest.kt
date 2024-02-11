@@ -175,9 +175,9 @@ class TypeMappingTest {
             }
             evaluate<Any?>(
                 """
-                            objects({ ok: false, error: "Nothing" })
-                            objects(new Map([["ok", false], ["error", "Nothing"]]))
-                        """.trimIndent()
+                    objects(new Map([["ok", false], ["error", "Nothing"]]))
+                    objects({ ok: false, error: "Nothing" })
+                """.trimIndent()
             )
         }
     }
@@ -257,10 +257,10 @@ class TypeMappingTest {
             assertFails {
                 evaluate<Any?>(
                     """
-                                const object = {};
-                                object.self = object;
-                                object;
-                            """.trimIndent()
+                        const object = {};
+                        object.self = object;
+                        object;
+                    """.trimIndent()
                 )
             }.also {
                 assertContains(it.message!!, "circular reference")

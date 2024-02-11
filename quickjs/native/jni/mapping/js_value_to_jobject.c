@@ -147,8 +147,8 @@ jobject to_java_set(JNIEnv *env, JSContext *context, JSValue set) {
     jmethodID add_method = method_linked_hash_set_add(env);
     jobject java_set = (*env)->NewObject(env, set_cls, constructor);
 
-    JSValue entries_func = JS_GetPropertyStr(context, set, "keys");
-    JSValue iterator = JS_Call(context, entries_func, set, 0, 0);
+    JSValue keys_func = JS_GetPropertyStr(context, set, "keys");
+    JSValue iterator = JS_Call(context, keys_func, set, 0, 0);
     JSValue next_func = JS_GetPropertyStr(context, iterator, "next");
     for (;;) {
         JSValue entry = JS_Call(context, next_func, iterator, 0, 0);
@@ -173,7 +173,7 @@ jobject to_java_set(JNIEnv *env, JSContext *context, JSValue set) {
 
     JS_FreeValue(context, next_func);
     JS_FreeValue(context, iterator);
-    JS_FreeValue(context, entries_func);
+    JS_FreeValue(context, keys_func);
 
     return java_set;
 }

@@ -47,17 +47,17 @@ JSValue new_js_object_from_constructor(JSContext *context, const char *construct
     JSValue result;
 
     JSValue global_this = JS_GetGlobalObject(context);
-    JSValue set_constructor = JS_GetPropertyStr(context, global_this, constructor);
-    if (JS_IsUndefined(set_constructor)) {
+    JSValue js_constructor = JS_GetPropertyStr(context, global_this, constructor);
+    if (JS_IsUndefined(js_constructor)) {
         char message[100];
         sprintf(message, "JS constructor '%s' not found.", constructor);
         JS_Throw(context, new_js_error(context, "TypeMappingError", message, 0, NULL));
         result = JS_EXCEPTION;
     } else {
-        result = JS_CallConstructor(context, set_constructor, argc, argv);
+        result = JS_CallConstructor(context, js_constructor, argc, argv);
     }
 
-    JS_FreeValue(context, set_constructor);
+    JS_FreeValue(context, js_constructor);
     JS_FreeValue(context, global_this);
 
     return result;

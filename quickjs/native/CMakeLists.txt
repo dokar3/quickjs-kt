@@ -80,7 +80,7 @@ add_compile_definitions(CONFIG_VERSION=\"${CONFIG_VERSION}\")
 # QuickJS BigNum
 add_compile_definitions(CONFIG_BIGNUM)
 
-include_directories("quickjs")
+include_directories("quickjs" "common")
 
 if (BUILD_WITH_JNI)
     include_directories(
@@ -96,6 +96,7 @@ file(GLOB_RECURSE quickjs_sources
         "quickjs/libregexp.c"
         "quickjs/libunicode.c"
         "quickjs/quickjs.c"
+        "common/quickjs_version.c"
 )
 list(APPEND all_sources ${quickjs_sources})
 

@@ -10,6 +10,7 @@
 #include "js_value_to_jobject.h"
 #include "jobject_to_js_value.h"
 #include "js_value_util.h"
+#include "quickjs_version.h"
 
 JSRuntime *runtime_from_ptr(JNIEnv *env, jlong ptr) {
     if (ptr == 0) {
@@ -250,11 +251,7 @@ Java_com_dokar_quickjs_QuickJs_gc(JNIEnv *env, jobject this, jlong runtime_ptr) 
  */
 JNIEXPORT jstring JNICALL
 Java_com_dokar_quickjs_QuickJs_nativeGetVersion(JNIEnv *env, jobject this) {
-#ifdef CONFIG_VERSION
-    return (*env)->NewStringUTF(env, CONFIG_VERSION);
-#else
-    return (*env)->NewStringUTF(env, "not_cofigured");
-#endif
+    return (*env)->NewStringUTF(env, quickjs_version());
 }
 
 /**

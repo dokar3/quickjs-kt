@@ -107,9 +107,8 @@ private fun invokeFunction(
 
     val (funcName, quickJs, objectHandle) = BindingFunctionData.fromJsValues(ctx, funcData)
 
-    val invokeArgs = Array(argc) { argv!![it].readValue().toKtValue(ctx) }
-
     try {
+        val invokeArgs = Array(argc) { argv!![it].readValue().toKtValue(ctx) }
         quickJs
             .onCallBindingFunction(
                 name = funcName,
@@ -150,12 +149,12 @@ private fun invokeAsyncFunction(
     val args: Array<Any?> = Array(2 + argc) { null }
     args[0] = resolveFunc
     args[1] = rejectFunc
-    val invokeArgs = Array(argc) { argv!![it].readValue().toKtValue(ctx) }
-    for (i in invokeArgs.indices) {
-        args[i + 2] = invokeArgs[i]
-    }
 
     try {
+        val invokeArgs = Array(argc) { argv!![it].readValue().toKtValue(ctx) }
+        for (i in invokeArgs.indices) {
+            args[i + 2] = invokeArgs[i]
+        }
         // Invoke binding
         quickJs.onCallBindingFunction(
             name = funcName,
