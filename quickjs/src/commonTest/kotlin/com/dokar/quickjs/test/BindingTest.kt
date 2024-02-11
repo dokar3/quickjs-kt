@@ -28,6 +28,14 @@ class BindingTest {
     }
 
     @Test
+    fun bindEmptyFunction() = runTest {
+        quickJs {
+            function("callMe") {}
+            assertEquals(null, evaluate<Any?>("callMe()"))
+        }
+    }
+
+    @Test
     fun bindObjectWithReadOnlyProp() = runTest {
         quickJs {
             define("logger") {
