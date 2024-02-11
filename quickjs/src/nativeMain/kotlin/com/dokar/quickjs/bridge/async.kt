@@ -25,16 +25,20 @@ import kotlinx.cinterop.value
 internal value class JsPromise(
     private val value: CValue<JSValue>
 ) {
-    fun state(context: CPointer<JSContext>): JSPromiseStateEnum {
-        return JS_PromiseState(context, value)
-    }
-
     fun result(context: CPointer<JSContext>): Any? {
-        return when (state(context)) {
+        return when (JS_PromiseState(context, value)) {
             JSPromiseStateEnum.JS_PROMISE_FULFILLED -> {
                 JS_PromiseResult(context, value).use(context) {
                     val result = JS_GetPropertyStr(context, this, "value")
-                    if (JS_IsException(result) != 1) {
+                    if (result.isPromise(context)) {
+                        val state = when (JS_PromiseState(context, result)) {
+                            JSPromiseStateEnum.JS_PROMISE_PENDING -> STATE_PENDING
+                            JSPromiseStateEnum.JS_PROMISE_FULFILLED -> STATE_FULFILLED
+                            JSPromiseStateEnum.JS_PROMISE_REJECTED -> STATE_REJECTED
+                        }
+                        JS_FreeValue(context, result)
+                        state
+                    } else if (JS_IsException(result) != 1) {
                         result.use(context) { toKtValue(context) }
                     } else {
                         // Is it safe to ignore the exception?
@@ -53,14 +57,18 @@ internal value class JsPromise(
                 }
             }
 
-            JSPromiseStateEnum.JS_PROMISE_PENDING -> {
-                """Promise { <state>: "pending" }"""
-            }
+            JSPromiseStateEnum.JS_PROMISE_PENDING -> STATE_PENDING
         }
     }
 
     fun free(context: CPointer<JSContext>) {
         JS_FreeValue(context, value)
+    }
+
+    companion object {
+        private const val STATE_FULFILLED = """Promise { <state>: "fulfilled" }"""
+        private const val STATE_REJECTED = """Promise { <state>: "rejected" }"""
+        private const val STATE_PENDING = """Promise { <state>: "pending" }"""
     }
 }
 

@@ -20,9 +20,9 @@ class ModulesTest {
 
             evaluate<Any?>(
                 """
-                            import * as hello from "hello";
-                            returns(hello.greeting());
-                        """.trimIndent(),
+                    import * as hello from "hello";
+                    returns(hello.greeting());
+                """.trimIndent(),
                 asModule = true,
             )
             assertEquals("Hi from the hello module!", result)
@@ -39,9 +39,9 @@ class ModulesTest {
 
             evaluate<Any?>(
                 """
-                            import * as hello from "hello";
-                            returns(hello.greeting());
-                        """.trimIndent(),
+                    import * as hello from "hello";
+                    returns(hello.greeting());
+                """.trimIndent(),
                 asModule = true,
             )
             assertEquals("Hi from the hello module!", result)
@@ -55,9 +55,9 @@ class ModulesTest {
 
             val result = evaluate<String?>(
                 """
-                            import * as hello from "hello";
-                            hello.greeting();
-                        """.trimIndent(),
+                    import * as hello from "hello";
+                    hello.greeting();
+                """.trimIndent(),
                 asModule = true,
             )
             assertEquals(null, result)
@@ -97,9 +97,9 @@ class ModulesTest {
             assertFails {
                 evaluate<String>(
                     """
-                                    import * as hello from "hello";
-                                    returns(hello.greeting());
-                                """.trimIndent(),
+                        import * as hello from "hello";
+                        returns(hello.greeting());
+                    """.trimIndent(),
                     asModule = true,
                 )
             }.also {

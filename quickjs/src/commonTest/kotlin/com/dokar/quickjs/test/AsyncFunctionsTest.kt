@@ -5,11 +5,11 @@ import com.dokar.quickjs.binding.asyncFunction
 import com.dokar.quickjs.binding.function
 import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -111,13 +111,15 @@ class AsyncFunctionsTest {
     }
 
     @Test
-    fun runWithOutAwait() = runTest {
+    fun runWithoutAwait() = runTest {
         quickJs {
             asyncFunction("fetch") { delay(1000) }
             asyncFunction("fail") { error("Failed") }
 
             assertEquals("Promise { <state>: \"fulfilled\" }", evaluate("fetch()"))
-            assertEquals("Promise { <state>: \"rejected\" }", evaluate("fail()"))
+            assertFails { evaluate<String>("fail()") }.also {
+                assertEquals(it.message!!, "Failed")
+            }
         }
     }
 
@@ -184,15 +186,10 @@ class AsyncFunctionsTest {
     @Test
     fun cancelParentCoroutine() = runTest {
         var instance: QuickJs? = null
-        launch {
-            val parentScope = this
-            launch {
-                delay(500)
-                parentScope.cancel()
-            }
-
+        val job = launch {
             quickJs {
                 instance = this
+
                 asyncFunction("delay") {
                     delay(it[0] as Long)
                 }
@@ -201,7 +198,13 @@ class AsyncFunctionsTest {
 
                 assertTrue(false)
             }
-        }.join()
-        assertTrue(instance!!.isClosed)
+        }
+
+        launch {
+            delay(500)
+            job.cancel()
+            yield()
+            assertTrue(instance!!.isClosed)
+        }
     }
 }

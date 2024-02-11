@@ -227,6 +227,12 @@ actual class QuickJs private constructor(
                 val result = block(args.sliceArray(2..<args.size))
                 context.invokeJsFunction(resolveFunc, arrayOf(result))
             } catch (e: Exception) {
+                // Cancel all if any fails
+                asyncJobs.toList().forEach {
+                    if (it.isActive) {
+                        it.cancel()
+                    }
+                }
                 context.invokeJsFunction(rejectFunc, arrayOf(e))
                 throw e
             }
@@ -237,10 +243,10 @@ actual class QuickJs private constructor(
         asyncJobs.add(job)
     }
 
-    private suspend fun evalAndAwait(block: suspend () -> Any?): Any? {
+    private suspend fun evalAndAwait(block: suspend () -> JsPromise): Any? {
         ensureNotClosed()
         loadModules()
-        val resultPromise = block() as? JsPromise ?: qjsError("Require the async eval flag.")
+        val resultPromise = block()
         try {
             awaitAsyncJobs()
             checkException()
@@ -269,7 +275,7 @@ actual class QuickJs private constructor(
 
     private fun loadModules() {
         for (module in modules) {
-            context.evaluate(module)
+            context.evaluate(module).free(context)
         }
         modules.clear()
     }

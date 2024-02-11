@@ -138,16 +138,16 @@ class TypeMappingTest {
             }
             evaluate<Any?>(
                 """
-                            arrays([
-                                1,
-                                1.2,
-                                false,
-                                "hello",
-                                [1, 2],
-                                null,
-                                undefined,
-                            ])
-                        """.trimIndent()
+                    arrays([
+                        1,
+                        1.2,
+                        false,
+                        "hello",
+                        [1, 2],
+                        null,
+                        undefined,
+                    ])
+                """.trimIndent()
             )
         }
     }

@@ -98,6 +98,13 @@ internal fun CValue<JSValue>.toKtValue(context: CPointer<JSContext>): Any? {
 }
 
 @OptIn(ExperimentalForeignApi::class)
+internal fun CValue<JSValue>.isPromise(context: CPointer<JSContext>): Boolean {
+    val tag = JsValueGetNormTag(this)
+    if (tag != JS_TAG_OBJECT) return false
+    return JS_GetPrototype(context, this).use(context) { toKtString(context) } == "[object Promise]"
+}
+
+@OptIn(ExperimentalForeignApi::class)
 internal fun CValue<JSValue>.toKtString(context: CPointer<JSContext>): String? {
     val tag = JsValueGetNormTag(this)
     if (tag == JS_TAG_NULL || tag == JS_TAG_UNDEFINED) return null

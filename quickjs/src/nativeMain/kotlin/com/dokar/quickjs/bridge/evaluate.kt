@@ -61,7 +61,7 @@ internal fun CPointer<JSContext>.evaluate(
     code: String,
     filename: String,
     asModule: Boolean,
-): Any? {
+): JsPromise {
     val context = this@evaluate
     var evalFlags = JS_EVAL_FLAG_ASYNC
     if (asModule) {
@@ -82,7 +82,7 @@ internal fun CPointer<JSContext>.evaluate(
 @Throws(QuickJsException::class)
 internal fun CPointer<JSContext>.evaluate(
     bytecode: ByteArray
-): Any? = memScoped {
+): JsPromise = memScoped {
     val context = this@evaluate
 
     @Suppress("UNCHECKED_CAST")
@@ -104,12 +104,12 @@ internal fun CPointer<JSContext>.evaluate(
 private fun handleEvalResult(
     context: CPointer<JSContext>,
     result: CValue<JSValue>
-): Any? {
+): JsPromise {
     try {
         checkContextException(context)
         val ktValue = result.toKtValue(context)
         if (ktValue !is JsPromise) {
-            JS_FreeValue(context, result)
+             qjsError("Missing async flag to eval")
         }
         return ktValue
     } catch (e: Exception) {
