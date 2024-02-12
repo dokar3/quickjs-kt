@@ -7,7 +7,7 @@ import com.github.ajalt.clikt.core.terminal
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
 
-class ReplMain : CliktCommand() {
+class ReplCliApp : CliktCommand() {
     private val exitCommands = setOf("exit()", ".exit")
 
     override fun run() = runBlocking {
@@ -37,5 +37,3 @@ class ReplMain : CliktCommand() {
         }
     }
 }
-
-fun main(args: Array<String>) = ReplMain().main(args)

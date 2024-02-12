@@ -147,7 +147,9 @@ val nativeStaticLibPlatformFile = File(nativeStaticLibOutDir, "/platform.txt")
 
 // Task to build multiplatform jni libraries
 val buildQuickJsJniLibsTask = tasks.register("buildQuickJsJniLibs") {
-    inputs.dir(File(projectDir, "/native"))
+    inputs.dir(File(projectDir, "/native/quickjs"))
+    inputs.dir(File(projectDir, "/native/common"))
+    inputs.dir(File(projectDir, "/native/jni"))
     inputs.dir(File(projectDir, "/native/cmake"))
     inputs.file(File(projectDir, "/native/CMakeLists.txt"))
 
@@ -181,7 +183,8 @@ val buildQuickJsJniLibsTask = tasks.register("buildQuickJsJniLibs") {
 
 // Task to build Kotlin/Native static libraries
 val buildQuickJsNativeLibsTask = tasks.register("buildQuickJsNativeLibs") {
-    inputs.dir(File(projectDir, "/native"))
+    inputs.dir(File(projectDir, "/native/quickjs"))
+    inputs.dir(File(projectDir, "/native/common"))
     inputs.dir(File(projectDir, "/native/cmake"))
     inputs.file(File(projectDir, "/native/CMakeLists.txt"))
 
