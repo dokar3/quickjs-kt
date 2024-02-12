@@ -106,9 +106,9 @@ async function downloadAndExtractJdk(jdk: Jdk) {
 
   await $`mkdir ${extractPath}`;
   if (filename.endsWith(".gz")) {
-    throwIfStderrNotEmpty(await $`tar -xzf ${filepath} -C ${extractPath}`);
+    throwIfStderrNotEmpty(await $`tar -xzf ${filepath} -C ${extractPath} --quiet`);
   } else if (filename.endsWith(".zip")) {
-    throwIfStderrNotEmpty(await $`unzip -o ${filepath} -d ${extractPath}`);
+    throwIfStderrNotEmpty(await $`unzip  -o --quiet ${filepath} -d ${extractPath}`);
   } else {
     throw new Error(`Unknown JDK archive: ${filename}`);
   }
