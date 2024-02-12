@@ -128,7 +128,7 @@ async function createEnvVars(vars: (readonly [string, string])[]) {
 
   console.log();
   console.log(
-    "Updated environment variables, please run the following command to take effect:"
+    "Created environment variables, please run the following command to take effect:"
   );
   console.log();
   console.log(`>>> source ~/${path.basename(bashrcFilepath)}`);
