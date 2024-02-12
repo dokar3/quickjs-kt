@@ -390,23 +390,23 @@ fun quickJsVersion(): String {
 /// Multiplatform JDK locations
 
 fun windowX64JavaHome() = requireNotNull(envVarOrLocalPropOf("java_home_windows_x64")) {
-    "'java_home_windows_x64' is not found in env vars and local.properties"
+    "'java_home_windows_x64' is not found in env vars or local.properties"
 }
 
 fun linuxX64JavaHome() = requireNotNull(envVarOrLocalPropOf("java_home_linux_x64")) {
-    "'java_home_linux_x64' is not found in env vars and local.properties"
+    "'java_home_linux_x64' is not found in env vars or local.properties"
 }
 
 fun linuxAarch64JavaHome() = requireNotNull(envVarOrLocalPropOf("java_home_linux_aarch64")) {
-    "'java_home_linux_aarch64' is not found env vars and in local.properties"
+    "'java_home_linux_aarch64' is not found env vars or in local.properties"
 }
 
 fun macosX64JavaHome() = requireNotNull(envVarOrLocalPropOf("java_home_macos_x64")) {
-    "'java_home_macos_x64' is not found in env vars and local.properties"
+    "'java_home_macos_x64' is not found in env vars or local.properties"
 }
 
 fun macosAarch64JavaHome() = requireNotNull(envVarOrLocalPropOf("java_home_macos_aarch64")) {
-    "'java_home_macos_aarch64' is not found in env vars and local.properties"
+    "'java_home_macos_aarch64' is not found in env vars or local.properties"
 }
 
 val localProperties = Properties()
