@@ -4,8 +4,10 @@ endif()
 set(CMAKE_SYSTEM_NAME "Linux")
 set(CMAKE_SYSTEM_VERSION 1)
 set(CMAKE_SYSTEM_PROCESSOR "x86_64")
-set(CMAKE_C_COMPILER "zig" cc -target x86_64-linux-gnu)
-set(CMAKE_CXX_COMPILER "zig" c++ -target x86_64-linux-gnu)
+# Add -fno-sanitize=undefined to suppress 'Illegal instruction' errors
+# https://github.com/ziglang/zig/wiki/FAQ#why-do-i-get-illegal-instruction-when-using-with-zig-cc-to-build-c-code
+set(CMAKE_C_COMPILER "zig" cc -target x86_64-linux-gnu -fno-sanitize=undefined)
+set(CMAKE_CXX_COMPILER "zig" c++ -target x86_64-linux-gnu -fno-sanitize=undefined)
 
 if(WIN32)
     set(SCRIPT_SUFFIX ".cmd")
