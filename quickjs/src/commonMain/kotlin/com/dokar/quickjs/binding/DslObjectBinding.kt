@@ -43,7 +43,7 @@ private fun List<DslProperty<*>>.toJsProperties(): List<JsProperty> = map {
     JsProperty(
         name = it.name,
         configurable = it.configurable,
-        writable = (it.writable ?: it.setter) != null,
+        writable = it.writable ?: (it.setter != null),
         enumerable = it.enumerable,
     )
 }

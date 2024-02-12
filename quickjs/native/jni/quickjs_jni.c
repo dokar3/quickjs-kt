@@ -10,6 +10,7 @@
 #include "js_value_to_jobject.h"
 #include "jobject_to_js_value.h"
 #include "js_value_util.h"
+#include "quickjs_version.h"
 
 JSRuntime *runtime_from_ptr(JNIEnv *env, jlong ptr) {
     if (ptr == 0) {
@@ -250,11 +251,7 @@ Java_com_dokar_quickjs_QuickJs_gc(JNIEnv *env, jobject this, jlong runtime_ptr) 
  */
 JNIEXPORT jstring JNICALL
 Java_com_dokar_quickjs_QuickJs_nativeGetVersion(JNIEnv *env, jobject this) {
-#ifdef CONFIG_VERSION
-    return (*env)->NewStringUTF(env, CONFIG_VERSION);
-#else
-    return (*env)->NewStringUTF(env, "not_cofigured");
-#endif
+    return (*env)->NewStringUTF(env, quickjs_version());
 }
 
 /**
@@ -412,13 +409,13 @@ Java_com_dokar_quickjs_QuickJs_compile(JNIEnv *env, jobject this, jlong context_
  * Evaluate JavaScript code.
  */
 JNIEXPORT jobject JNICALL
-Java_com_dokar_quickjs_QuickJs_evaluate__JJLjava_lang_String_2Ljava_lang_String_2Z(JNIEnv *env,
-                                                                                   jobject this,
-                                                                                   jlong context_ptr,
-                                                                                   jlong globals_ptr,
-                                                                                   jstring jfilename,
-                                                                                   jstring jcode,
-                                                                                   jboolean as_module) {
+Java_com_dokar_quickjs_QuickJs_evaluate(JNIEnv *env,
+                                        jobject this,
+                                        jlong context_ptr,
+                                        jlong globals_ptr,
+                                        jstring jfilename,
+                                        jstring jcode,
+                                        jboolean as_module) {
     int eval_flags = JS_EVAL_FLAG_ASYNC;
     eval_flags |= as_module ? JS_EVAL_TYPE_MODULE : JS_EVAL_TYPE_GLOBAL;
     return eval(env, context_ptr, globals_ptr, jfilename, jcode, eval_flags);

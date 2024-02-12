@@ -7,6 +7,7 @@ import com.dokar.quickjs.binding.JsFunction
 import com.dokar.quickjs.binding.JsObjectHandle
 import com.dokar.quickjs.binding.JsProperty
 import com.dokar.quickjs.binding.ObjectBinding
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -51,7 +52,7 @@ suspend fun <T> QuickJs.evaluate(
     return jsAutoCastOrThrow(evaluateInternal(code, filename, asModule), type)
 }
 
-actual class QuickJs(
+actual class QuickJs private constructor(
     private val jobDispatcher: CoroutineDispatcher,
 ) : Closeable {
     // Native pointers
@@ -79,9 +80,8 @@ actual class QuickJs(
 
     private val asyncJobs = mutableListOf<Job>()
 
-    private var _isClosed = false
-
-    actual val isClosed: Boolean get() = _isClosed
+    actual var isClosed: Boolean = false
+        private set
 
     actual val version: String get() = nativeGetVersion()
 
@@ -92,7 +92,7 @@ actual class QuickJs(
             setMemoryLimit(runtime, value)
         }
 
-    actual var maxStackSize: Long = 0L
+    actual var maxStackSize: Long = 256 * 1024L
         set(value) {
             ensureNotClosed()
             field = value
@@ -177,12 +177,12 @@ actual class QuickJs(
         return compile(context, globals, filename, code, asModule)
     }
 
-    @Throws(QuickJsException::class)
+    @Throws(QuickJsException::class, CancellationException::class)
     actual suspend inline fun <reified T> evaluate(bytecode: ByteArray): T {
         return jsAutoCastOrThrow(evaluateInternal(bytecode), T::class.java)
     }
 
-    @Throws(QuickJsException::class)
+    @Throws(QuickJsException::class, CancellationException::class)
     actual suspend inline fun <reified T> evaluate(
         code: String,
         filename: String,
@@ -225,7 +225,7 @@ actual class QuickJs(
     }
 
     actual override fun close() {
-        _isClosed = true
+        isClosed = true
         objectBindings.clear()
         globalFunctions.clear()
         modules.clear()
@@ -299,7 +299,7 @@ actual class QuickJs(
                     handle = resolveHandle,
                     args = arrayOf(result)
                 )
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 // Cancel all if any fails
                 asyncJobs.toList().forEach {
                     if (it.isActive) {
@@ -313,6 +313,7 @@ actual class QuickJs(
                     handle = rejectHandle,
                     args = arrayOf(e)
                 )
+                throw e
             }
         }
         job.invokeOnCompletion {

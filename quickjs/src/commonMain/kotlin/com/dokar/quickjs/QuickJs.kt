@@ -6,6 +6,7 @@ import com.dokar.quickjs.binding.JsObjectHandle
 import com.dokar.quickjs.binding.ObjectBinding
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.coroutineContext
 
 /**
@@ -42,7 +43,8 @@ expect class QuickJs {
     /**
      * Whether the instance has closed.
      */
-    val isClosed: Boolean
+    var isClosed: Boolean
+        private set
 
     /**
      * The version of QuickJS.
@@ -144,7 +146,7 @@ expect class QuickJs {
      * @param bytecode The bytecode buffer.
      * @throws QuickJsException If an error occurred when evaluating code or mapping values.
      */
-    @Throws(QuickJsException::class)
+    @Throws(QuickJsException::class, CancellationException::class)
     suspend inline fun <reified T> evaluate(bytecode: ByteArray): T
 
     /**
@@ -158,7 +160,7 @@ expect class QuickJs {
      * @param asModule Whether evaluate the code as a module or evaluate it globally.
      * @throws QuickJsException If an error occurred when evaluating code or mapping values.
      */
-    @Throws(QuickJsException::class)
+    @Throws(QuickJsException::class, CancellationException::class)
     suspend inline fun <reified T> evaluate(
         code: String,
         filename: String = "main.js",

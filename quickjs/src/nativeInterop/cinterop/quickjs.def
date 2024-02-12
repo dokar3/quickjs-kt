@@ -1,0 +1,57 @@
+# Based on: https://github.com/cashapp/zipline/blob/5244f7c4c4f5c4263e40f2682e6bf7c6484e8020/zipline/src/nativeInterop/cinterop/quickjs.def
+
+staticLibraries = libquickjs.a
+libraryPaths = native/build/static_libs/
+
+noStringConversion = \
+	JS_Eval \
+	JS_NewString
+
+---
+
+// Avoid types ending up in cnames.structs.* https://youtrack.jetbrains.com/issue/KT-49034
+
+typedef struct JSContext {} JSContext;
+typedef struct JSRuntime {} JSRuntime;
+
+// Exposing non-constant macros per https://kotlinlang.org/docs/native-c-interop.html#macros
+
+static inline int JsValueGetNormTag(JSValue v) {
+  return JS_VALUE_GET_NORM_TAG(v);
+}
+
+static inline int JsValueGetInt(JSValue v) {
+  return JS_VALUE_GET_INT(v);
+}
+
+static inline int JsValueGetBool(JSValue v) {
+  return JS_VALUE_GET_BOOL(v);
+}
+
+static inline double JsValueGetFloat64(JSValue v) {
+  return JS_VALUE_GET_FLOAT64(v);
+}
+
+static inline int JsValueGetPtr(JSValue v) {
+    return JS_VALUE_GET_PTR(v);
+}
+
+static inline JSValue JsNull() {
+  return JS_NULL;
+}
+
+static inline JSValue JsUndefined() {
+  return JS_UNDEFINED;
+}
+
+static inline JSValue JsTrue() {
+  return JS_TRUE;
+}
+
+static inline JSValue JsFalse() {
+  return JS_FALSE;
+}
+
+static inline JSValue JsException() {
+    return JS_EXCEPTION;
+}

@@ -1,19 +1,40 @@
 plugins {
     id("application")
-    alias(libs.plugins.kotlinJvm)
+    alias(libs.plugins.kotlinMultiplatform)
     id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
 kotlin {
+    jvm {
+        withJava()
+    }
+
+    mingwX64 {
+        binaries {
+            executable()
+        }
+    }
+    linuxX64 {
+        binaries {
+            executable()
+        }
+    }
+
+    applyDefaultHierarchyTemplate()
+
     jvmToolchain {
         languageVersion.set(JavaLanguageVersion.of(17))
     }
-}
 
-dependencies {
-    implementation(projects.quickjs)
-    implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.clikt)
+    sourceSets {
+        val commonMain by getting {
+            dependencies {
+                implementation(projects.quickjs)
+                implementation(libs.kotlinx.coroutines.core)
+                implementation(libs.clikt)
+            }
+        }
+    }
 }
 
 java {
@@ -22,5 +43,5 @@ java {
 }
 
 application {
-    mainClass.set("com.dokar.quickjs.sample.repl.ReplMainKt")
+    mainClass.set("ReplMainKt")
 }
