@@ -39,18 +39,19 @@ internal value class JsPromise(
             }
         }
 
-        return when (JS_PromiseState(context, value)) {
+        return when (val state = JS_PromiseState(context, value)) {
             JSPromiseStateEnum.JS_PROMISE_FULFILLED -> {
                 JS_PromiseResult(context, value).use(context) {
                     val result = JS_GetPropertyStr(context, this, "value")
                     if (result.isPromise(context)) {
-                        val state = when (JS_PromiseState(context, result)) {
+                        val stateText = when (val retState = JS_PromiseState(context, result)) {
                             JSPromiseStateEnum.JS_PROMISE_PENDING -> STATE_PENDING
                             JSPromiseStateEnum.JS_PROMISE_FULFILLED -> STATE_FULFILLED
                             JSPromiseStateEnum.JS_PROMISE_REJECTED -> STATE_REJECTED
+                            else -> error("Unknown promise state: $retState")
                         }
                         JS_FreeValue(context, result)
-                        state
+                        stateText
                     } else if (JS_IsException(result) != 1) {
                         result.use(context) { toKtValue(context) }
                     } else {
@@ -71,6 +72,8 @@ internal value class JsPromise(
             }
 
             JSPromiseStateEnum.JS_PROMISE_PENDING -> STATE_PENDING
+
+            else -> error("Unknown promise state: $state")
         }
     }
 
