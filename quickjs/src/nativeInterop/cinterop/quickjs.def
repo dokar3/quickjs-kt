@@ -5,7 +5,8 @@ libraryPaths = native/build/static_libs/
 
 noStringConversion = \
 	JS_Eval \
-	JS_NewString
+	JS_NewString \
+	JS_FreeCString
 
 ---
 

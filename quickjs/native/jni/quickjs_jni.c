@@ -290,10 +290,24 @@ Java_com_dokar_quickjs_QuickJs_getMemoryUsage(JNIEnv *env, jobject this, jlong r
     jclass cls = cls_memory_usage(env);
     jobject usage = (*env)->NewObject(env, cls, method_memory_usage_init(env),
                                       memory_usage.malloc_limit,
-                                      memory_usage.malloc_size,
                                       memory_usage.malloc_count,
+                                      memory_usage.malloc_size,
+                                      memory_usage.memory_used_count,
                                       memory_usage.memory_used_size,
-                                      memory_usage.memory_used_count);
+                                      memory_usage.atom_count, memory_usage.atom_size,
+                                      memory_usage.str_count, memory_usage.str_size,
+                                      memory_usage.obj_count, memory_usage.obj_size,
+                                      memory_usage.prop_count, memory_usage.prop_size,
+                                      memory_usage.shape_count, memory_usage.shape_size,
+                                      memory_usage.js_func_count, memory_usage.js_func_size,
+                                      memory_usage.js_func_code_size,
+                                      memory_usage.js_func_pc2line_count,
+                                      memory_usage.js_func_pc2line_size,
+                                      memory_usage.c_func_count, memory_usage.array_count,
+                                      memory_usage.fast_array_count,
+                                      memory_usage.fast_array_elements,
+                                      memory_usage.binary_object_count,
+                                      memory_usage.binary_object_size);
     return usage;
 }
 

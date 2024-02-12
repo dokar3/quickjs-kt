@@ -187,20 +187,20 @@ class TypeMappingTest {
         quickJs {
             val result = evaluate<Map<Any?, Any?>>(
                 """
-                            const obj = {
-                                id: 1,
-                                request: {
-                                    method: "GET",
-                                    http: {
-                                        http_proxy: "NO_PROXY",
-                                    },
-                                },
-                                response: {
-                                    status: 200,
-                                }
-                            };
-                            obj;
-                        """.trimIndent()
+                const obj = {
+                    id: 1,
+                    request: {
+                        method: "GET",
+                        http: {
+                            http_proxy: "NO_PROXY",
+                        },
+                    },
+                    response: {
+                        status: 200,
+                    }
+                };
+                obj;
+            """.trimIndent()
             )
             assertEquals(1L, result["id"])
             val request = result["request"] as Map<*, *>
@@ -235,15 +235,15 @@ class TypeMappingTest {
             assertFails {
                 evaluate<Any?>(
                     """
-                                const head = { prev: null, next: null, val: 0 };
-                                const next = { prev: null, next: null, val: 1 }
-                                const tail = { prev: null, next: null, val: 2 }
-                                head.next = next;
-                                next.prev = head;
-                                next.next = tail;
-                                tail.prev = next;
-                                head;
-                            """.trimIndent()
+                        const head = { prev: null, next: null, val: 0 };
+                        const next = { prev: null, next: null, val: 1 }
+                        const tail = { prev: null, next: null, val: 2 }
+                        head.next = next;
+                        next.prev = head;
+                        next.next = tail;
+                        tail.prev = next;
+                        head;
+                    """.trimIndent()
                 )
             }.also {
                 assertContains(it.message!!, "circular reference")

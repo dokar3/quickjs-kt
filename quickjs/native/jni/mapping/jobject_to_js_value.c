@@ -49,6 +49,7 @@ JSValue new_js_object_from_constructor(JSContext *context, const char *construct
     JSValue global_this = JS_GetGlobalObject(context);
     JSValue js_constructor = JS_GetPropertyStr(context, global_this, constructor);
     if (JS_IsUndefined(js_constructor)) {
+        JS_FreeValue(context, global_this);
         char message[100];
         sprintf(message, "JS constructor '%s' not found.", constructor);
         JS_Throw(context, new_js_error(context, "TypeMappingError", message, 0, NULL));
@@ -128,6 +129,7 @@ JSValue java_map_to_js_map(JNIEnv *env, JSContext *context, jobject java_map) {
 
         JSValue js_key = jobject_to_js_value(env, context, key);
         if (JS_IsException(js_key)) {
+            JS_FreeValue(context, js_array);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
             return JS_EXCEPTION;
@@ -138,6 +140,7 @@ JSValue java_map_to_js_map(JNIEnv *env, JSContext *context, jobject java_map) {
         // Check circular refs
         if ((*env)->IsSameObject(env, java_map, value)) {
             throw_circular_ref_error(context);
+            JS_FreeValue(context, js_key);
             JS_FreeValue(context, js_array);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
@@ -147,6 +150,8 @@ JSValue java_map_to_js_map(JNIEnv *env, JSContext *context, jobject java_map) {
 
         JSValue js_value = jobject_to_js_value(env, context, value);
         if (JS_IsException(js_value)) {
+            JS_FreeValue(context, js_key);
+            JS_FreeValue(context, js_array);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
             (*env)->DeleteLocalRef(env, value);
@@ -264,6 +269,7 @@ JSValue java_map_to_js_object(JNIEnv *env, JSContext *context, jobject java_map)
 
         // Check key type
         if ((*env)->IsInstanceOf(env, key, cls_str) == JNI_FALSE) {
+            JS_FreeValue(context, js_object);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
             const char *message = "Cannot convert java map to js value: "
@@ -279,6 +285,7 @@ JSValue java_map_to_js_object(JNIEnv *env, JSContext *context, jobject java_map)
         if ((*env)->IsSameObject(env, java_map, value)) {
             throw_circular_ref_error(context);
             JS_FreeValue(context, js_object);
+            (*env)->ReleaseStringUTFChars(env, key, str_key);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
             (*env)->DeleteLocalRef(env, value);
