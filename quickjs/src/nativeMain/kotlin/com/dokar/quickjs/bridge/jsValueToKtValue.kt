@@ -360,6 +360,8 @@ private fun jsObjectToKtMap(
         result[key] = value
     }
 
+    js_free(context, propsPointer)
+
     result
 }
 
