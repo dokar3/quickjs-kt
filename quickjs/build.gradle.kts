@@ -15,6 +15,7 @@ kotlin {
     jvm()
 
     mingwX64()
+    linuxX64()
 
     applyDefaultHierarchyTemplate()
 
@@ -141,6 +142,8 @@ val nativeLibraryPlatforms = listOf(
 )
 
 val nativeBuildDir = File(projectDir, "/native/build")
+val nativeStaticLibOutDir = File(nativeBuildDir, "/static_libs")
+val nativeStaticLibPlatformFile = File(nativeStaticLibOutDir, "/platform.txt")
 
 // Task to build multiplatform jni libraries
 val buildQuickJsJniLibsTask = tasks.register("buildQuickJsJniLibs") {
@@ -185,29 +188,34 @@ val buildQuickJsNativeLibsTask = tasks.register("buildQuickJsNativeLibs") {
     outputs.dir(nativeBuildDir)
 
     doLast {
-        val isPublishing = gradle.startParameter.taskNames.contains("publish")
-        if (isPublishing) {
-            for (platform in nativeLibraryPlatforms) {
-                try {
-                    buildQuickJsNativeLibrary(
-                        platform = platform,
-                        sharedLib = false,
-                        withJni = false,
-                        release = true,
-                    )
-                } catch (e: Exception) {
-                    error(e)
-                }
+        var platform: String? = null
+        for (taskName in gradle.startParameter.taskNames) {
+            val name = taskName.lowercase()
+            if (name.contains("mingwx64")) {
+                platform = "windows_x64"
+                break
+            } else if (name.contains("linuxx64")) {
+                platform = "linux_x64"
+                break
+            } else if (name.contains("macosx64")) {
+                platform = "macos_x64"
+                break
             }
-        } else {
-            buildQuickJsNativeLibrary(
-                platform = currentPlatform(),
-                sharedLib = false,
-                withJni = false,
-                release = false,
-                outputDir = "/native/build/static_libs"
-            )
         }
+        val buildPlatform = platform ?: currentPlatform()
+        if (!nativeStaticLibPlatformFile.exists() ||
+            nativeStaticLibPlatformFile.readText() != buildPlatform
+        ) {
+            nativeStaticLibOutDir.deleteRecursively()
+        }
+        buildQuickJsNativeLibrary(
+            platform = buildPlatform,
+            sharedLib = false,
+            withJni = false,
+            release = false,
+            outputDir = nativeStaticLibOutDir,
+        )
+        nativeStaticLibPlatformFile.writeText(buildPlatform)
     }
 }
 
@@ -216,7 +224,7 @@ fun buildQuickJsNativeLibrary(
     sharedLib: Boolean,
     withJni: Boolean,
     release: Boolean,
-    outputDir: String? = null,
+    outputDir: File? = null,
 ) {
     println("Building native library for target '$platform'...")
 
@@ -261,7 +269,7 @@ fun buildQuickJsNativeLibrary(
         if (!outDir.exists() && !outDir.mkdirs()) {
             error("Failed to create library output dir: $outDir")
         }
-        println("Coping built QuickJS static library to ${file(outDir)}")
+        println("Copying built QuickJS static library to ${file(outDir)}")
         val ext = if (sharedLib) {
             if (platform.startsWith("windows")) "dll"
             else if (platform.startsWith("linux")) "so"
@@ -280,7 +288,7 @@ fun buildQuickJsNativeLibrary(
     runCommand("cmake", "--build", args[1])
 
     if (outputDir != null) {
-        copyLibToOutputDir(file(outputDir))
+        copyLibToOutputDir(outputDir)
     }
 }
 
@@ -356,6 +364,10 @@ tasks.named("jvmTest") {
 
 // Kotlin/Native mingwX64
 tasks.named("cinteropQuickjsMingwX64") {
+    dependsOn(buildQuickJsNativeLibsTask.name)
+}
+// Kotlin/Native linuxX64
+tasks.named("cinteropQuickjsLinuxX64") {
     dependsOn(buildQuickJsNativeLibsTask.name)
 }
 
