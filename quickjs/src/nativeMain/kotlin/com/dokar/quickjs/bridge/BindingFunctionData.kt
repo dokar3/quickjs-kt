@@ -10,12 +10,10 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.readValue
 import kotlinx.cinterop.toCPointer
-import kotlinx.cinterop.toKStringFromUtf8
 import kotlinx.cinterop.value
 import platform.posix.int64_tVar
 import quickjs.JSContext
 import quickjs.JSValue
-import quickjs.JS_ToCString
 import quickjs.JS_ToInt64
 
 internal data class BindingFunctionData(
@@ -30,7 +28,7 @@ internal data class BindingFunctionData(
             data: CPointer<JSValue>,
         ): BindingFunctionData = memScoped {
             // Read property name
-            val name = JS_ToCString(ctx, data[0].readValue())!!.toKStringFromUtf8()
+            val name = data[0].readValue().toKtString(ctx!!)!!
 
             // Read the QuickJs instance
             val qjsAddress = alloc<int64_tVar>()

@@ -26,6 +26,7 @@ import quickjs.JSValue
 import quickjs.JS_AtomToValue
 import quickjs.JS_Call
 import quickjs.JS_FreeAtom
+import quickjs.JS_FreeCString
 import quickjs.JS_FreeValue
 import quickjs.JS_GPN_STRING_MASK
 import quickjs.JS_GPN_SYMBOL_MASK
@@ -90,7 +91,9 @@ internal fun CValue<JSValue>.toKtValue(context: CPointer<JSContext>): Any? {
         }
     } else if (tag == JS_TAG_STRING) {
         val buffer = JS_ToCString(context, this) ?: return null
-        return buffer.toKStringFromUtf8()
+        val string = buffer.toKStringFromUtf8()
+        JS_FreeCString(context, buffer)
+        return string
     } else if (tag == JS_TAG_FUNCTION_BYTECODE || tag == JS_TAG_MODULE) {
         return memScoped {
             val flags = JS_WRITE_OBJ_BYTECODE or JS_WRITE_OBJ_REFERENCE
@@ -133,8 +136,10 @@ internal fun CValue<JSValue>.isPromise(context: CPointer<JSContext>): Boolean {
 internal fun CValue<JSValue>.toKtString(context: CPointer<JSContext>): String? {
     val tag = JsValueGetNormTag(this)
     if (tag == JS_TAG_NULL || tag == JS_TAG_UNDEFINED) return null
-    val buffer = JS_ToCString(context, this)
-    return buffer?.toKStringFromUtf8()
+    val buffer = JS_ToCString(context, this) ?: return null
+    val string = buffer.toKStringFromUtf8()
+    JS_FreeCString(context, buffer)
+    return string
 }
 
 @OptIn(ExperimentalForeignApi::class)
