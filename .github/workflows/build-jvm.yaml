@@ -1,0 +1,50 @@
+name: JVM Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'adopt'
+          cache: gradle
+
+      # Build system for C
+      - name: Setup CMake
+        uses: threeal/cmake-action@v1.3.0
+
+      # Cross-compile native libraries
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+
+      # Run js/ts scripts
+      - name: Set Bun.js
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install multiplatform JDKs
+        run: bun quickjs/scripts/setupMultiplatformJdks.ts && source ~/.java-home-vars
+
+      - uses: gradle/gradle-build-action@v3.0.0
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build
+        run: ./gradlew build
+
+      - name: Run jvm tests
+        run: ./gradlew :quickjs:jvmTest

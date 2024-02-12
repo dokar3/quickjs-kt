@@ -389,24 +389,24 @@ fun quickJsVersion(): String {
 
 /// Multiplatform JDK locations
 
-fun windowX64JavaHome(): String = requireNotNull(localPropOf("java_home.windows_x64")) {
-    "'java_home.windows_x64' not found in local.properties"
+fun windowX64JavaHome() = requireNotNull(envVarOrLocalPropOf("java_home_windows_x64")) {
+    "'java_home_windows_x64' not found in local.properties"
 }
 
-fun linuxX64JavaHome(): String = requireNotNull(localPropOf("java_home.linux_x64")) {
-    "'java_home.linux_x64' not found in local.properties"
+fun linuxX64JavaHome() = requireNotNull(envVarOrLocalPropOf("java_home_linux_x64")) {
+    "'java_home_linux_x64' not found in local.properties"
 }
 
-fun linuxAarch64JavaHome(): String = requireNotNull(localPropOf("java_home.linux_aarch64")) {
-    "'java_home.linux_aarch64' not found in local.properties"
+fun linuxAarch64JavaHome() = requireNotNull(envVarOrLocalPropOf("java_home_linux_aarch64")) {
+    "'java_home_linux_aarch64' not found in local.properties"
 }
 
-fun macosX64JavaHome(): String = requireNotNull(localPropOf("java_home.macos_x64")) {
-    "'java_home.macos_x64' not found in local.properties"
+fun macosX64JavaHome() = requireNotNull(envVarOrLocalPropOf("java_home_macos_x64")) {
+    "'java_home_macos_x64' not found in local.properties"
 }
 
-fun macosAarch64JavaHome(): String = requireNotNull(localPropOf("java_home.macos_aarch64")) {
-    "'java_home.macos_aarch64' not found in local.properties"
+fun macosAarch64JavaHome() = requireNotNull(envVarOrLocalPropOf("java_home_macos_aarch64")) {
+    "'java_home_macos_aarch64' not found in local.properties"
 }
 
 val localProperties = Properties()
@@ -419,4 +419,6 @@ if (localPropertiesFile.exists()) {
     error("Missing local.properties")
 }
 
-fun localPropOf(key: String) = localProperties[key]?.toString()
+fun envVarOrLocalPropOf(key: String): String? {
+    return System.getenv(key) ?: localProperties[key]?.toString()
+}
