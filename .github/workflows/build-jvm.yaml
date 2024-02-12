@@ -23,7 +23,7 @@ jobs:
 
       # Build system for C
       - name: Setup CMake
-        uses: threeal/cmake-action@v1.3.0
+        uses: jwlawson/actions-setup-cmake@v1.14
 
       # Cross-compile native libraries
       - name: Setup Zig
