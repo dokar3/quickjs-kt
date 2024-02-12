@@ -234,6 +234,7 @@ jobject object_to_java_map(JNIEnv *env, JSContext *context, JSValue value) {
         JS_FreeValue(context, json);
         return NULL;
     }
+    JS_FreeValue(context, json);
 
     JSPropertyEnum *props;
     uint32_t prop_len;
