@@ -472,7 +472,7 @@ jmethodID method_quick_js_create_delay(JNIEnv *env) {
 
 jmethodID method_memory_usage_init(JNIEnv *env) {
     if (_method_memory_usage_init == NULL) {
-        _method_memory_usage_init = (*env)->GetMethodID(env, cls_memory_usage(env), "<init>", "(JJJJJ)V");
+        _method_memory_usage_init = (*env)->GetMethodID(env, cls_memory_usage(env), "<init>", "(JJJJJJJJJJJJJJJJJJJJJJJJJJ)V");
     }
     return _method_memory_usage_init;
 }

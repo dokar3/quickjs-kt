@@ -144,7 +144,7 @@ const JNI_REFS = [
   },
   {
     className: "com/dokar/quickjs/MemoryUsage",
-    methods: [{ name: "<init>", sign: "(JJJJJ)V" }],
+    methods: [{ name: "<init>", sign: "(JJJJJJJJJJJJJJJJJJJJJJJJJJ)V" }],
   },
   {
     className: "com/dokar/quickjs/binding/JsProperty",
