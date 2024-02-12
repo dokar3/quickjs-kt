@@ -25,6 +25,10 @@ jobs:
       - name: Setup CMake
         uses: jwlawson/actions-setup-cmake@v1.14
 
+      # CMake generator
+      - name: Setup ninja-build
+        uses: seanmiddleditch/gha-setup-ninja@master
+
       # Cross-compile native libraries
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2
