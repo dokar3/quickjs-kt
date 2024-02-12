@@ -1,18 +1,5 @@
 package com.dokar.quickjs.bridge
 
-import com.dokar.quickjs.JSContext
-import com.dokar.quickjs.JSPromiseStateEnum
-import com.dokar.quickjs.JSRuntime
-import com.dokar.quickjs.JSValue
-import com.dokar.quickjs.JS_ExecutePendingJob
-import com.dokar.quickjs.JS_FreeValue
-import com.dokar.quickjs.JS_GetException
-import com.dokar.quickjs.JS_GetPropertyStr
-import com.dokar.quickjs.JS_IsError
-import com.dokar.quickjs.JS_IsException
-import com.dokar.quickjs.JS_IsNull
-import com.dokar.quickjs.JS_PromiseResult
-import com.dokar.quickjs.JS_PromiseState
 import com.dokar.quickjs.QuickJsException
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CPointerVar
@@ -22,6 +9,19 @@ import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.value
+import quickjs.JSContext
+import quickjs.JSPromiseStateEnum
+import quickjs.JSRuntime
+import quickjs.JSValue
+import quickjs.JS_ExecutePendingJob
+import quickjs.JS_FreeValue
+import quickjs.JS_GetException
+import quickjs.JS_GetPropertyStr
+import quickjs.JS_IsError
+import quickjs.JS_IsException
+import quickjs.JS_IsNull
+import quickjs.JS_PromiseResult
+import quickjs.JS_PromiseState
 
 @OptIn(ExperimentalForeignApi::class)
 internal value class JsPromise(

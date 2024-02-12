@@ -29,6 +29,19 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import quickjs.JSContext
+import quickjs.JSRuntime
+import quickjs.JSValue
+import quickjs.JS_FreeContext
+import quickjs.JS_FreeRuntime
+import quickjs.JS_FreeValue
+import quickjs.JS_NewContext
+import quickjs.JS_NewRuntime
+import quickjs.JS_RunGC
+import quickjs.JS_SetMaxStackSize
+import quickjs.JS_SetMemoryLimit
+import quickjs.JS_Throw
+import quickjs.quickjs_version
 import kotlin.coroutines.cancellation.CancellationException
 
 @OptIn(ExperimentalForeignApi::class)

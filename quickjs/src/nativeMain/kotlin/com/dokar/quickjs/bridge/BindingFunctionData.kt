@@ -1,9 +1,5 @@
 package com.dokar.quickjs.bridge
 
-import com.dokar.quickjs.JSContext
-import com.dokar.quickjs.JSValue
-import com.dokar.quickjs.JS_ToCString
-import com.dokar.quickjs.JS_ToInt64
 import com.dokar.quickjs.QuickJs
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -17,6 +13,10 @@ import kotlinx.cinterop.toCPointer
 import kotlinx.cinterop.toKStringFromUtf8
 import kotlinx.cinterop.value
 import platform.posix.int64_tVar
+import quickjs.JSContext
+import quickjs.JSValue
+import quickjs.JS_ToCString
+import quickjs.JS_ToInt64
 
 internal data class BindingFunctionData(
     val name: String,

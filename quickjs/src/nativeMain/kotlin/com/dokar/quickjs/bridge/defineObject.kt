@@ -1,24 +1,5 @@
 package com.dokar.quickjs.bridge
 
-import com.dokar.quickjs.JSContext
-import com.dokar.quickjs.JSValue
-import com.dokar.quickjs.JS_DefinePropertyGetSet
-import com.dokar.quickjs.JS_DefinePropertyValueStr
-import com.dokar.quickjs.JS_FreeAtom
-import com.dokar.quickjs.JS_FreeValue
-import com.dokar.quickjs.JS_GetGlobalObject
-import com.dokar.quickjs.JS_NewAtom
-import com.dokar.quickjs.JS_NewCFunctionData
-import com.dokar.quickjs.JS_NewInt64
-import com.dokar.quickjs.JS_NewObject
-import com.dokar.quickjs.JS_NewString
-import com.dokar.quickjs.JS_PROP_CONFIGURABLE
-import com.dokar.quickjs.JS_PROP_C_W_E
-import com.dokar.quickjs.JS_PROP_ENUMERABLE
-import com.dokar.quickjs.JS_PROP_WRITABLE
-import com.dokar.quickjs.JS_Throw
-import com.dokar.quickjs.JsException
-import com.dokar.quickjs.JsUndefined
 import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.binding.JsProperty
 import com.dokar.quickjs.binding.ObjectBinding
@@ -36,6 +17,25 @@ import kotlinx.cinterop.staticCFunction
 import kotlinx.cinterop.toCPointer
 import kotlinx.cinterop.toLong
 import platform.posix.int64_tVar
+import quickjs.JSContext
+import quickjs.JSValue
+import quickjs.JS_DefinePropertyGetSet
+import quickjs.JS_DefinePropertyValueStr
+import quickjs.JS_FreeAtom
+import quickjs.JS_FreeValue
+import quickjs.JS_GetGlobalObject
+import quickjs.JS_NewAtom
+import quickjs.JS_NewCFunctionData
+import quickjs.JS_NewInt64
+import quickjs.JS_NewObject
+import quickjs.JS_NewString
+import quickjs.JS_PROP_CONFIGURABLE
+import quickjs.JS_PROP_C_W_E
+import quickjs.JS_PROP_ENUMERABLE
+import quickjs.JS_PROP_WRITABLE
+import quickjs.JS_Throw
+import quickjs.JsException
+import quickjs.JsUndefined
 
 @OptIn(ExperimentalForeignApi::class)
 internal fun CPointer<JSContext>.defineObject(

@@ -1,14 +1,14 @@
 package com.dokar.quickjs.bridge
 
-import com.dokar.quickjs.JSMemoryUsage
-import com.dokar.quickjs.JSRuntime
-import com.dokar.quickjs.JS_ComputeMemoryUsage
 import com.dokar.quickjs.MemoryUsage
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
+import quickjs.JSMemoryUsage
+import quickjs.JSRuntime
+import quickjs.JS_ComputeMemoryUsage
 
 @OptIn(ExperimentalForeignApi::class)
 internal fun CPointer<JSRuntime>.ktMemoryUsage(): MemoryUsage = memScoped {

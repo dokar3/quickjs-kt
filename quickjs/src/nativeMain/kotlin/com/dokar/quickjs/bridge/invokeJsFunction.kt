@@ -1,15 +1,15 @@
 package com.dokar.quickjs.bridge
 
-import com.dokar.quickjs.JSContext
-import com.dokar.quickjs.JSValue
-import com.dokar.quickjs.JS_Call
-import com.dokar.quickjs.JS_FreeValue
-import com.dokar.quickjs.JsNull
 import com.dokar.quickjs.util.allocArrayOf
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.memScoped
+import quickjs.JSContext
+import quickjs.JSValue
+import quickjs.JS_Call
+import quickjs.JS_FreeValue
+import quickjs.JsNull
 
 @OptIn(ExperimentalForeignApi::class)
 internal fun CPointer<JSContext>.invokeJsFunction(

@@ -1,20 +1,5 @@
 package com.dokar.quickjs.bridge
 
-import com.dokar.quickjs.JSContext
-import com.dokar.quickjs.JSValue
-import com.dokar.quickjs.JS_EVAL_FLAG_ASYNC
-import com.dokar.quickjs.JS_EVAL_FLAG_COMPILE_ONLY
-import com.dokar.quickjs.JS_EVAL_TYPE_MODULE
-import com.dokar.quickjs.JS_Eval
-import com.dokar.quickjs.JS_EvalFunction
-import com.dokar.quickjs.JS_FreeValue
-import com.dokar.quickjs.JS_GetException
-import com.dokar.quickjs.JS_IsNull
-import com.dokar.quickjs.JS_READ_OBJ_BYTECODE
-import com.dokar.quickjs.JS_ReadObject
-import com.dokar.quickjs.JS_TAG_FUNCTION_BYTECODE
-import com.dokar.quickjs.JS_TAG_MODULE
-import com.dokar.quickjs.JsValueGetNormTag
 import com.dokar.quickjs.QuickJsException
 import com.dokar.quickjs.qjsError
 import kotlinx.cinterop.CPointer
@@ -25,6 +10,21 @@ import kotlinx.cinterop.UByteVar
 import kotlinx.cinterop.cstr
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.toCValues
+import quickjs.JSContext
+import quickjs.JSValue
+import quickjs.JS_EVAL_FLAG_ASYNC
+import quickjs.JS_EVAL_FLAG_COMPILE_ONLY
+import quickjs.JS_EVAL_TYPE_MODULE
+import quickjs.JS_Eval
+import quickjs.JS_EvalFunction
+import quickjs.JS_FreeValue
+import quickjs.JS_GetException
+import quickjs.JS_IsNull
+import quickjs.JS_READ_OBJ_BYTECODE
+import quickjs.JS_ReadObject
+import quickjs.JS_TAG_FUNCTION_BYTECODE
+import quickjs.JS_TAG_MODULE
+import quickjs.JsValueGetNormTag
 
 @OptIn(ExperimentalForeignApi::class)
 @Throws(QuickJsException::class)

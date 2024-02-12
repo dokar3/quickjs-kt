@@ -1,24 +1,5 @@
 package com.dokar.quickjs.bridge
 
-import com.dokar.quickjs.JSContext
-import com.dokar.quickjs.JSValue
-import com.dokar.quickjs.JS_CallConstructor
-import com.dokar.quickjs.JS_GetGlobalObject
-import com.dokar.quickjs.JS_GetPropertyStr
-import com.dokar.quickjs.JS_IsNull
-import com.dokar.quickjs.JS_IsUndefined
-import com.dokar.quickjs.JS_NewArray
-import com.dokar.quickjs.JS_NewBool
-import com.dokar.quickjs.JS_NewError
-import com.dokar.quickjs.JS_NewFloat64
-import com.dokar.quickjs.JS_NewInt32
-import com.dokar.quickjs.JS_NewInt64
-import com.dokar.quickjs.JS_NewObject
-import com.dokar.quickjs.JS_NewString
-import com.dokar.quickjs.JS_SetPropertyStr
-import com.dokar.quickjs.JS_SetPropertyUint32
-import com.dokar.quickjs.JsNull
-import com.dokar.quickjs.JsUndefined
 import com.dokar.quickjs.binding.JsObject
 import com.dokar.quickjs.qjsError
 import com.dokar.quickjs.util.allocArrayOf
@@ -29,6 +10,25 @@ import kotlinx.cinterop.CValuesRef
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.cstr
 import kotlinx.cinterop.memScoped
+import quickjs.JSContext
+import quickjs.JSValue
+import quickjs.JS_CallConstructor
+import quickjs.JS_GetGlobalObject
+import quickjs.JS_GetPropertyStr
+import quickjs.JS_IsNull
+import quickjs.JS_IsUndefined
+import quickjs.JS_NewArray
+import quickjs.JS_NewBool
+import quickjs.JS_NewError
+import quickjs.JS_NewFloat64
+import quickjs.JS_NewInt32
+import quickjs.JS_NewInt64
+import quickjs.JS_NewObject
+import quickjs.JS_NewString
+import quickjs.JS_SetPropertyStr
+import quickjs.JS_SetPropertyUint32
+import quickjs.JsNull
+import quickjs.JsUndefined
 import kotlin.experimental.ExperimentalNativeApi
 
 @OptIn(ExperimentalForeignApi::class)

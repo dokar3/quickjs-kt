@@ -61,7 +61,7 @@ kotlin {
                         file("native/quickjs/quickjs.h"),
                         file("native/common/quickjs_version.h"),
                     )
-                    packageName("com.dokar.quickjs")
+                    packageName("quickjs")
                 }
             }
         }

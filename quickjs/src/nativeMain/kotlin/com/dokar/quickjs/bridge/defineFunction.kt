@@ -1,20 +1,5 @@
 package com.dokar.quickjs.bridge
 
-import com.dokar.quickjs.JSContext
-import com.dokar.quickjs.JSValue
-import com.dokar.quickjs.JS_DefinePropertyValue
-import com.dokar.quickjs.JS_DupValue
-import com.dokar.quickjs.JS_FreeAtom
-import com.dokar.quickjs.JS_FreeValue
-import com.dokar.quickjs.JS_GetGlobalObject
-import com.dokar.quickjs.JS_NewAtom
-import com.dokar.quickjs.JS_NewCFunctionData
-import com.dokar.quickjs.JS_NewInt64
-import com.dokar.quickjs.JS_NewPromiseCapability
-import com.dokar.quickjs.JS_NewString
-import com.dokar.quickjs.JS_PROP_CONFIGURABLE
-import com.dokar.quickjs.JS_Throw
-import com.dokar.quickjs.JsException
 import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.util.allocArrayOf
 import kotlinx.cinterop.CPointer
@@ -28,6 +13,21 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.readValue
 import kotlinx.cinterop.staticCFunction
 import kotlinx.cinterop.toLong
+import quickjs.JSContext
+import quickjs.JSValue
+import quickjs.JS_DefinePropertyValue
+import quickjs.JS_DupValue
+import quickjs.JS_FreeAtom
+import quickjs.JS_FreeValue
+import quickjs.JS_GetGlobalObject
+import quickjs.JS_NewAtom
+import quickjs.JS_NewCFunctionData
+import quickjs.JS_NewInt64
+import quickjs.JS_NewPromiseCapability
+import quickjs.JS_NewString
+import quickjs.JS_PROP_CONFIGURABLE
+import quickjs.JS_Throw
+import quickjs.JsException
 
 @OptIn(ExperimentalForeignApi::class)
 internal fun CPointer<JSContext>.defineFunction(
