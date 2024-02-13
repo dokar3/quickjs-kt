@@ -68,19 +68,21 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
 
         outputs.dir(nativeStaticLibOutDir)
 
-        val platform = findBuildPlatformFromStartTaskNames() ?: currentPlatform
-        inputs.property("platform", platform)
+        val buildPlatforms = findBuildPlatformsFromStartTaskNames()
+        inputs.property("platform", buildPlatforms)
 
         doLast {
-            buildQuickJsNativeLibrary(
-                cmakeFile = cmakeFile,
-                platform = platform.name,
-                sharedLib = false,
-                withJni = false,
-                release = false,
-                outputDir = nativeStaticLibOutDir,
-                withPlatformSuffixIfCopy = true,
-            )
+            for (platform in buildPlatforms) {
+                buildQuickJsNativeLibrary(
+                    cmakeFile = cmakeFile,
+                    platform = platform.name,
+                    sharedLib = false,
+                    withJni = false,
+                    release = false,
+                    outputDir = nativeStaticLibOutDir,
+                    withPlatformSuffixIfCopy = true,
+                )
+            }
         }
     }
 
@@ -242,9 +244,35 @@ private fun Project.buildQuickJsNativeLibrary(
     }
 }
 
-private fun Project.findBuildPlatformFromStartTaskNames(): Platform? {
+private fun Project.findBuildPlatformsFromStartTaskNames(): List<Platform> {
+    val taskNames = gradle.startParameter.taskNames
+
+    if (taskNames.contains("build")) {
+        when (currentPlatform) {
+            Platform.linux_x64 -> {
+                return listOf(Platform.linux_x64)
+            }
+
+            Platform.macos_x64 -> {
+                return listOf(
+                    Platform.macos_x64,
+                    Platform.macos_aarch64,
+                    Platform.ios_x64,
+                    Platform.ios_aarch64,
+                    Platform.ios_aarch64_simulator,
+                )
+            }
+
+            Platform.windows_x64 -> {
+                return listOf(Platform.windows_x64)
+            }
+
+            else -> {} // Not supported yet
+        }
+    }
+
     var platform: Platform? = null
-    for (taskName in gradle.startParameter.taskNames) {
+    for (taskName in taskNames) {
         val name = taskName.lowercase()
         if (name.contains("mingwx64")) {
             platform = Platform.windows_x64
@@ -272,7 +300,8 @@ private fun Project.findBuildPlatformFromStartTaskNames(): Platform? {
             break
         }
     }
-    return platform
+
+    return listOf(platform ?: currentPlatform)
 }
 
 /// Multiplatform JDK locations
