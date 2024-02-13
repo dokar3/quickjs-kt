@@ -64,35 +64,41 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
         outputs.dir(nativeStaticLibOutDir)
 
         doLast {
-            var platform: String? = null
+            var platform: Platform? = null
             for (taskName in gradle.startParameter.taskNames) {
                 val name = taskName.lowercase()
                 if (name.contains("mingwx64")) {
-                    platform = "windows_x64"
+                    platform = Platform.windows_x64
                     break
                 } else if (name.contains("linuxx64")) {
-                    platform = "linux_x64"
+                    platform = Platform.linux_x64
+                    break
+                } else if (name.contains("linuxarm64")) {
+                    platform = Platform.linux_aarch64
                     break
                 } else if (name.contains("macosx64")) {
-                    platform = "macos_x64"
+                    platform = Platform.macos_x64
+                    break
+                } else if (name.contains("macosarm64")) {
+                    platform = Platform.macos_aarch64
                     break
                 }
             }
-            val buildPlatform = platform ?: currentPlatform.name
+            val buildPlatform = platform ?: currentPlatform
             if (!nativeStaticLibPlatformFile.exists() ||
-                nativeStaticLibPlatformFile.readText() != buildPlatform
+                nativeStaticLibPlatformFile.readText() != buildPlatform.name
             ) {
                 nativeStaticLibOutDir.deleteRecursively()
             }
             buildQuickJsNativeLibrary(
                 cmakeFile = cmakeFile,
-                platform = buildPlatform,
+                platform = buildPlatform.name,
                 sharedLib = false,
                 withJni = false,
                 release = false,
                 outputDir = nativeStaticLibOutDir,
             )
-            nativeStaticLibPlatformFile.writeText(buildPlatform)
+            nativeStaticLibPlatformFile.writeText(buildPlatform.name)
         }
     }
 

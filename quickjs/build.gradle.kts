@@ -1,5 +1,6 @@
 /// Based on https://github.com/cashapp/zipline/blob/trunk/zipline/build.gradle.kts
 import com.dokar.quickjs.applyQuickJsNativeBuildTasks
+import com.dokar.quickjs.currentPlatform
 import com.dokar.quickjs.disableUnsupportedPlatformTasks
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
@@ -17,6 +18,11 @@ kotlin {
 
     mingwX64()
     linuxX64()
+    linuxArm64()
+    if (currentPlatform.osName == "macos") {
+        macosX64()
+        macosArm64()
+    }
 
     applyDefaultHierarchyTemplate()
 
