@@ -173,7 +173,9 @@ private fun Project.buildQuickJsNativeLibrary(
     release: Boolean,
     outputDir: File? = null,
 ) {
-    println("Building native library for target '$platform'...")
+    val libType = if (sharedLib) "shared" else "static"
+
+    println("Building $libType native library for target '$platform'...")
 
     val commonArgs = arrayOf(
         "-B",
@@ -216,7 +218,7 @@ private fun Project.buildQuickJsNativeLibrary(
         if (!outDir.exists() && !outDir.mkdirs()) {
             error("Failed to create library output dir: $outDir")
         }
-        println("Copying built QuickJS static library to ${file(outDir)}")
+        println("Copying built QuickJS $libType library to ${file(outDir)}")
         val ext = if (sharedLib) {
             if (platform.startsWith("windows")) "dll"
             else if (platform.startsWith("linux")) "so"
