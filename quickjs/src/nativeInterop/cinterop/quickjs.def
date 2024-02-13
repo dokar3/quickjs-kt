@@ -1,6 +1,14 @@
 # Based on: https://github.com/cashapp/zipline/blob/5244f7c4c4f5c4263e40f2682e6bf7c6484e8020/zipline/src/nativeInterop/cinterop/quickjs.def
 
-staticLibraries = libquickjs.a
+staticLibraries.mingw_x64 = libquickjs_windows_x64.a
+staticLibraries.linux_x64 = libquickjs_linux_x64.a
+staticLibraries.linux_arm64 = libquickjs_linux_aarch64.a
+staticLibraries.macos_x64 = libquickjs_macos_x64.a
+staticLibraries.macos_arm64 = libquickjs_macos_aarch64.a
+staticLibraries.ios_x64 = libquickjs_ios_x64.a
+staticLibraries.ios_arm64 = libquickjs_ios_aarch64.a
+staticLibraries.ios_simulator_arm64 = libquickjs_ios_simulator_aarch64.a
+
 libraryPaths = native/build/static_libs/
 
 noStringConversion = \

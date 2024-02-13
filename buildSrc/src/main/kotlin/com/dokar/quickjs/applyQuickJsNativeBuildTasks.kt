@@ -18,7 +18,6 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
     val nativeBuildDir = File(projectDir, "/native/build")
     val jniLibOutDir = File(nativeBuildDir, "/jni_libs")
     val nativeStaticLibOutDir = File(nativeBuildDir, "/static_libs")
-    val nativeStaticLibPlatformFile = File(nativeStaticLibOutDir, "/platform.txt")
 
     // Task to build multiplatform jni libraries
     val buildQuickJsJniLibsTask = tasks.register("buildQuickJsJniLibs") {
@@ -69,17 +68,10 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
 
         outputs.dir(nativeStaticLibOutDir)
 
-        val buildPlatform = findBuildPlatformFromStartTaskNames()
-        if (buildPlatform != null) {
-            if (!nativeStaticLibPlatformFile.exists() ||
-                nativeStaticLibPlatformFile.readText() != buildPlatform.name
-            ) {
-                nativeStaticLibOutDir.deleteRecursively()
-            }
-        }
+        val platform = findBuildPlatformFromStartTaskNames() ?: currentPlatform
+        inputs.property("platform", platform)
 
         doLast {
-            val platform = buildPlatform ?: currentPlatform
             buildQuickJsNativeLibrary(
                 cmakeFile = cmakeFile,
                 platform = platform.name,
@@ -87,8 +79,8 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
                 withJni = false,
                 release = false,
                 outputDir = nativeStaticLibOutDir,
+                withPlatformSuffixIfCopy = true,
             )
-            nativeStaticLibPlatformFile.writeText(platform.name)
         }
     }
 
@@ -156,9 +148,6 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
         tasks.named("cinteropQuickjs$suffix") {
             dependsOn(buildQuickJsNativeLibsTask.name)
         }
-        tasks.named("compileKotlin$suffix") {
-            dependsOn(buildQuickJsNativeLibsTask.name)
-        }
     }
 
     tasks.register("cleanQuickJSBuild") {
@@ -178,6 +167,7 @@ private fun Project.buildQuickJsNativeLibrary(
     withJni: Boolean,
     release: Boolean,
     outputDir: File? = null,
+    withPlatformSuffixIfCopy: Boolean = false,
 ) {
     val libType = if (sharedLib) "shared" else "static"
 
@@ -234,7 +224,12 @@ private fun Project.buildQuickJsNativeLibrary(
             "a"
         }
         val libraryFile = file("native/build/$platform/libquickjs.$ext")
-        libraryFile.copyTo(File(outDir, libraryFile.name), overwrite = true)
+        val destFilename = if (withPlatformSuffixIfCopy) {
+            "libquickjs_${platform}.$ext"
+        } else {
+            "libquickjs.$ext"
+        }
+        libraryFile.copyTo(File(outDir, destFilename), overwrite = true)
     }
 
     // Generate build files
