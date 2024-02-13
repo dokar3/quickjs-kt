@@ -1,7 +1,9 @@
 package com.dokar.quickjs
 
 import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.tasks.bundling.Jar
+import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.withType
 import java.io.File
 import java.util.Properties
@@ -158,6 +160,18 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
     }
     // Kotlin/Native linuxX64
     tasks.named("cinteropQuickjsLinuxX64") {
+        dependsOn(buildQuickJsNativeLibsTask.name)
+    }
+    // Kotlin/Native linuxArm64
+    tasks.named("cinteropQuickjsLinuxArm64") {
+        dependsOn(buildQuickJsNativeLibsTask.name)
+    }
+    // Kotlin/Native macOSX64
+    tasks.findByName("cinteropQuickjsMacosX64")?.configure<Task> {
+        dependsOn(buildQuickJsNativeLibsTask.name)
+    }
+    // Kotlin/Native macOSArm64
+    tasks.findByName("cinteropQuickjsMacosArm64")?.configure<Task> {
         dependsOn(buildQuickJsNativeLibsTask.name)
     }
 
