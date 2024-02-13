@@ -57,9 +57,3 @@ jobs:
 
       - name: Build
         run: ./gradlew build
-
-      - name: Run tests (JVM)
-        run: ./gradlew :quickjs:jvmTest
-
-      - name: Run tests (Native/Linux-x64)
-        run: ./gradlew :quickjs:linuxX64Test
