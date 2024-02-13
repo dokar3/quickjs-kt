@@ -45,7 +45,10 @@ jobs:
           bun-version: latest
 
       - name: Install multiplatform JDKs
-        run: bun quickjs/scripts/setupMultiplatformJdks.ts
+        run: |
+          bun quickjs/scripts/setupMultiplatformJdks.ts
+          source ~/java-home-vars-github.sh
+          echo "Linux X64 JDK: $JAVA_HOME_LINUX_X64"
 
       - uses: gradle/gradle-build-action@v3.0.0
 
@@ -59,18 +62,12 @@ jobs:
         run: ./gradlew build
 
       - name: Run tests (JVM)
-        run: |
-          source ~/.java-home-vars
-          ./gradlew :quickjs:jvmTest
+        run: ./gradlew :quickjs:jvmTest
 
       - name: Run tests (Native/Linux-x64)
         if: ${{ matrix.os == 'ubuntu-latest' }}
-        run: |
-          source ~/.java-home-vars
-          ./gradlew :quickjs:linuxX64Test
+        run: ./gradlew :quickjs:linuxX64Test
 
       - name: Run tests (Native/Windows-x64)
         if: ${{ matrix.os == 'windows-latest' }}
-        run: |
-          source ~/.java-home-vars
-          ./gradlew :quickjs:mingwX64Test
+        run: ./gradlew :quickjs:mingwX64Test
