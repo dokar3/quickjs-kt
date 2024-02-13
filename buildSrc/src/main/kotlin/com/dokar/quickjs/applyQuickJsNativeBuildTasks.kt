@@ -123,7 +123,7 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
 
     tasks.withType<Jar>().configureEach {
         dependsOn(copyQuickJsJniLibsTask.name)
-        // Pack the shared library
+        // Pack the shared libraries
         from(File(layout.buildDirectory.asFile.get(), "libs")) {
             include("jni/")
         }
@@ -142,28 +142,21 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
         }
     }
 
-    // Kotlin/Native mingwX64
-    tasks.named("cinteropQuickjsMingwX64") {
-        dependsOn(buildQuickJsNativeLibsTask.name)
+    val cinteropTaskSuffixes = listOf(
+        "MingwX64",
+        "LinuxX64",
+        "LinuxArm64",
+        "MacosX64",
+        "MacosArm64",
+        "IosX64",
+        "IosArm64",
+        "IosSimulatorArm64",
+    )
+    for (suffix in cinteropTaskSuffixes) {
+        tasks.named("cinteropQuickjs$suffix") {
+            dependsOn(buildQuickJsNativeLibsTask.name)
+        }
     }
-    // Kotlin/Native linuxX64
-    tasks.named("cinteropQuickjsLinuxX64") {
-        dependsOn(buildQuickJsNativeLibsTask.name)
-    }
-    // Kotlin/Native linuxArm64
-    tasks.named("cinteropQuickjsLinuxArm64") {
-        dependsOn(buildQuickJsNativeLibsTask.name)
-    }
-    // Kotlin/Native macOSX64
-    tasks.findByName("cinteropQuickjsMacosX64")?.dependsOn(buildQuickJsNativeLibsTask.name)
-    // Kotlin/Native macOSArm64
-    tasks.findByName("cinteropQuickjsMacosArm64")?.dependsOn(buildQuickJsNativeLibsTask.name)
-    // Kotlin/Native iosX64
-    tasks.findByName("cinteropQuickjsIosX64")?.dependsOn(buildQuickJsNativeLibsTask.name)
-    // Kotlin/Native iosArm64
-    tasks.findByName("cinteropQuickjsIosArm64")?.dependsOn(buildQuickJsNativeLibsTask.name)
-    // Kotlin/Native iosSimulatorArm64
-    tasks.findByName("cinteropQuickjsIosSimulatorArm64")?.dependsOn(buildQuickJsNativeLibsTask.name)
 
     tasks.register("cleanQuickJSBuild") {
         doLast {
