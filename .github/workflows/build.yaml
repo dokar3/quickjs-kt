@@ -25,7 +25,7 @@ jobs:
 
       # Build system for C
       - name: Setup CMake
-        uses: jwlawson/actions-setup-cmake@v1.14
+        uses: jwlawson/actions-setup-cmake@v2.0
 
       # CMake generator
       - name: Setup ninja-build
