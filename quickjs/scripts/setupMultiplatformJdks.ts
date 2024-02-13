@@ -173,5 +173,5 @@ const elapsed = ((end - start) / 1000).toFixed(2);
 
 console.log();
 console.log(
-  `All ${JDK_LIST.length} JDKs are installed. Time elapsed: ${elapsed}s.`
+  `All ${JDK_LIST.length} JDKs are installed, took ${elapsed}s.`
 );

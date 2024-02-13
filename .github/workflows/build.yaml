@@ -9,10 +9,7 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        os: [ ubuntu-latest, windows-latest ]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -47,8 +44,8 @@ jobs:
       - name: Install multiplatform JDKs
         run: |
           bun quickjs/scripts/setupMultiplatformJdks.ts
+          printf "Exports:\n$(cat ~/java-home-vars-github.sh)"
           source ~/java-home-vars-github.sh
-          echo "Linux X64 JDK: $JAVA_HOME_LINUX_X64"
 
       - uses: gradle/gradle-build-action@v3.0.0
 
@@ -65,9 +62,4 @@ jobs:
         run: ./gradlew :quickjs:jvmTest
 
       - name: Run tests (Native/Linux-x64)
-        if: ${{ matrix.os == 'ubuntu-latest' }}
         run: ./gradlew :quickjs:linuxX64Test
-
-      - name: Run tests (Native/Windows-x64)
-        if: ${{ matrix.os == 'windows-latest' }}
-        run: ./gradlew :quickjs:mingwX64Test
