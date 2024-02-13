@@ -8,6 +8,9 @@ enum class Platform(
     linux_x64("linux", "x64"),
     macos_aarch64("macos", "aarch64"),
     macos_x64("macos", "x64"),
+    ios_x64("ios", "x64"),
+    ios_aarch64("ios", "aarch64"),
+    ios_aarch64_simulator("ios", "aarch64"),
     windows_x64("windows", "x64");
 }
 

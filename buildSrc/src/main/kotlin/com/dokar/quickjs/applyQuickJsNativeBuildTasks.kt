@@ -6,9 +6,15 @@ import org.gradle.kotlin.dsl.withType
 import java.io.File
 import java.util.Properties
 
-fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
-    val nativeLibraryPlatforms = Platform.values()
+private val jniLibraryPlatforms = listOf(
+    Platform.windows_x64,
+    Platform.linux_x64,
+    Platform.linux_aarch64,
+    Platform.macos_x64,
+    Platform.macos_aarch64,
+)
 
+fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
     val nativeBuildDir = File(projectDir, "/native/build")
     val jniLibOutDir = File(nativeBuildDir, "/jni_libs")
     val nativeStaticLibOutDir = File(nativeBuildDir, "/static_libs")
@@ -27,7 +33,7 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
         doLast {
             val isPublishing = gradle.startParameter.taskNames.contains("publish")
             if (isPublishing) {
-                for (platform in nativeLibraryPlatforms) {
+                for (platform in jniLibraryPlatforms) {
                     try {
                         buildQuickJsNativeLibrary(
                             cmakeFile = cmakeFile,
@@ -81,6 +87,15 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
                     break
                 } else if (name.contains("macosarm64")) {
                     platform = Platform.macos_aarch64
+                    break
+                } else if (name.contains("iosx64")) {
+                    platform = Platform.ios_x64
+                    break
+                } else if (name.contains("iosarm64")) {
+                    platform = Platform.ios_aarch64
+                    break
+                } else if (name.contains("iossimulatorarm64")) {
+                    platform = Platform.ios_aarch64_simulator
                     break
                 }
             }
@@ -168,6 +183,12 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
     tasks.findByName("cinteropQuickjsMacosX64")?.dependsOn(buildQuickJsNativeLibsTask.name)
     // Kotlin/Native macOSArm64
     tasks.findByName("cinteropQuickjsMacosArm64")?.dependsOn(buildQuickJsNativeLibsTask.name)
+    // Kotlin/Native iosX64
+    tasks.findByName("cinteropQuickjsIosX64")?.dependsOn(buildQuickJsNativeLibsTask.name)
+    // Kotlin/Native iosArm64
+    tasks.findByName("cinteropQuickjsIosArm64")?.dependsOn(buildQuickJsNativeLibsTask.name)
+    // Kotlin/Native iosSimulatorArm64
+    tasks.findByName("cinteropQuickjsIosSimulatorArm64")?.dependsOn(buildQuickJsNativeLibsTask.name)
 
     tasks.register("cleanQuickJSBuild") {
         doLast {
