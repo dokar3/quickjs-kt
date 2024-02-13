@@ -1,3 +1,5 @@
+import com.dokar.quickjs.disableUnsupportedPlatformTasks
+
 plugins {
     id("application")
     alias(libs.plugins.kotlinMultiplatform)
@@ -45,3 +47,5 @@ java {
 application {
     mainClass.set("ReplMainKt")
 }
+
+disableUnsupportedPlatformTasks()
