@@ -69,51 +69,26 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
 
         outputs.dir(nativeStaticLibOutDir)
 
-        doLast {
-            var platform: Platform? = null
-            for (taskName in gradle.startParameter.taskNames) {
-                val name = taskName.lowercase()
-                if (name.contains("mingwx64")) {
-                    platform = Platform.windows_x64
-                    break
-                } else if (name.contains("linuxx64")) {
-                    platform = Platform.linux_x64
-                    break
-                } else if (name.contains("linuxarm64")) {
-                    platform = Platform.linux_aarch64
-                    break
-                } else if (name.contains("macosx64")) {
-                    platform = Platform.macos_x64
-                    break
-                } else if (name.contains("macosarm64")) {
-                    platform = Platform.macos_aarch64
-                    break
-                } else if (name.contains("iosx64")) {
-                    platform = Platform.ios_x64
-                    break
-                } else if (name.contains("iosarm64")) {
-                    platform = Platform.ios_aarch64
-                    break
-                } else if (name.contains("iossimulatorarm64")) {
-                    platform = Platform.ios_aarch64_simulator
-                    break
-                }
-            }
-            val buildPlatform = platform ?: currentPlatform
+        val buildPlatform = findBuildPlatformFromStartTaskNames()
+        if (buildPlatform != null) {
             if (!nativeStaticLibPlatformFile.exists() ||
                 nativeStaticLibPlatformFile.readText() != buildPlatform.name
             ) {
                 nativeStaticLibOutDir.deleteRecursively()
             }
+        }
+
+        doLast {
+            val platform = buildPlatform ?: currentPlatform
             buildQuickJsNativeLibrary(
                 cmakeFile = cmakeFile,
-                platform = buildPlatform.name,
+                platform = platform.name,
                 sharedLib = false,
                 withJni = false,
                 release = false,
                 outputDir = nativeStaticLibOutDir,
             )
-            nativeStaticLibPlatformFile.writeText(buildPlatform.name)
+            nativeStaticLibPlatformFile.writeText(platform.name)
         }
     }
 
@@ -274,6 +249,39 @@ private fun Project.buildQuickJsNativeLibrary(
     if (outputDir != null) {
         copyLibToOutputDir(outputDir)
     }
+}
+
+private fun Project.findBuildPlatformFromStartTaskNames(): Platform? {
+    var platform: Platform? = null
+    for (taskName in gradle.startParameter.taskNames) {
+        val name = taskName.lowercase()
+        if (name.contains("mingwx64")) {
+            platform = Platform.windows_x64
+            break
+        } else if (name.contains("linuxx64")) {
+            platform = Platform.linux_x64
+            break
+        } else if (name.contains("linuxarm64")) {
+            platform = Platform.linux_aarch64
+            break
+        } else if (name.contains("macosx64")) {
+            platform = Platform.macos_x64
+            break
+        } else if (name.contains("macosarm64")) {
+            platform = Platform.macos_aarch64
+            break
+        } else if (name.contains("iosx64")) {
+            platform = Platform.ios_x64
+            break
+        } else if (name.contains("iosarm64")) {
+            platform = Platform.ios_aarch64
+            break
+        } else if (name.contains("iossimulatorarm64")) {
+            platform = Platform.ios_aarch64_simulator
+            break
+        }
+    }
+    return platform
 }
 
 /// Multiplatform JDK locations
