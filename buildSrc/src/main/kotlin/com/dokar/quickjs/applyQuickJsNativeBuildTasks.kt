@@ -156,6 +156,9 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
         tasks.named("cinteropQuickjs$suffix") {
             dependsOn(buildQuickJsNativeLibsTask.name)
         }
+        tasks.named("compileKotlin$suffix") {
+            dependsOn(buildQuickJsNativeLibsTask.name)
+        }
     }
 
     tasks.register("cleanQuickJSBuild") {
