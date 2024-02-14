@@ -27,7 +27,7 @@ internal fun Project.buildQuickJsNativeLibrary(
         "-DLIBRARY_TYPE=${if (sharedLib) "shared" else "static"}",
     )
 
-    // Generator
+    // Generators
     val ninja = "-G Ninja"
     val xcode = "-G Xcode"
 
@@ -52,9 +52,10 @@ internal fun Project.buildQuickJsNativeLibrary(
             Platform.macos_aarch64,
             Platform.macos_x64 -> commonArgs + ninja
 
+            Platform.ios_aarch64 -> commonArgs + xcode
+
             Platform.ios_x64,
-            Platform.ios_aarch64,
-            Platform.ios_simulator_aarch64 -> commonArgs + xcode
+            Platform.ios_simulator_aarch64 -> commonArgs + xcode + "-- -sdk iphonesimulator"
         }
     }
 
