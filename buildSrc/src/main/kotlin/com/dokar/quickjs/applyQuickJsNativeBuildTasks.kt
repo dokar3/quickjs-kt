@@ -4,15 +4,19 @@ import org.gradle.api.Project
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.kotlin.dsl.withType
 import java.io.File
-import java.util.Properties
+
+private val jniLibraryPlatforms = listOf(
+    Platform.windows_x64,
+    Platform.linux_x64,
+    Platform.linux_aarch64,
+    Platform.macos_x64,
+    Platform.macos_aarch64,
+)
 
 fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
-    val nativeLibraryPlatforms = Platform.values()
-
     val nativeBuildDir = File(projectDir, "/native/build")
     val jniLibOutDir = File(nativeBuildDir, "/jni_libs")
     val nativeStaticLibOutDir = File(nativeBuildDir, "/static_libs")
-    val nativeStaticLibPlatformFile = File(nativeStaticLibOutDir, "/platform.txt")
 
     // Task to build multiplatform jni libraries
     val buildQuickJsJniLibsTask = tasks.register("buildQuickJsJniLibs") {
@@ -27,24 +31,20 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
         doLast {
             val isPublishing = gradle.startParameter.taskNames.contains("publish")
             if (isPublishing) {
-                for (platform in nativeLibraryPlatforms) {
-                    try {
-                        buildQuickJsNativeLibrary(
-                            cmakeFile = cmakeFile,
-                            platform = platform.name,
-                            sharedLib = true,
-                            withJni = true,
-                            release = true,
-                            outputDir = File(jniLibOutDir, platform.name)
-                        )
-                    } catch (e: Exception) {
-                        error(e)
-                    }
+                for (platform in jniLibraryPlatforms) {
+                    buildQuickJsNativeLibrary(
+                        cmakeFile = cmakeFile,
+                        platform = platform,
+                        sharedLib = true,
+                        withJni = true,
+                        release = true,
+                        outputDir = File(jniLibOutDir, platform.name)
+                    )
                 }
             } else {
                 buildQuickJsNativeLibrary(
                     cmakeFile = cmakeFile,
-                    platform = currentPlatform.name,
+                    platform = currentPlatform,
                     sharedLib = true,
                     withJni = true,
                     release = false,
@@ -63,36 +63,21 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
 
         outputs.dir(nativeStaticLibOutDir)
 
+        val buildPlatforms = findBuildPlatformsFromStartTaskNames()
+        inputs.property("platform", buildPlatforms)
+
         doLast {
-            var platform: String? = null
-            for (taskName in gradle.startParameter.taskNames) {
-                val name = taskName.lowercase()
-                if (name.contains("mingwx64")) {
-                    platform = "windows_x64"
-                    break
-                } else if (name.contains("linuxx64")) {
-                    platform = "linux_x64"
-                    break
-                } else if (name.contains("macosx64")) {
-                    platform = "macos_x64"
-                    break
-                }
+            for (platform in buildPlatforms) {
+                buildQuickJsNativeLibrary(
+                    cmakeFile = cmakeFile,
+                    platform = platform,
+                    sharedLib = false,
+                    withJni = false,
+                    release = false,
+                    outputDir = nativeStaticLibOutDir,
+                    withPlatformSuffixIfCopy = true,
+                )
             }
-            val buildPlatform = platform ?: currentPlatform.name
-            if (!nativeStaticLibPlatformFile.exists() ||
-                nativeStaticLibPlatformFile.readText() != buildPlatform
-            ) {
-                nativeStaticLibOutDir.deleteRecursively()
-            }
-            buildQuickJsNativeLibrary(
-                cmakeFile = cmakeFile,
-                platform = buildPlatform,
-                sharedLib = false,
-                withJni = false,
-                release = false,
-                outputDir = nativeStaticLibOutDir,
-            )
-            nativeStaticLibPlatformFile.writeText(buildPlatform)
         }
     }
 
@@ -127,7 +112,7 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
 
     tasks.withType<Jar>().configureEach {
         dependsOn(copyQuickJsJniLibsTask.name)
-        // Pack the shared library
+        // Pack the shared libraries
         from(File(layout.buildDirectory.asFile.get(), "libs")) {
             include("jni/")
         }
@@ -146,13 +131,20 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
         }
     }
 
-    // Kotlin/Native mingwX64
-    tasks.named("cinteropQuickjsMingwX64") {
-        dependsOn(buildQuickJsNativeLibsTask.name)
-    }
-    // Kotlin/Native linuxX64
-    tasks.named("cinteropQuickjsLinuxX64") {
-        dependsOn(buildQuickJsNativeLibsTask.name)
+    val cinteropTaskSuffixes = listOf(
+        "MingwX64",
+        "LinuxX64",
+        "LinuxArm64",
+        "MacosX64",
+        "MacosArm64",
+        "IosX64",
+        "IosArm64",
+        "IosSimulatorArm64",
+    )
+    for (suffix in cinteropTaskSuffixes) {
+        tasks.named("cinteropQuickjs$suffix") {
+            dependsOn(buildQuickJsNativeLibsTask.name)
+        }
     }
 
     tasks.register("cleanQuickJSBuild") {
@@ -165,116 +157,66 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
     }
 }
 
-private fun Project.buildQuickJsNativeLibrary(
-    cmakeFile: File,
-    platform: String,
-    sharedLib: Boolean,
-    withJni: Boolean,
-    release: Boolean,
-    outputDir: File? = null,
-) {
-    val libType = if (sharedLib) "shared" else "static"
+private fun Project.findBuildPlatformsFromStartTaskNames(): List<Platform> {
+    val taskNames = gradle.startParameter.taskNames
 
-    println("Building $libType native library for target '$platform'...")
-
-    val commonArgs = arrayOf(
-        "-B",
-        "build/$platform",
-        "-G Ninja",
-        "-DCMAKE_BUILD_TYPE=${if (release) "MinSizeRel" else "Debug"}",
-        "-DTARGET_PLATFORM=$platform",
-        "-DBUILD_WITH_JNI=${if (withJni) "ON" else "OFF"}",
-        "-DLIBRARY_TYPE=${if (sharedLib) "shared" else "static"}",
-    )
-
-    fun javaHomeArg(home: String): String {
-        return "-DPLATFORM_JAVA_HOME=$home"
+    if (taskNames.contains("publish")) {
+        return Platform.values().toList()
     }
 
-    val args = if (withJni) {
-        when (platform) {
-            "windows_x64" -> commonArgs + javaHomeArg(windowX64JavaHome())
-            "linux_x64" -> commonArgs + javaHomeArg(linuxX64JavaHome())
-            "linux_aarch64" -> commonArgs + javaHomeArg(linuxAarch64JavaHome())
-            "macos_x64" -> commonArgs + javaHomeArg(macosX64JavaHome())
-            "macos_aarch64" -> commonArgs + javaHomeArg(macosAarch64JavaHome())
-            else -> error("Unsupported platform: '$platform'")
-        }
-    } else {
-        commonArgs
-    }
+    if (taskNames.contains("build")) {
+        when (currentPlatform) {
+            Platform.linux_x64 -> {
+                return listOf(Platform.linux_x64)
+            }
 
-    fun runCommand(vararg args: Any) {
-        exec {
-            workingDir = cmakeFile.parentFile
-            standardOutput = System.out
-            errorOutput = System.err
-            commandLine(*args)
+            Platform.macos_x64 -> {
+                return listOf(
+                    Platform.macos_x64,
+                    Platform.macos_aarch64,
+                    Platform.ios_x64,
+                    Platform.ios_aarch64,
+                    Platform.ios_simulator_aarch64,
+                )
+            }
+
+            Platform.windows_x64 -> {
+                return listOf(Platform.windows_x64)
+            }
+
+            else -> {} // Not supported yet
         }
     }
 
-    fun copyLibToOutputDir(outDir: File) {
-        // Copy built library to output dir
-        if (!outDir.exists() && !outDir.mkdirs()) {
-            error("Failed to create library output dir: $outDir")
-        }
-        println("Copying built QuickJS $libType library to ${file(outDir)}")
-        val ext = if (sharedLib) {
-            if (platform.startsWith("windows")) "dll"
-            else if (platform.startsWith("linux")) "so"
-            else if (platform.startsWith("macos")) "dylib"
-            else error("Unknown platform: $platform")
-        } else {
-            "a"
-        }
-        val libraryFile = file("native/build/$platform/libquickjs.$ext")
-        libraryFile.copyTo(File(outDir, libraryFile.name), overwrite = true)
-    }
-
-    // Generate build files
-    runCommand("cmake", *args, "./")
-    // Build
-    runCommand("cmake", "--build", args[1])
-
-    if (outputDir != null) {
-        copyLibToOutputDir(outputDir)
-    }
-}
-
-/// Multiplatform JDK locations
-
-private fun Project.windowX64JavaHome() =
-    requireNotNull(envVarOrLocalPropOf("JAVA_HOME_WINDOWS_X64")) {
-        "'JAVA_HOME_WINDOWS_X64' is not found in env vars or local.properties"
-    }
-
-private fun Project.linuxX64JavaHome() =
-    requireNotNull(envVarOrLocalPropOf("JAVA_HOME_LINUX_X64")) {
-        "'JAVA_HOME_LINUX_X64' is not found in env vars or local.properties"
-    }
-
-private fun Project.linuxAarch64JavaHome() =
-    requireNotNull(envVarOrLocalPropOf("JAVA_HOME_LINUX_AARCH64")) {
-        "'JAVA_HOME_LINUX_AARCH64' is not found env vars or in local.properties"
-    }
-
-private fun Project.macosX64JavaHome() =
-    requireNotNull(envVarOrLocalPropOf("JAVA_HOME_MACOS_X64")) {
-        "'JAVA_HOME_MACOS_X64' is not found in env vars or local.properties"
-    }
-
-private fun Project.macosAarch64JavaHome() =
-    requireNotNull(envVarOrLocalPropOf("JAVA_HOME_MACOS_AARCH64")) {
-        "'JAVA_HOME_MACOS_AARCH64' is not found in env vars or local.properties"
-    }
-
-private fun Project.envVarOrLocalPropOf(key: String): String? {
-    val localProperties = Properties()
-    val localPropertiesFile = project.rootDir.resolve("local.properties")
-    if (localPropertiesFile.exists()) {
-        localPropertiesFile.inputStream().use {
-            localProperties.load(it)
+    var platform: Platform? = null
+    for (taskName in taskNames) {
+        val name = taskName.lowercase()
+        if (name.contains("mingwx64")) {
+            platform = Platform.windows_x64
+            break
+        } else if (name.contains("linuxx64")) {
+            platform = Platform.linux_x64
+            break
+        } else if (name.contains("linuxarm64")) {
+            platform = Platform.linux_aarch64
+            break
+        } else if (name.contains("macosx64")) {
+            platform = Platform.macos_x64
+            break
+        } else if (name.contains("macosarm64")) {
+            platform = Platform.macos_aarch64
+            break
+        } else if (name.contains("iosx64")) {
+            platform = Platform.ios_x64
+            break
+        } else if (name.contains("iosarm64")) {
+            platform = Platform.ios_aarch64
+            break
+        } else if (name.contains("iossimulatorarm64")) {
+            platform = Platform.ios_simulator_aarch64
+            break
         }
     }
-    return System.getenv(key) ?: localProperties[key]?.toString()
+
+    return listOf(platform ?: currentPlatform)
 }
