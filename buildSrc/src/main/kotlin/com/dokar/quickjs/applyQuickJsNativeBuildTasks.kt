@@ -4,7 +4,6 @@ import org.gradle.api.Project
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.kotlin.dsl.withType
 import java.io.File
-import java.util.Properties
 
 private val jniLibraryPlatforms = listOf(
     Platform.windows_x64,
@@ -36,7 +35,7 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
                     try {
                         buildQuickJsNativeLibrary(
                             cmakeFile = cmakeFile,
-                            platform = platform.name,
+                            platform = platform,
                             sharedLib = true,
                             withJni = true,
                             release = true,
@@ -49,7 +48,7 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
             } else {
                 buildQuickJsNativeLibrary(
                     cmakeFile = cmakeFile,
-                    platform = currentPlatform.name,
+                    platform = currentPlatform,
                     sharedLib = true,
                     withJni = true,
                     release = false,
@@ -75,7 +74,7 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
             for (platform in buildPlatforms) {
                 buildQuickJsNativeLibrary(
                     cmakeFile = cmakeFile,
-                    platform = platform.name,
+                    platform = platform,
                     sharedLib = false,
                     withJni = false,
                     release = false,
@@ -162,88 +161,6 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
     }
 }
 
-private fun Project.buildQuickJsNativeLibrary(
-    cmakeFile: File,
-    platform: String,
-    sharedLib: Boolean,
-    withJni: Boolean,
-    release: Boolean,
-    outputDir: File? = null,
-    withPlatformSuffixIfCopy: Boolean = false,
-) {
-    val libType = if (sharedLib) "shared" else "static"
-
-    println("Building $libType native library for target '$platform'...")
-
-    val commonArgs = arrayOf(
-        "-B",
-        "build/$platform",
-        "-G Ninja",
-        "-DCMAKE_BUILD_TYPE=${if (release) "MinSizeRel" else "Debug"}",
-        "-DTARGET_PLATFORM=$platform",
-        "-DBUILD_WITH_JNI=${if (withJni) "ON" else "OFF"}",
-        "-DLIBRARY_TYPE=${if (sharedLib) "shared" else "static"}",
-    )
-
-    fun javaHomeArg(home: String): String {
-        return "-DPLATFORM_JAVA_HOME=$home"
-    }
-
-    val args = if (withJni) {
-        when (platform) {
-            "windows_x64" -> commonArgs + javaHomeArg(windowX64JavaHome())
-            "linux_x64" -> commonArgs + javaHomeArg(linuxX64JavaHome())
-            "linux_aarch64" -> commonArgs + javaHomeArg(linuxAarch64JavaHome())
-            "macos_x64" -> commonArgs + javaHomeArg(macosX64JavaHome())
-            "macos_aarch64" -> commonArgs + javaHomeArg(macosAarch64JavaHome())
-            else -> error("Unsupported platform: '$platform'")
-        }
-    } else {
-        commonArgs
-    }
-
-    fun runCommand(vararg args: Any) {
-        exec {
-            workingDir = cmakeFile.parentFile
-            standardOutput = System.out
-            errorOutput = System.err
-            commandLine(*args)
-        }
-    }
-
-    fun copyLibToOutputDir(outDir: File) {
-        // Copy built library to output dir
-        if (!outDir.exists() && !outDir.mkdirs()) {
-            error("Failed to create library output dir: $outDir")
-        }
-        println("Copying built QuickJS $libType library to ${file(outDir)}")
-        val ext = if (sharedLib) {
-            if (platform.startsWith("windows")) "dll"
-            else if (platform.startsWith("linux")) "so"
-            else if (platform.startsWith("macos")) "dylib"
-            else error("Unknown platform: $platform")
-        } else {
-            "a"
-        }
-        val libraryFile = file("native/build/$platform/libquickjs.$ext")
-        val destFilename = if (withPlatformSuffixIfCopy) {
-            "libquickjs_${platform}.$ext"
-        } else {
-            "libquickjs.$ext"
-        }
-        libraryFile.copyTo(File(outDir, destFilename), overwrite = true)
-    }
-
-    // Generate build files
-    runCommand("cmake", *args, "./")
-    // Build
-    runCommand("cmake", "--build", args[1])
-
-    if (outputDir != null) {
-        copyLibToOutputDir(outputDir)
-    }
-}
-
 private fun Project.findBuildPlatformsFromStartTaskNames(): List<Platform> {
     val taskNames = gradle.startParameter.taskNames
 
@@ -302,42 +219,4 @@ private fun Project.findBuildPlatformsFromStartTaskNames(): List<Platform> {
     }
 
     return listOf(platform ?: currentPlatform)
-}
-
-/// Multiplatform JDK locations
-
-private fun Project.windowX64JavaHome() =
-    requireNotNull(envVarOrLocalPropOf("JAVA_HOME_WINDOWS_X64")) {
-        "'JAVA_HOME_WINDOWS_X64' is not found in env vars or local.properties"
-    }
-
-private fun Project.linuxX64JavaHome() =
-    requireNotNull(envVarOrLocalPropOf("JAVA_HOME_LINUX_X64")) {
-        "'JAVA_HOME_LINUX_X64' is not found in env vars or local.properties"
-    }
-
-private fun Project.linuxAarch64JavaHome() =
-    requireNotNull(envVarOrLocalPropOf("JAVA_HOME_LINUX_AARCH64")) {
-        "'JAVA_HOME_LINUX_AARCH64' is not found env vars or in local.properties"
-    }
-
-private fun Project.macosX64JavaHome() =
-    requireNotNull(envVarOrLocalPropOf("JAVA_HOME_MACOS_X64")) {
-        "'JAVA_HOME_MACOS_X64' is not found in env vars or local.properties"
-    }
-
-private fun Project.macosAarch64JavaHome() =
-    requireNotNull(envVarOrLocalPropOf("JAVA_HOME_MACOS_AARCH64")) {
-        "'JAVA_HOME_MACOS_AARCH64' is not found in env vars or local.properties"
-    }
-
-private fun Project.envVarOrLocalPropOf(key: String): String? {
-    val localProperties = Properties()
-    val localPropertiesFile = project.rootDir.resolve("local.properties")
-    if (localPropertiesFile.exists()) {
-        localPropertiesFile.inputStream().use {
-            localProperties.load(it)
-        }
-    }
-    return System.getenv(key) ?: localProperties[key]?.toString()
 }
