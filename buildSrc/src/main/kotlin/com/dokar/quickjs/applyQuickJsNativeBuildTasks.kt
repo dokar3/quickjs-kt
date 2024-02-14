@@ -172,7 +172,7 @@ private fun Project.findBuildPlatformsFromStartTaskNames(): List<Platform> {
                     Platform.macos_aarch64,
                     Platform.ios_x64,
                     Platform.ios_aarch64,
-                    Platform.ios_aarch64_simulator,
+                    Platform.ios_simulator_aarch64,
                 )
             }
 
@@ -209,7 +209,7 @@ private fun Project.findBuildPlatformsFromStartTaskNames(): List<Platform> {
             platform = Platform.ios_aarch64
             break
         } else if (name.contains("iossimulatorarm64")) {
-            platform = Platform.ios_aarch64_simulator
+            platform = Platform.ios_simulator_aarch64
             break
         }
     }
