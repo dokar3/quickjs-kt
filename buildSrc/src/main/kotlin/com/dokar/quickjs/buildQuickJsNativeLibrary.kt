@@ -83,8 +83,9 @@ internal fun Project.buildQuickJsNativeLibrary(
         } else {
             when (platform) {
                 Platform.ios_x64,
-                Platform.ios_aarch64,
-                Platform.ios_simulator_aarch64 -> "$buildType-iphoneos/" to "a"
+                Platform.ios_aarch64 -> "$buildType-iphoneos/" to "a"
+
+                Platform.ios_simulator_aarch64 -> "$buildType/" to "a"
 
                 else -> "" to "a"
             }
