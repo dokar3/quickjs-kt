@@ -32,18 +32,14 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
             val isPublishing = gradle.startParameter.taskNames.contains("publish")
             if (isPublishing) {
                 for (platform in jniLibraryPlatforms) {
-                    try {
-                        buildQuickJsNativeLibrary(
-                            cmakeFile = cmakeFile,
-                            platform = platform,
-                            sharedLib = true,
-                            withJni = true,
-                            release = true,
-                            outputDir = File(jniLibOutDir, platform.name)
-                        )
-                    } catch (e: Exception) {
-                        error(e)
-                    }
+                    buildQuickJsNativeLibrary(
+                        cmakeFile = cmakeFile,
+                        platform = platform,
+                        sharedLib = true,
+                        withJni = true,
+                        release = true,
+                        outputDir = File(jniLibOutDir, platform.name)
+                    )
                 }
             } else {
                 buildQuickJsNativeLibrary(
