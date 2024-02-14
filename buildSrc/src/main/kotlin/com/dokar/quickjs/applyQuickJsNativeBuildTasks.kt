@@ -160,6 +160,10 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
 private fun Project.findBuildPlatformsFromStartTaskNames(): List<Platform> {
     val taskNames = gradle.startParameter.taskNames
 
+    if (taskNames.contains("publish")) {
+        return Platform.values().toList()
+    }
+
     if (taskNames.contains("build")) {
         when (currentPlatform) {
             Platform.linux_x64 -> {
