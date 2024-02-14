@@ -109,7 +109,7 @@ internal fun Project.buildQuickJsNativeLibrary(
     // Generate build files
     runCommand("cmake", *generateArgs, "./")
     // Build
-    runCommand("cmake", "--build", buildArgs)
+    runCommand("cmake", "--build", *buildArgs)
 
     if (outputDir != null) {
         copyLibToOutputDir(outputDir)
