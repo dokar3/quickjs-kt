@@ -60,7 +60,12 @@ internal fun Project.buildQuickJsNativeLibrary(
 
     val buildArgs = when (platform) {
         Platform.ios_x64,
-        Platform.ios_simulator_aarch64 -> arrayOf(commonArgs[1], "-- -sdk iphonesimulator")
+        Platform.ios_simulator_aarch64 -> arrayOf(
+            commonArgs[1],
+            "--",
+            "-sdk",
+            "iphonesimulator"
+        )
 
         else -> arrayOf(commonArgs[1])
     }
