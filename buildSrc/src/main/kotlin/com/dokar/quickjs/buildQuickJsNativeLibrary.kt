@@ -17,10 +17,11 @@ internal fun Project.buildQuickJsNativeLibrary(
 
     println("Building $libType native library for target '$platform'...")
 
+    val buildType = if (release) "MinSizeRel" else "Debug"
     val commonArgs = arrayOf(
         "-B",
         "build/$platform",
-        "-DCMAKE_BUILD_TYPE=${if (release) "MinSizeRel" else "Debug"}",
+        "-DCMAKE_BUILD_TYPE=${buildType}",
         "-DTARGET_PLATFORM=$platform",
         "-DBUILD_WITH_JNI=${if (withJni) "ON" else "OFF"}",
         "-DLIBRARY_TYPE=${if (sharedLib) "shared" else "static"}",
@@ -72,17 +73,23 @@ internal fun Project.buildQuickJsNativeLibrary(
             error("Failed to create library output dir: $outDir")
         }
         println("Copying built QuickJS $libType library to ${file(outDir)}")
-        val ext = if (sharedLib) {
+        val (dir, ext) = if (sharedLib) {
             when (platform.osName) {
-                "windows" -> "dll"
-                "linux" -> "so"
-                "macos" -> "dylib"
-                else -> error("Unknown platform: $platform")
+                "windows" -> "" to "dll"
+                "linux" -> "" to "so"
+                "macos" -> "" to "dylib"
+                else -> error("Unsupported platform: $platform")
             }
         } else {
-            "a"
+            when (platform) {
+                Platform.ios_x64,
+                Platform.ios_aarch64 -> "$buildType-iphoneos/" to "a"
+
+                Platform.ios_aarch64_simulator -> "$buildType-iphoneossimulator/" to "a"
+                else -> "" to "a"
+            }
         }
-        val libraryFile = file("native/build/$platform/libquickjs.$ext")
+        val libraryFile = file("native/build/$platform/${dir}libquickjs.$ext")
         val destFilename = if (withPlatformSuffixIfCopy) {
             "libquickjs_${platform}.$ext"
         } else {
