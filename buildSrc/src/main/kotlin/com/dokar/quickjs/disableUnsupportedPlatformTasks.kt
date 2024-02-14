@@ -18,13 +18,13 @@ fun Project.disableUnsupportedPlatformTasks() {
         } else if (taskName.contains("macosx64")) {
             enabled = currentPlatform == Platform.macos_x64
         } else if (taskName.contains("macosarm64")) {
-            enabled = currentPlatform == Platform.macos_x64
+            enabled = currentPlatform == Platform.macos_aarch64
         } else if (taskName.contains("iosx64")) {
             enabled = currentPlatform == Platform.macos_x64
         } else if (taskName.contains("iosarm64")) {
-            enabled = currentPlatform == Platform.macos_x64
+            enabled = currentPlatform == Platform.macos_aarch64
         } else if (taskName.contains("iossimulatorarm64")) {
-            enabled = currentPlatform == Platform.macos_x64
+            enabled = currentPlatform == Platform.macos_aarch64
         }
     }
 }
