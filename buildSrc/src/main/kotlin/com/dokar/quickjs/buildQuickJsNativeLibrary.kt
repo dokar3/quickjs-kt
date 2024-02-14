@@ -35,7 +35,7 @@ internal fun Project.buildQuickJsNativeLibrary(
         return "-DPLATFORM_JAVA_HOME=$home"
     }
 
-    val args = if (withJni) {
+    val generateArgs = if (withJni) {
         when (platform) {
             Platform.windows_x64 -> commonArgs + ninja + javaHomeArg(windowX64JavaHome())
             Platform.linux_x64 -> commonArgs + ninja + javaHomeArg(linuxX64JavaHome())
@@ -52,11 +52,17 @@ internal fun Project.buildQuickJsNativeLibrary(
             Platform.macos_aarch64,
             Platform.macos_x64 -> commonArgs + ninja
 
-            Platform.ios_aarch64 -> commonArgs + xcode
-
+            Platform.ios_aarch64,
             Platform.ios_x64,
-            Platform.ios_simulator_aarch64 -> commonArgs + xcode + "-- -sdk iphonesimulator"
+            Platform.ios_simulator_aarch64 -> commonArgs + xcode
         }
+    }
+
+    val buildArgs = when (platform) {
+        Platform.ios_x64,
+        Platform.ios_simulator_aarch64 -> arrayOf(commonArgs[1], "-- -sdk iphonesimulator")
+
+        else -> arrayOf(commonArgs[1])
     }
 
     fun runCommand(vararg args: Any) {
@@ -101,9 +107,9 @@ internal fun Project.buildQuickJsNativeLibrary(
     }
 
     // Generate build files
-    runCommand("cmake", *args, "./")
+    runCommand("cmake", *generateArgs, "./")
     // Build
-    runCommand("cmake", "--build", args[1])
+    runCommand("cmake", "--build", buildArgs)
 
     if (outputDir != null) {
         copyLibToOutputDir(outputDir)
