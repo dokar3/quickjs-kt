@@ -9,6 +9,7 @@ static jclass _cls_double = NULL;
 static jclass _cls_boolean = NULL;
 static jclass _cls_string = NULL;
 static jclass _cls_object = NULL;
+static jclass _cls_system = NULL;
 static jclass _cls_class = NULL;
 static jclass _cls_throwable = NULL;
 static jclass _cls_error = NULL;
@@ -18,6 +19,7 @@ static jclass _cls_list = NULL;
 static jclass _cls_map = NULL;
 static jclass _cls_map_entry = NULL;
 static jclass _cls_linked_hash_map = NULL;
+static jclass _cls_hash_set = NULL;
 static jclass _cls_linked_hash_set = NULL;
 static jclass _cls_quick_js_exception = NULL;
 static jclass _cls_quick_js = NULL;
@@ -37,11 +39,16 @@ static jmethodID _method_double_double_value = NULL;
 static jmethodID _method_boolean_value_of = NULL;
 static jmethodID _method_boolean_boolean_value = NULL;
 static jmethodID _method_object_to_string = NULL;
+static jmethodID _method_system_identity_hash_code = NULL;
 static jmethodID _method_class_get_name = NULL;
+static jmethodID _method_class_is_array = NULL;
 static jmethodID _method_throwable_get_message = NULL;
 static jmethodID _method_throwable_get_stack_trace = NULL;
 static jmethodID _method_error_init = NULL;
 static jmethodID _method_set_iterator = NULL;
+static jmethodID _method_set_add = NULL;
+static jmethodID _method_set_contains = NULL;
+static jmethodID _method_set_is_empty = NULL;
 static jmethodID _method_iterator_has_next = NULL;
 static jmethodID _method_iterator_next = NULL;
 static jmethodID _method_list_size = NULL;
@@ -51,6 +58,7 @@ static jmethodID _method_map_entry_get_key = NULL;
 static jmethodID _method_map_entry_get_value = NULL;
 static jmethodID _method_linked_hash_map_init = NULL;
 static jmethodID _method_linked_hash_map_put = NULL;
+static jmethodID _method_hash_set_init = NULL;
 static jmethodID _method_linked_hash_set_init = NULL;
 static jmethodID _method_linked_hash_set_add = NULL;
 static jmethodID _method_quick_js_on_call_getter = NULL;
@@ -125,6 +133,14 @@ jclass cls_object(JNIEnv *env) {
     return _cls_object;
 }
 
+jclass cls_system(JNIEnv *env) {
+    if (_cls_system == NULL) {
+        jclass cls = (*env)->FindClass(env, "java/lang/System");
+        _cls_system = (*env)->NewGlobalRef(env, cls);
+    }
+    return _cls_system;
+}
+
 jclass cls_class(JNIEnv *env) {
     if (_cls_class == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Class");
@@ -195,6 +211,14 @@ jclass cls_linked_hash_map(JNIEnv *env) {
         _cls_linked_hash_map = (*env)->NewGlobalRef(env, cls);
     }
     return _cls_linked_hash_map;
+}
+
+jclass cls_hash_set(JNIEnv *env) {
+    if (_cls_hash_set == NULL) {
+        jclass cls = (*env)->FindClass(env, "java/util/HashSet");
+        _cls_hash_set = (*env)->NewGlobalRef(env, cls);
+    }
+    return _cls_hash_set;
 }
 
 jclass cls_linked_hash_set(JNIEnv *env) {
@@ -323,11 +347,25 @@ jmethodID method_object_to_string(JNIEnv *env) {
     return _method_object_to_string;
 }
 
+jmethodID method_system_identity_hash_code(JNIEnv *env) {
+    if (_method_system_identity_hash_code == NULL) {
+        _method_system_identity_hash_code = (*env)->GetStaticMethodID(env, cls_system(env), "identityHashCode", "(Ljava/lang/Object;)I");
+    }
+    return _method_system_identity_hash_code;
+}
+
 jmethodID method_class_get_name(JNIEnv *env) {
     if (_method_class_get_name == NULL) {
         _method_class_get_name = (*env)->GetMethodID(env, cls_class(env), "getName", "()Ljava/lang/String;");
     }
     return _method_class_get_name;
+}
+
+jmethodID method_class_is_array(JNIEnv *env) {
+    if (_method_class_is_array == NULL) {
+        _method_class_is_array = (*env)->GetMethodID(env, cls_class(env), "isArray", "()Z");
+    }
+    return _method_class_is_array;
 }
 
 jmethodID method_throwable_get_message(JNIEnv *env) {
@@ -356,6 +394,27 @@ jmethodID method_set_iterator(JNIEnv *env) {
         _method_set_iterator = (*env)->GetMethodID(env, cls_set(env), "iterator", "()Ljava/util/Iterator;");
     }
     return _method_set_iterator;
+}
+
+jmethodID method_set_add(JNIEnv *env) {
+    if (_method_set_add == NULL) {
+        _method_set_add = (*env)->GetMethodID(env, cls_set(env), "add", "(Ljava/lang/Object;)Z");
+    }
+    return _method_set_add;
+}
+
+jmethodID method_set_contains(JNIEnv *env) {
+    if (_method_set_contains == NULL) {
+        _method_set_contains = (*env)->GetMethodID(env, cls_set(env), "contains", "(Ljava/lang/Object;)Z");
+    }
+    return _method_set_contains;
+}
+
+jmethodID method_set_is_empty(JNIEnv *env) {
+    if (_method_set_is_empty == NULL) {
+        _method_set_is_empty = (*env)->GetMethodID(env, cls_set(env), "isEmpty", "()Z");
+    }
+    return _method_set_is_empty;
 }
 
 jmethodID method_iterator_has_next(JNIEnv *env) {
@@ -419,6 +478,13 @@ jmethodID method_linked_hash_map_put(JNIEnv *env) {
         _method_linked_hash_map_put = (*env)->GetMethodID(env, cls_linked_hash_map(env), "put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
     }
     return _method_linked_hash_map_put;
+}
+
+jmethodID method_hash_set_init(JNIEnv *env) {
+    if (_method_hash_set_init == NULL) {
+        _method_hash_set_init = (*env)->GetMethodID(env, cls_hash_set(env), "<init>", "()V");
+    }
+    return _method_hash_set_init;
 }
 
 jmethodID method_linked_hash_set_init(JNIEnv *env) {
@@ -548,6 +614,9 @@ void clear_jni_refs_cache(JNIEnv *env) {
     if (_cls_object != NULL) {
         (*env)->DeleteGlobalRef(env, _cls_object);
     }
+    if (_cls_system != NULL) {
+        (*env)->DeleteGlobalRef(env, _cls_system);
+    }
     if (_cls_class != NULL) {
         (*env)->DeleteGlobalRef(env, _cls_class);
     }
@@ -574,6 +643,9 @@ void clear_jni_refs_cache(JNIEnv *env) {
     }
     if (_cls_linked_hash_map != NULL) {
         (*env)->DeleteGlobalRef(env, _cls_linked_hash_map);
+    }
+    if (_cls_hash_set != NULL) {
+        (*env)->DeleteGlobalRef(env, _cls_hash_set);
     }
     if (_cls_linked_hash_set != NULL) {
         (*env)->DeleteGlobalRef(env, _cls_linked_hash_set);
@@ -604,6 +676,7 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _cls_boolean = NULL;
     _cls_string = NULL;
     _cls_object = NULL;
+    _cls_system = NULL;
     _cls_class = NULL;
     _cls_throwable = NULL;
     _cls_error = NULL;
@@ -613,6 +686,7 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _cls_map = NULL;
     _cls_map_entry = NULL;
     _cls_linked_hash_map = NULL;
+    _cls_hash_set = NULL;
     _cls_linked_hash_set = NULL;
     _cls_quick_js_exception = NULL;
     _cls_quick_js = NULL;
@@ -631,11 +705,16 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _method_boolean_value_of = NULL;
     _method_boolean_boolean_value = NULL;
     _method_object_to_string = NULL;
+    _method_system_identity_hash_code = NULL;
     _method_class_get_name = NULL;
+    _method_class_is_array = NULL;
     _method_throwable_get_message = NULL;
     _method_throwable_get_stack_trace = NULL;
     _method_error_init = NULL;
     _method_set_iterator = NULL;
+    _method_set_add = NULL;
+    _method_set_contains = NULL;
+    _method_set_is_empty = NULL;
     _method_iterator_has_next = NULL;
     _method_iterator_next = NULL;
     _method_list_size = NULL;
@@ -645,6 +724,7 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _method_map_entry_get_value = NULL;
     _method_linked_hash_map_init = NULL;
     _method_linked_hash_map_put = NULL;
+    _method_hash_set_init = NULL;
     _method_linked_hash_set_init = NULL;
     _method_linked_hash_set_add = NULL;
     _method_quick_js_on_call_getter = NULL;

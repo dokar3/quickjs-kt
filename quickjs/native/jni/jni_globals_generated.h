@@ -18,6 +18,8 @@ jclass cls_string(JNIEnv *env);
 
 jclass cls_object(JNIEnv *env);
 
+jclass cls_system(JNIEnv *env);
+
 jclass cls_class(JNIEnv *env);
 
 jclass cls_throwable(JNIEnv *env);
@@ -35,6 +37,8 @@ jclass cls_map(JNIEnv *env);
 jclass cls_map_entry(JNIEnv *env);
 
 jclass cls_linked_hash_map(JNIEnv *env);
+
+jclass cls_hash_set(JNIEnv *env);
 
 jclass cls_linked_hash_set(JNIEnv *env);
 
@@ -70,7 +74,11 @@ jmethodID method_boolean_boolean_value(JNIEnv *env);
 
 jmethodID method_object_to_string(JNIEnv *env);
 
+jmethodID method_system_identity_hash_code(JNIEnv *env);
+
 jmethodID method_class_get_name(JNIEnv *env);
+
+jmethodID method_class_is_array(JNIEnv *env);
 
 jmethodID method_throwable_get_message(JNIEnv *env);
 
@@ -79,6 +87,12 @@ jmethodID method_throwable_get_stack_trace(JNIEnv *env);
 jmethodID method_error_init(JNIEnv *env);
 
 jmethodID method_set_iterator(JNIEnv *env);
+
+jmethodID method_set_add(JNIEnv *env);
+
+jmethodID method_set_contains(JNIEnv *env);
+
+jmethodID method_set_is_empty(JNIEnv *env);
 
 jmethodID method_iterator_has_next(JNIEnv *env);
 
@@ -97,6 +111,8 @@ jmethodID method_map_entry_get_value(JNIEnv *env);
 jmethodID method_linked_hash_map_init(JNIEnv *env);
 
 jmethodID method_linked_hash_map_put(JNIEnv *env);
+
+jmethodID method_hash_set_init(JNIEnv *env);
 
 jmethodID method_linked_hash_set_init(JNIEnv *env);
 

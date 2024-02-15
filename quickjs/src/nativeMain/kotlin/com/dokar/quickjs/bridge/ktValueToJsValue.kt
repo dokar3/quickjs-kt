@@ -30,9 +30,13 @@ import quickjs.JS_SetPropertyUint32
 import quickjs.JsNull
 import quickjs.JsUndefined
 import kotlin.experimental.ExperimentalNativeApi
+import kotlin.native.identityHashCode
 
 @OptIn(ExperimentalForeignApi::class)
-internal fun <T : Any?> T.toJsValue(context: CPointer<JSContext>): CValue<JSValue> {
+internal fun <T : Any?> T.toJsValue(
+    context: CPointer<JSContext>,
+    visited: MutableSet<Int>? = null,
+): CValue<JSValue> {
     val value = this ?: return JsNull()
     return when (value) {
         Unit -> JsUndefined()
@@ -42,11 +46,11 @@ internal fun <T : Any?> T.toJsValue(context: CPointer<JSContext>): CValue<JSValu
         is Float -> JS_NewFloat64(context, value.toDouble())
         is Double -> JS_NewFloat64(context, value)
         is String -> JS_NewString(context, value.cstr)
-        is Array<*> -> ktArrayToJsArray(context, value)
-        is Set<*> -> ktSetToJsSet(context, value)
-        is JsObject -> ktMapToJsObject(context, value)
-        is Map<*, *> -> ktMapToJsMap(context, value)
-        is Iterable<*> -> ktIterableToJsArray(context, value)
+        is Array<*> -> ktArrayToJsArray(context, value, visited ?: mutableSetOf())
+        is Set<*> -> ktSetToJsSet(context, value, visited ?: mutableSetOf())
+        is JsObject -> ktMapToJsObject(context, value, visited ?: mutableSetOf())
+        is Map<*, *> -> ktMapToJsMap(context, value, visited ?: mutableSetOf())
+        is Iterable<*> -> ktIterableToJsArray(context, value, visited ?: mutableSetOf())
         is Throwable -> ktErrorToJsError(context, value)
         else -> qjsError("Mapping an unsupported kt value to js value: $value")
     }
@@ -77,15 +81,19 @@ internal fun ktErrorToJsError(context: CPointer<JSContext>, error: Throwable): C
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun ktArrayToJsArray(context: CPointer<JSContext>, array: Array<*>): CValue<JSValue> {
+private fun ktArrayToJsArray(
+    context: CPointer<JSContext>,
+    array: Array<*>,
+    visited: MutableSet<Int>,
+): CValue<JSValue> {
+    if (visited.isEmpty()) visit(visited, array)
     val jsArray = JS_NewArray(context)
     try {
         for (i in array.indices) {
             val element = array[i]
-            if (element == array) {
-                circularRefError()
-            }
-            JS_SetPropertyUint32(context, jsArray, i.toUInt(), element.toJsValue(context))
+            visitOrCircularRefError(visited, element)
+            val jsElement = element.toJsValue(context, visited)
+            JS_SetPropertyUint32(context, jsArray, i.toUInt(), jsElement)
         }
     } catch (e: Throwable) {
         freeJsValues(context, jsArray)
@@ -98,14 +106,15 @@ private fun ktArrayToJsArray(context: CPointer<JSContext>, array: Array<*>): CVa
 private fun ktIterableToJsArray(
     context: CPointer<JSContext>,
     iterable: Iterable<*>,
+    visited: MutableSet<Int>,
 ): CValue<JSValue> {
+    if (visited.isEmpty()) visit(visited, iterable)
     val jsArray = JS_NewArray(context)
     try {
         for ((i, element) in iterable.withIndex()) {
-            if (element == iterable) {
-                circularRefError()
-            }
-            JS_SetPropertyUint32(context, jsArray, i.toUInt(), element.toJsValue(context))
+            visitOrCircularRefError(visited, element)
+            val jsElement = element.toJsValue(context, visited)
+            JS_SetPropertyUint32(context, jsArray, i.toUInt(), jsElement)
         }
     } catch (e: Throwable) {
         freeJsValues(context, jsArray)
@@ -118,20 +127,21 @@ private fun ktIterableToJsArray(
 private fun ktSetToJsSet(
     context: CPointer<JSContext>,
     set: Set<*>,
+    visited: MutableSet<Int>,
 ): CValue<JSValue> = memScoped {
+    if (visited.isEmpty()) visit(visited, set)
     val elements = JS_NewArray(context)
     try {
         for ((i, element) in set.withIndex()) {
-            if (element == set) {
-                circularRefError()
-            }
-            JS_SetPropertyUint32(context, elements, i.toUInt(), element.toJsValue(context))
+            visitOrCircularRefError(visited, element)
+            val jsElement = element.toJsValue(context, visited)
+            JS_SetPropertyUint32(context, elements, i.toUInt(), jsElement)
         }
     } catch (e: Throwable) {
         freeJsValues(context, elements)
         throw e
     }
-    val jsSet = try {
+    try {
         newJsObjectFromConstructor(
             context = context,
             constructorName = "Set",
@@ -141,32 +151,37 @@ private fun ktSetToJsSet(
     } finally {
         freeJsValues(context, elements)
     }
-    return@memScoped jsSet
 }
 
 @OptIn(ExperimentalForeignApi::class)
 private fun ktMapToJsMap(
     context: CPointer<JSContext>,
     map: Map<*, *>,
+    visited: MutableSet<Int>,
 ): CValue<JSValue> = memScoped {
+    if (visited.isEmpty()) visit(visited, map)
     val elements = JS_NewArray(context)
     try {
         var index = 0
         for ((key, value) in map) {
-            if (key == map || value == map) {
-                circularRefError()
-            }
+            visitOrCircularRefError(visited, key)
+            visitOrCircularRefError(visited, value)
             val entryArray = JS_NewArray(context)
-            JS_SetPropertyUint32(context, entryArray, 0u, key.toJsValue(context))
-            JS_SetPropertyUint32(context, entryArray, 1u, value.toJsValue(context))
-            JS_SetPropertyUint32(context, elements, index.toUInt(), entryArray)
+            try {
+                JS_SetPropertyUint32(context, entryArray, 0u, key.toJsValue(context, visited))
+                JS_SetPropertyUint32(context, entryArray, 1u, value.toJsValue(context, visited))
+                JS_SetPropertyUint32(context, elements, index.toUInt(), entryArray)
+            } catch (e: Throwable) {
+                freeJsValues(context, entryArray)
+                throw e
+            }
             index += 1
         }
-    } catch (e :Exception) {
+    } catch (e: Throwable) {
         freeJsValues(context, elements)
         throw e
     }
-    val jsMap = try {
+    try {
         newJsObjectFromConstructor(
             context = context,
             constructorName = "Map",
@@ -176,24 +191,24 @@ private fun ktMapToJsMap(
     } finally {
         freeJsValues(context, elements)
     }
-    return jsMap
 }
 
 @OptIn(ExperimentalForeignApi::class)
 private fun ktMapToJsObject(
     context: CPointer<JSContext>,
     map: Map<*, *>,
+    visited: MutableSet<Int>,
 ): CValue<JSValue> = memScoped {
+    if (visited.isEmpty()) visit(visited, map)
     val jsObject = JS_NewObject(context)
     try {
         for ((key, value) in map) {
-            if (key == map || value == map) {
-                circularRefError()
-            }
             if (key !is String) {
                 qjsError("Only maps with string keys can be mapped to js objects.")
             }
-            JS_SetPropertyStr(context, jsObject, key, value.toJsValue(context))
+            visitOrCircularRefError(visited, value)
+            visitOrCircularRefError(visited, key)
+            JS_SetPropertyStr(context, jsObject, key, value.toJsValue(context, visited))
         }
     } catch (e: Throwable) {
         freeJsValues(context, jsObject)
@@ -216,4 +231,39 @@ private fun newJsObjectFromConstructor(
     val instance = JS_CallConstructor(context, constructor, argc, argv)
     freeJsValues(context, constructor, globalThis)
     return instance
+}
+
+/**
+ * [Any.identityHashCode] is used to identify objects because [Any.hashCode] will be an
+ * infinite recursion on circular-referenced objects. Same for [visit].
+ */
+@OptIn(ExperimentalNativeApi::class)
+private fun visitOrCircularRefError(
+    visited: MutableSet<Int>,
+    current: Any?,
+) {
+    current ?: return
+    if (current !is Array<*> &&
+        current !is Iterable<*> &&
+        current !is Set<*> &&
+        current !is Map<*, *> &&
+        current !is JsObject
+    ) {
+        return
+    }
+    val identityHashCode = current.identityHashCode()
+    if (visited.contains(identityHashCode)) {
+        circularRefError()
+    } else {
+        visited.add(identityHashCode)
+    }
+}
+
+@OptIn(ExperimentalNativeApi::class)
+private fun visit(
+    visited: MutableSet<Int>,
+    current: Any?
+) {
+    current ?: return
+    visited.add(current.identityHashCode())
 }

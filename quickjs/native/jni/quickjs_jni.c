@@ -524,7 +524,7 @@ Java_com_dokar_quickjs_QuickJs_invokeJsFunction(JNIEnv *env,
     JSValue argv[argc];
     for (int i = 0; i < argc; ++i) {
         jobject element = (*env)->GetObjectArrayElement(env, args, i);
-        JSValue item = jobject_to_js_value(env, context, element);
+        JSValue item = jobject_to_js_value(env, context, NULL, element);
         if (JS_IsException(item)) {
             // Mapping has failed, cleanup and return
             for (int j = 0; j < i; ++j) {
