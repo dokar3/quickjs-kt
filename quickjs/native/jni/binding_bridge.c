@@ -39,7 +39,7 @@ JSValue jni_invoke_getter(JSContext *context, jobject call_host, int64_t object_
     if (result == NULL) {
         return JS_NULL;
     }
-    return jobject_to_js_value(env, context, result);
+    return jobject_to_js_value(env, context, NULL, result);
 }
 
 JSValue jni_invoke_setter(JSContext *context, jobject call_host, int64_t object_handle,
@@ -110,7 +110,7 @@ JSValue jni_invoke_function(JSContext *context, jobject call_host, int64_t objec
         (*env)->DeleteLocalRef(env, exception);
         return JS_EXCEPTION;
     }
-    return jobject_to_js_value(env, context, result);
+    return jobject_to_js_value(env, context, NULL, result);
 }
 
 JSValue jni_invoke_async_function(JSContext *context, jobject call_host,

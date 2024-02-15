@@ -12,7 +12,57 @@ void throw_circular_ref_error(JSContext *context) {
     JS_Throw(context, err);
 }
 
-JSValue java_list_to_js_array(JNIEnv *env, JSContext *context, jobject java_list) {
+void visit_first(JNIEnv *env, jobject visited_set, jobject current) {
+    if (current == NULL) {
+        return;
+    }
+    if (!(*env)->CallBooleanMethod(env, visited_set, method_set_is_empty(env))) {
+        return;
+    }
+    jint hash = (*env)->CallStaticIntMethod(env, cls_system(env),
+                                            method_system_identity_hash_code(env), current);
+    jobject hash_boxed = (*env)->CallStaticObjectMethod(env, cls_integer(env),
+                                                        method_integer_value_of(env), hash);
+    (*env)->CallBooleanMethod(env, visited_set, method_set_add(env), hash_boxed);
+}
+
+int visit_or_circular_ref_error(JNIEnv *env, JSContext *context,
+                                jobject visited_set, jobject current) {
+    if (current == NULL) {
+        return 0;
+    }
+    jclass cls = (*env)->GetObjectClass(env, current);
+    if (!(*env)->CallBooleanMethod(env, cls, method_class_is_array(env)) &&
+        !(*env)->IsInstanceOf(env, current, cls_list(env)) &&
+        !(*env)->IsInstanceOf(env, current, cls_set(env)) &&
+        !(*env)->IsInstanceOf(env, current, cls_map(env)) &&
+        !(*env)->IsInstanceOf(env, current, cls_js_object(env))) {
+        return 0;
+    }
+    jint hash = (*env)->CallStaticIntMethod(env, cls_system(env),
+                                            method_system_identity_hash_code(env), current);
+    jobject hash_boxed = (*env)->CallStaticObjectMethod(env, cls_integer(env),
+                                                        method_integer_value_of(env), hash);
+    if ((*env)->CallBooleanMethod(env, visited_set, method_set_contains(env), hash_boxed)) {
+        throw_circular_ref_error(context);
+        return 1;
+    } else {
+        (*env)->CallBooleanMethod(env, visited_set, method_set_add(env), hash_boxed);
+        return 0;
+    }
+}
+
+JSValue java_list_to_js_array(JNIEnv *env, JSContext *context,
+                              jobject visited_set, jobject java_list) {
+    int delete_global_visited_ref = 0;
+    if (visited_set == NULL) {
+        jobject visited = (*env)->NewObject(env, cls_hash_set(env), method_hash_set_init(env));
+        visited_set = (*env)->NewGlobalRef(env, visited);
+        (*env)->DeleteLocalRef(env, visited);
+        delete_global_visited_ref = 1;
+    }
+    visit_first(env, visited_set, java_list);
+
     JSValue js_array = JS_NewArray(context);
     jmethodID method_get = method_list_get(env);
     jint size = (*env)->CallIntMethod(env, java_list, method_list_size(env));
@@ -20,13 +70,12 @@ JSValue java_list_to_js_array(JNIEnv *env, JSContext *context, jobject java_list
     for (int i = 0; i < size && has_exception == 0; i++) {
         jobject element = (*env)->CallObjectMethod(env, java_list, method_get, i);
         // Check circular refs
-        if ((*env)->IsSameObject(env, java_list, element)) {
+        if (visit_or_circular_ref_error(env, context, visited_set, element)) {
             (*env)->DeleteLocalRef(env, element);
-            throw_circular_ref_error(context);
             has_exception = 1;
             break;
         }
-        JSValue js_element = jobject_to_js_value(env, context, element);
+        JSValue js_element = jobject_to_js_value(env, context, visited_set, element);
         if (!JS_IsException(js_element)) {
             JS_SetPropertyUint32(context, js_array, i, js_element);
         } else {
@@ -34,6 +83,11 @@ JSValue java_list_to_js_array(JNIEnv *env, JSContext *context, jobject java_list
         }
         (*env)->DeleteLocalRef(env, element);
     }
+
+    if (delete_global_visited_ref) {
+        (*env)->DeleteGlobalRef(env, visited_set);
+    }
+
     if (has_exception) {
         JS_FreeValue(context, js_array);
         return JS_EXCEPTION;
@@ -64,7 +118,17 @@ JSValue new_js_object_from_constructor(JSContext *context, const char *construct
     return result;
 }
 
-JSValue java_set_to_js_set(JNIEnv *env, JSContext *context, jobject java_set) {
+JSValue java_set_to_js_set(JNIEnv *env, JSContext *context,
+                           jobject visited_set, jobject java_set) {
+    int delete_global_visited_ref = 0;
+    if (visited_set == NULL) {
+        jobject visited = (*env)->NewObject(env, cls_hash_set(env), method_hash_set_init(env));
+        visited_set = (*env)->NewGlobalRef(env, visited);
+        (*env)->DeleteLocalRef(env, visited);
+        delete_global_visited_ref = 1;
+    }
+    visit_first(env, visited_set, java_set);
+
     jobject iterator = (*env)->CallObjectMethod(env, java_set, method_set_iterator(env));
 
     jmethodID method_has_next = method_iterator_has_next(env);
@@ -76,13 +140,13 @@ JSValue java_set_to_js_set(JNIEnv *env, JSContext *context, jobject java_set) {
     while ((*env)->CallBooleanMethod(env, iterator, method_has_next)) {
         jobject key = (*env)->CallObjectMethod(env, iterator, method_next);
         // Check circular refs
-        if ((*env)->IsSameObject(env, java_set, key)) {
-            throw_circular_ref_error(context);
+        if (visit_or_circular_ref_error(env, context, visited_set, key)) {
             JS_FreeValue(context, js_array);
             (*env)->DeleteLocalRef(env, key);
+            (*env)->DeleteGlobalRef(env, visited_set);
             return JS_EXCEPTION;
         }
-        JSValue item = jobject_to_js_value(env, context, key);
+        JSValue item = jobject_to_js_value(env, context, visited_set, key);
         if (JS_IsException(item)) {
             (*env)->DeleteLocalRef(env, key);
             break;
@@ -90,6 +154,10 @@ JSValue java_set_to_js_set(JNIEnv *env, JSContext *context, jobject java_set) {
         JS_SetPropertyUint32(context, js_array, index, item);
         (*env)->DeleteLocalRef(env, key);
         index++;
+    }
+
+    if (delete_global_visited_ref) {
+        (*env)->DeleteGlobalRef(env, visited_set);
     }
 
     int argc = 1;
@@ -101,7 +169,17 @@ JSValue java_set_to_js_set(JNIEnv *env, JSContext *context, jobject java_set) {
     return result;
 }
 
-JSValue java_map_to_js_map(JNIEnv *env, JSContext *context, jobject java_map) {
+JSValue java_map_to_js_map(JNIEnv *env, JSContext *context,
+                           jobject visited_set, jobject java_map) {
+    int delete_global_visited_ref = 0;
+    if (visited_set == NULL) {
+        jobject visited = (*env)->NewObject(env, cls_hash_set(env), method_hash_set_init(env));
+        visited_set = (*env)->NewGlobalRef(env, visited);
+        (*env)->DeleteLocalRef(env, visited);
+        delete_global_visited_ref = 1;
+    }
+    visit_first(env, visited_set, java_map);
+
     jobject entry_set = (*env)->CallObjectMethod(env, java_map, method_map_entry_set(env));
     jobject iterator = (*env)->CallObjectMethod(env, entry_set, method_set_iterator(env));
 
@@ -119,42 +197,44 @@ JSValue java_map_to_js_map(JNIEnv *env, JSContext *context, jobject java_map) {
         jobject key = (*env)->CallObjectMethod(env, entry, method_get_key);
 
         // Check circular refs
-        if ((*env)->IsSameObject(env, java_map, key)) {
-            throw_circular_ref_error(context);
+        if (visit_or_circular_ref_error(env, context, visited_set, key)) {
             JS_FreeValue(context, js_array);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
+            (*env)->DeleteGlobalRef(env, visited_set);
             return JS_EXCEPTION;
         }
 
-        JSValue js_key = jobject_to_js_value(env, context, key);
+        JSValue js_key = jobject_to_js_value(env, context, visited_set, key);
         if (JS_IsException(js_key)) {
             JS_FreeValue(context, js_array);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
+            (*env)->DeleteGlobalRef(env, visited_set);
             return JS_EXCEPTION;
         }
 
         jobject value = (*env)->CallObjectMethod(env, entry, method_get_val);
 
         // Check circular refs
-        if ((*env)->IsSameObject(env, java_map, value)) {
-            throw_circular_ref_error(context);
+        if (visit_or_circular_ref_error(env, context, visited_set, value)) {
             JS_FreeValue(context, js_key);
             JS_FreeValue(context, js_array);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
             (*env)->DeleteLocalRef(env, value);
+            (*env)->DeleteGlobalRef(env, visited_set);
             return JS_EXCEPTION;
         }
 
-        JSValue js_value = jobject_to_js_value(env, context, value);
+        JSValue js_value = jobject_to_js_value(env, context, visited_set, value);
         if (JS_IsException(js_value)) {
             JS_FreeValue(context, js_key);
             JS_FreeValue(context, js_array);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
             (*env)->DeleteLocalRef(env, value);
+            (*env)->DeleteGlobalRef(env, visited_set);
             return JS_EXCEPTION;
         }
 
@@ -169,6 +249,10 @@ JSValue java_map_to_js_map(JNIEnv *env, JSContext *context, jobject java_map) {
         (*env)->DeleteLocalRef(env, value);
 
         index++;
+    }
+
+    if (delete_global_visited_ref) {
+        (*env)->DeleteGlobalRef(env, visited_set);
     }
 
     int argc = 1;
@@ -239,7 +323,17 @@ JSValue java_throwable_to_js_error(JNIEnv *env, JSContext *context, jthrowable t
     return error;
 }
 
-JSValue java_map_to_js_object(JNIEnv *env, JSContext *context, jobject java_map) {
+JSValue java_map_to_js_object(JNIEnv *env, JSContext *context,
+                              jobject visited_set, jobject java_map) {
+    int delete_global_visited_ref = 0;
+    if (visited_set == NULL) {
+        jobject visited = (*env)->NewObject(env, cls_hash_set(env), method_hash_set_init(env));
+        visited_set = (*env)->NewGlobalRef(env, visited);
+        (*env)->DeleteLocalRef(env, visited);
+        delete_global_visited_ref = 1;
+    }
+    visit_first(env, visited_set, java_map);
+
     jobject entry_set = (*env)->CallObjectMethod(env, java_map, method_map_entry_set(env));
     jobject iterator = (*env)->CallObjectMethod(env, entry_set, method_set_iterator(env));
 
@@ -259,11 +353,11 @@ JSValue java_map_to_js_object(JNIEnv *env, JSContext *context, jobject java_map)
         jobject key = (*env)->CallObjectMethod(env, entry, method_get_key);
 
         // Check circular refs
-        if ((*env)->IsSameObject(env, java_map, key)) {
-            throw_circular_ref_error(context);
+        if (visit_or_circular_ref_error(env, context, visited_set, key)) {
             JS_FreeValue(context, js_object);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
+            (*env)->DeleteGlobalRef(env, visited_set);
             return JS_EXCEPTION;
         }
 
@@ -272,6 +366,7 @@ JSValue java_map_to_js_object(JNIEnv *env, JSContext *context, jobject java_map)
             JS_FreeValue(context, js_object);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
+            (*env)->DeleteGlobalRef(env, visited_set);
             const char *message = "Cannot convert java map to js value: "
                                   "only string keys are supported.";
             JS_Throw(context, new_js_error(context, "TypeMappingError", message, 0, NULL));
@@ -282,18 +377,18 @@ JSValue java_map_to_js_object(JNIEnv *env, JSContext *context, jobject java_map)
         jobject value = (*env)->CallObjectMethod(env, entry, method_get_val);
 
         // Check circular refs
-        if ((*env)->IsSameObject(env, java_map, value)) {
-            throw_circular_ref_error(context);
+        if (visit_or_circular_ref_error(env, context, visited_set, value)) {
             JS_FreeValue(context, js_object);
             (*env)->ReleaseStringUTFChars(env, key, str_key);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
             (*env)->DeleteLocalRef(env, value);
+            (*env)->DeleteGlobalRef(env, visited_set);
             return JS_EXCEPTION;
         }
 
         JSAtom js_key = JS_NewAtom(context, str_key);
-        JSValue js_value = jobject_to_js_value(env, context, value);
+        JSValue js_value = jobject_to_js_value(env, context, visited_set, value);
         if (JS_IsException(js_value)) {
             return js_value;
         }
@@ -306,10 +401,14 @@ JSValue java_map_to_js_object(JNIEnv *env, JSContext *context, jobject java_map)
         (*env)->DeleteLocalRef(env, value);
     }
 
+    if (delete_global_visited_ref) {
+        (*env)->DeleteGlobalRef(env, visited_set);
+    }
+
     return js_object;
 }
 
-JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject value) {
+JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject visited_set, jobject value) {
     if (value == NULL) {
         return JS_NULL;
     }
@@ -353,16 +452,16 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject value) {
         result = js_value;
     } else if ((*env)->IsInstanceOf(env, value, cls_list(env))) {
         // List
-        result = java_list_to_js_array(env, context, value);
+        result = java_list_to_js_array(env, context, visited_set, value);
     } else if ((*env)->IsInstanceOf(env, value, cls_js_object(env))) {
         // JsObject (A map delegate)
-        result = java_map_to_js_object(env, context, value);
+        result = java_map_to_js_object(env, context, visited_set, value);
     } else if ((*env)->IsInstanceOf(env, value, cls_map(env))) {
         // Map
-        result = java_map_to_js_map(env, context, value);
+        result = java_map_to_js_map(env, context, visited_set, value);
     } else if ((*env)->IsInstanceOf(env, value, cls_set(env))) {
         // Set
-        result = java_set_to_js_set(env, context, value);
+        result = java_set_to_js_set(env, context, visited_set, value);
     } else if ((*env)->IsInstanceOf(env, value, cls_throwable(env))) {
         // Throwable
         result = java_throwable_to_js_error(env, context, (jthrowable) value);
@@ -449,7 +548,7 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject value) {
                 has_exception = 1;
                 break;
             }
-            JSValue js_element = jobject_to_js_value(env, context, element);
+            JSValue js_element = jobject_to_js_value(env, context, visited_set, element);
             JS_SetPropertyUint32(context, js_array, i, js_element);
             (*env)->DeleteLocalRef(env, element);
         }

@@ -51,8 +51,21 @@ const JNI_REFS = [
     methods: [{ name: "toString", sign: "()Ljava/lang/String;" }],
   },
   {
+    className: "java/lang/System",
+    methods: [
+      {
+        name: "identityHashCode",
+        sign: "(Ljava/lang/Object;)I",
+        isStatic: true,
+      },
+    ],
+  },
+  {
     className: "java/lang/Class",
-    methods: [{ name: "getName", sign: "()Ljava/lang/String;" }],
+    methods: [
+      { name: "getName", sign: "()Ljava/lang/String;" },
+      { name: "isArray", sign: "()Z" },
+    ],
   },
   {
     className: "java/lang/Throwable",
@@ -67,7 +80,12 @@ const JNI_REFS = [
   },
   {
     className: "java/util/Set",
-    methods: [{ name: "iterator", sign: "()Ljava/util/Iterator;" }],
+    methods: [
+      { name: "iterator", sign: "()Ljava/util/Iterator;" },
+      { name: "add", sign: "(Ljava/lang/Object;)Z" },
+      { name: "contains", sign: "(Ljava/lang/Object;)Z" },
+      { name: "isEmpty", sign: "()Z" },
+    ],
   },
   {
     className: "java/util/Iterator",
@@ -93,6 +111,10 @@ const JNI_REFS = [
       { name: "getKey", sign: "()Ljava/lang/Object;" },
       { name: "getValue", sign: "()Ljava/lang/Object;" },
     ],
+  },
+  {
+    className: "java/util/HashSet",
+    methods: [{ name: "<init>", sign: "()V" }],
   },
   {
     className: "java/util/LinkedHashMap",
