@@ -308,4 +308,42 @@ class TypeMappingTest {
                 .also { assertContains(it.message!!, "circular reference") }
         }
     }
+
+    @Test
+    fun ktDeepLevelCircularRefs() = runTest {
+        quickJs {
+            function("circularRefArray") {
+                val arr = arrayOf<Any?>(null)
+                arr[0] = listOf(arrayOf(arr))
+                arr
+            }
+
+            function("circularRefList") {
+                val list = mutableListOf<Any?>(null)
+                list[0] = arrayOf(1, 2, list)
+                list
+            }
+
+            function("circularRefSet") {
+                val set = mutableSetOf<Any?>()
+                set.add(arrayOf(setOf(1, set)))
+                set
+            }
+
+            function("circularRefMap") {
+                val map = mutableMapOf<String,Any?>()
+                map["next"] = arrayOf(map)
+                map
+            }
+
+            assertFails { evaluate("circularRefArray()") }
+                .also { assertContains(it.message!!, "circular reference") }
+            assertFails { evaluate("circularRefList()") }
+                .also { assertContains(it.message!!, "circular reference") }
+            assertFails { evaluate("circularRefSet()") }
+                .also { assertContains(it.message!!, "circular reference") }
+            assertFails { evaluate("circularRefMap()") }
+                .also { assertContains(it.message!!, "circular reference") }
+        }
+    }
 }
