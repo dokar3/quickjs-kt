@@ -18,7 +18,7 @@ That's why I created this library, with some good features:
 
 - Simple and idiomatic Kotlin APIs, it's easy to define binding and evaluate arbitrary code
 - Highly integrated with **Kotlin Coroutines**, it is `async` and `suspend`ed. See [#Async](#async)
-- Kotlin Multiplatform targets, currently `Android` and `JVM` are supported
+- Kotlin Multiplatform targets, including `Android`, `JVM` and `Kotlin/Native`
 - The latest version of QuickJS
 
 # Usages
@@ -293,6 +293,7 @@ You may need these tools to build and run this project:
 - Java JDK, both Windows, macOS, and Linux JDKs are required if you do a cross-compiling
 - Android SDK and NDK
 - [CMake](https://cmake.org/) The build system
+- [Ninja](https://ninja-build.org/) The build generator for CMake
 - [Zig](https://ziglang.org/) For cross-compiling the JNI libraries
 
 # License
