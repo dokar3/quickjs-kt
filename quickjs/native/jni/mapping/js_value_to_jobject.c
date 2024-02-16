@@ -386,7 +386,6 @@ jobject js_value_to_jobject(JNIEnv *env, JSContext *context, JSValue value) {
 
         return java_buffer;
     } else if (JS_IsObject(value)) {
-
         JSValue global_this = JS_GetGlobalObject(context);
         jobject result;
 
