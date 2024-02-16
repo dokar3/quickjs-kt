@@ -133,7 +133,7 @@ This library gives you the ability to define [async functions](https://developer
 
 `evaluate()` and `quickJs{}` are `suspend` functions, which make your async jobs await in the caller scope. All pending jobs will be canceled when the caller scope is canceled or the instance is closed.
 
-To define async functions, easily call `asyncFunc()`:
+To define async functions, easily call `asyncFunction()`:
 
 ```kotlin
 quickJs {
