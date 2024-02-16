@@ -166,16 +166,43 @@ JSValue new_js_error(JSContext *context,
     return error;
 }
 
-int js_is_promise(JSContext *context, JSValue value) {
-    if (!JS_IsObject(value)) {
+int js_is_instance_of(JSContext *context, JSValue global_this, JSValue value,
+                      const char *constructor_name) {
+    JSValue constructor = JS_GetPropertyStr(context, global_this, constructor_name);
+    if (JS_IsUndefined(constructor)) {
+        JS_FreeValue(context, constructor);
         return 0;
     }
-    JSValue prototype = JS_GetPrototype(context, value);
-    const char *prototype_str = JS_ToCString(context, prototype);
-    int is_promise = strcmp("[object Promise]", prototype_str) == 0;
-    JS_FreeCString(context, prototype_str);
-    JS_FreeValue(context, prototype);
-    return is_promise;
+    int result = JS_IsInstanceOf(context, value, constructor);
+    JS_FreeValue(context, constructor);
+    return result;
+}
+
+int js_is_promise(JSContext *context, JSValue value) {
+    JSValue global_this = JS_GetGlobalObject(context);
+    int result = js_is_promise_2(context, global_this, value);
+    JS_FreeValue(context, global_this);
+    return result;
+}
+
+int js_is_promise_2(JSContext *context, JSValue global_this, JSValue value) {
+    return js_is_instance_of(context, global_this, value, "Promise");
+}
+
+int js_is_uint8array(JSContext *context, JSValue global_this, JSValue value) {
+    return js_is_instance_of(context, global_this, value, "Uint8Array");
+}
+
+int js_is_int8array(JSContext *context, JSValue global_this, JSValue value) {
+    return js_is_instance_of(context, global_this, value, "Int8Array");
+}
+
+int js_is_set(JSContext *context, JSValue global_this, JSValue value) {
+    return js_is_instance_of(context, global_this, value, "Set");
+}
+
+int js_is_map(JSContext *context, JSValue global_this, JSValue value) {
+    return js_is_instance_of(context, global_this, value, "Map");
 }
 
 JSValue js_promise_get_fulfilled_value(JSContext *context, JSValue promise) {

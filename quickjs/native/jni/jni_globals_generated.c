@@ -2,6 +2,7 @@
 #include "jni_globals_generated.h"
 
 // Cached classes
+static jclass _cls_ubyte_array = NULL;
 static jclass _cls_integer = NULL;
 static jclass _cls_long = NULL;
 static jclass _cls_float = NULL;
@@ -18,8 +19,8 @@ static jclass _cls_iterator = NULL;
 static jclass _cls_list = NULL;
 static jclass _cls_map = NULL;
 static jclass _cls_map_entry = NULL;
-static jclass _cls_linked_hash_map = NULL;
 static jclass _cls_hash_set = NULL;
+static jclass _cls_linked_hash_map = NULL;
 static jclass _cls_linked_hash_set = NULL;
 static jclass _cls_quick_js_exception = NULL;
 static jclass _cls_quick_js = NULL;
@@ -29,6 +30,7 @@ static jclass _cls_js_function = NULL;
 static jclass _cls_js_object = NULL;
 
 // Cached methods
+static jmethodID _method_ubyte_array_init = NULL;
 static jmethodID _method_integer_value_of = NULL;
 static jmethodID _method_integer_int_value = NULL;
 static jmethodID _method_long_value_of = NULL;
@@ -56,9 +58,9 @@ static jmethodID _method_list_get = NULL;
 static jmethodID _method_map_entry_set = NULL;
 static jmethodID _method_map_entry_get_key = NULL;
 static jmethodID _method_map_entry_get_value = NULL;
+static jmethodID _method_hash_set_init = NULL;
 static jmethodID _method_linked_hash_map_init = NULL;
 static jmethodID _method_linked_hash_map_put = NULL;
-static jmethodID _method_hash_set_init = NULL;
 static jmethodID _method_linked_hash_set_init = NULL;
 static jmethodID _method_linked_hash_set_add = NULL;
 static jmethodID _method_quick_js_on_call_getter = NULL;
@@ -69,6 +71,7 @@ static jmethodID _method_quick_js_create_delay = NULL;
 static jmethodID _method_memory_usage_init = NULL;
 
 // Cached fields
+static jfieldID _field_ubyte_array_storage = NULL;
 static jfieldID _field_double_na_n = NULL;
 static jfieldID _field_js_property_name = NULL;
 static jfieldID _field_js_property_configurable = NULL;
@@ -76,6 +79,14 @@ static jfieldID _field_js_property_writable = NULL;
 static jfieldID _field_js_property_enumerable = NULL;
 static jfieldID _field_js_function_name = NULL;
 static jfieldID _field_js_function_is_async = NULL;
+
+jclass cls_ubyte_array(JNIEnv *env) {
+    if (_cls_ubyte_array == NULL) {
+        jclass cls = (*env)->FindClass(env, "kotlin/UByteArray");
+        _cls_ubyte_array = (*env)->NewGlobalRef(env, cls);
+    }
+    return _cls_ubyte_array;
+}
 
 jclass cls_integer(JNIEnv *env) {
     if (_cls_integer == NULL) {
@@ -205,20 +216,20 @@ jclass cls_map_entry(JNIEnv *env) {
     return _cls_map_entry;
 }
 
-jclass cls_linked_hash_map(JNIEnv *env) {
-    if (_cls_linked_hash_map == NULL) {
-        jclass cls = (*env)->FindClass(env, "java/util/LinkedHashMap");
-        _cls_linked_hash_map = (*env)->NewGlobalRef(env, cls);
-    }
-    return _cls_linked_hash_map;
-}
-
 jclass cls_hash_set(JNIEnv *env) {
     if (_cls_hash_set == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/HashSet");
         _cls_hash_set = (*env)->NewGlobalRef(env, cls);
     }
     return _cls_hash_set;
+}
+
+jclass cls_linked_hash_map(JNIEnv *env) {
+    if (_cls_linked_hash_map == NULL) {
+        jclass cls = (*env)->FindClass(env, "java/util/LinkedHashMap");
+        _cls_linked_hash_map = (*env)->NewGlobalRef(env, cls);
+    }
+    return _cls_linked_hash_map;
 }
 
 jclass cls_linked_hash_set(JNIEnv *env) {
@@ -275,6 +286,13 @@ jclass cls_js_object(JNIEnv *env) {
         _cls_js_object = (*env)->NewGlobalRef(env, cls);
     }
     return _cls_js_object;
+}
+
+jmethodID method_ubyte_array_init(JNIEnv *env) {
+    if (_method_ubyte_array_init == NULL) {
+        _method_ubyte_array_init = (*env)->GetMethodID(env, cls_ubyte_array(env), "<init>", "([B)V");
+    }
+    return _method_ubyte_array_init;
 }
 
 jmethodID method_integer_value_of(JNIEnv *env) {
@@ -466,6 +484,13 @@ jmethodID method_map_entry_get_value(JNIEnv *env) {
     return _method_map_entry_get_value;
 }
 
+jmethodID method_hash_set_init(JNIEnv *env) {
+    if (_method_hash_set_init == NULL) {
+        _method_hash_set_init = (*env)->GetMethodID(env, cls_hash_set(env), "<init>", "()V");
+    }
+    return _method_hash_set_init;
+}
+
 jmethodID method_linked_hash_map_init(JNIEnv *env) {
     if (_method_linked_hash_map_init == NULL) {
         _method_linked_hash_map_init = (*env)->GetMethodID(env, cls_linked_hash_map(env), "<init>", "()V");
@@ -478,13 +503,6 @@ jmethodID method_linked_hash_map_put(JNIEnv *env) {
         _method_linked_hash_map_put = (*env)->GetMethodID(env, cls_linked_hash_map(env), "put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
     }
     return _method_linked_hash_map_put;
-}
-
-jmethodID method_hash_set_init(JNIEnv *env) {
-    if (_method_hash_set_init == NULL) {
-        _method_hash_set_init = (*env)->GetMethodID(env, cls_hash_set(env), "<init>", "()V");
-    }
-    return _method_hash_set_init;
 }
 
 jmethodID method_linked_hash_set_init(JNIEnv *env) {
@@ -543,6 +561,13 @@ jmethodID method_memory_usage_init(JNIEnv *env) {
     return _method_memory_usage_init;
 }
 
+jfieldID field_ubyte_array_storage(JNIEnv *env) {
+    if (_field_ubyte_array_storage == NULL) {
+        _field_ubyte_array_storage = (*env)->GetFieldID(env, cls_ubyte_array(env), "storage", "[B");
+    }
+    return _field_ubyte_array_storage;
+}
+
 jfieldID field_double_na_n(JNIEnv *env) {
     if (_field_double_na_n == NULL) {
         _field_double_na_n = (*env)->GetStaticFieldID(env, cls_double(env), "NaN", "D");
@@ -593,6 +618,9 @@ jfieldID field_js_function_is_async(JNIEnv *env) {
 }
 
 void clear_jni_refs_cache(JNIEnv *env) {
+    if (_cls_ubyte_array != NULL) {
+        (*env)->DeleteGlobalRef(env, _cls_ubyte_array);
+    }
     if (_cls_integer != NULL) {
         (*env)->DeleteGlobalRef(env, _cls_integer);
     }
@@ -641,11 +669,11 @@ void clear_jni_refs_cache(JNIEnv *env) {
     if (_cls_map_entry != NULL) {
         (*env)->DeleteGlobalRef(env, _cls_map_entry);
     }
-    if (_cls_linked_hash_map != NULL) {
-        (*env)->DeleteGlobalRef(env, _cls_linked_hash_map);
-    }
     if (_cls_hash_set != NULL) {
         (*env)->DeleteGlobalRef(env, _cls_hash_set);
+    }
+    if (_cls_linked_hash_map != NULL) {
+        (*env)->DeleteGlobalRef(env, _cls_linked_hash_map);
     }
     if (_cls_linked_hash_set != NULL) {
         (*env)->DeleteGlobalRef(env, _cls_linked_hash_set);
@@ -669,6 +697,7 @@ void clear_jni_refs_cache(JNIEnv *env) {
         (*env)->DeleteGlobalRef(env, _cls_js_object);
     }
 
+    _cls_ubyte_array = NULL;
     _cls_integer = NULL;
     _cls_long = NULL;
     _cls_float = NULL;
@@ -685,8 +714,8 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _cls_list = NULL;
     _cls_map = NULL;
     _cls_map_entry = NULL;
-    _cls_linked_hash_map = NULL;
     _cls_hash_set = NULL;
+    _cls_linked_hash_map = NULL;
     _cls_linked_hash_set = NULL;
     _cls_quick_js_exception = NULL;
     _cls_quick_js = NULL;
@@ -695,6 +724,7 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _cls_js_function = NULL;
     _cls_js_object = NULL;
 
+    _method_ubyte_array_init = NULL;
     _method_integer_value_of = NULL;
     _method_integer_int_value = NULL;
     _method_long_value_of = NULL;
@@ -722,9 +752,9 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _method_map_entry_set = NULL;
     _method_map_entry_get_key = NULL;
     _method_map_entry_get_value = NULL;
+    _method_hash_set_init = NULL;
     _method_linked_hash_map_init = NULL;
     _method_linked_hash_map_put = NULL;
-    _method_hash_set_init = NULL;
     _method_linked_hash_set_init = NULL;
     _method_linked_hash_set_add = NULL;
     _method_quick_js_on_call_getter = NULL;
@@ -734,6 +764,7 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _method_quick_js_create_delay = NULL;
     _method_memory_usage_init = NULL;
 
+    _field_ubyte_array_storage = NULL;
     _field_double_na_n = NULL;
     _field_js_property_name = NULL;
     _field_js_property_configurable = NULL;

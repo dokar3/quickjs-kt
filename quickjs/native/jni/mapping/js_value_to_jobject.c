@@ -302,6 +302,29 @@ jobject object_to_java_map(JNIEnv *env, JSContext *context, JSValue value) {
     return java_map;
 }
 
+jobject js_int8array_to_java_byte_array(JNIEnv *env, JSContext *context, JSValue value) {
+    JSValue buffer = JS_GetPropertyStr(context, value, "buffer");
+    size_t size;
+    uint8_t *c_buffer = JS_GetArrayBuffer(context, &size, buffer);
+    if (c_buffer == NULL) {
+        JS_FreeValue(context, buffer);
+        jni_throw_exception(env, "Cannot read array buffer.");
+        return NULL;
+    }
+    jbyteArray array = (*env)->NewByteArray(env, size);
+    (*env)->SetByteArrayRegion(env, array, 0, size, (jbyte *) c_buffer);
+    JS_FreeValue(context, buffer);
+    return array;
+}
+
+jobject js_int8array_to_kt_ubyte_array(JNIEnv *env, JSContext *context, JSValue value) {
+    jobject bytes = js_int8array_to_java_byte_array(env, context, value);
+    if (bytes == NULL) {
+        return NULL;
+    }
+    return (*env)->NewObject(env, cls_ubyte_array(env), method_ubyte_array_init(env), bytes);
+}
+
 jobject try_handle_promise_result(JNIEnv *env, JSContext *context, JSValue promise) {
     JSPromiseStateEnum state = JS_PromiseState(context, promise);
     if (state == JS_PROMISE_FULFILLED) {
@@ -363,23 +386,24 @@ jobject js_value_to_jobject(JNIEnv *env, JSContext *context, JSValue value) {
 
         return java_buffer;
     } else if (JS_IsObject(value)) {
-        JSValue prototype = JS_GetPrototype(context, value);
-        const char *prototype_str = JS_ToCString(context, prototype);
+        JSValue global_this = JS_GetGlobalObject(context);
         jobject result;
 
-        // Is there a better way for this?
-        if (strcmp("[object Promise]", prototype_str) == 0) {
+        if (js_is_promise_2(context, global_this, value)) {
             result = try_handle_promise_result(env, context, value);
-        } else if (strcmp("[object Set]", prototype_str) == 0) {
+        } else if (js_is_set(context, global_this, value)) {
             result = to_java_set(env, context, value);
-        } else if (strcmp("[object Map]", prototype_str) == 0) {
+        } else if (js_is_map(context, global_this, value)) {
             result = to_java_map(env, context, value);
+        } else if (js_is_uint8array(context, global_this, value)) {
+            result = js_int8array_to_kt_ubyte_array(env, context, value);
+        } else if (js_is_int8array(context, global_this, value)) {
+            result = js_int8array_to_java_byte_array(env, context, value);
         } else {
             result = object_to_java_map(env, context, value);
         }
 
-        JS_FreeCString(context, prototype_str);
-        JS_FreeValue(context, prototype);
+        JS_FreeValue(context, global_this);
 
         return result;
     } else {

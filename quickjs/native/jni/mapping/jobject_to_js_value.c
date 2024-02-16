@@ -408,6 +408,35 @@ JSValue java_map_to_js_object(JNIEnv *env, JSContext *context,
     return js_object;
 }
 
+void js_free_array_buffer(JSRuntime *runtime, void *opaque, void *ptr) {
+    free(ptr);
+}
+
+JSValue byte_array_to_js_byte_array(JNIEnv *env, JSContext *context, jobject value,
+                                    const char *array_constructor_name) {
+    size_t size = (*env)->GetArrayLength(env, value);
+    jbyte *bytes = (*env)->GetByteArrayElements(env, value, NULL);
+    uint8_t *c_buffer = malloc(size);
+    memcpy(c_buffer, bytes, size);
+    JSValue array_buffer = JS_NewArrayBuffer(context, c_buffer, size,
+                                             js_free_array_buffer, NULL, 0);
+    int argc = 1;
+    JSValue argv[1] = {array_buffer};
+    JSValue result = new_js_object_from_constructor(context, array_constructor_name,
+                                                    argc, argv);
+    JS_FreeValue(context, array_buffer);
+    return result;
+}
+
+JSValue byte_array_to_js_int8array(JNIEnv *env, JSContext *context, jobject value) {
+    return byte_array_to_js_byte_array(env, context, value, "Int8Array");
+}
+
+JSValue kt_ubyte_array_to_js_uint8array(JNIEnv *env, JSContext *context, jobject value) {
+    jobject storage = (*env)->GetObjectField(env, value, field_ubyte_array_storage(env));
+    return byte_array_to_js_byte_array(env, context, storage, "Uint8Array");
+}
+
 JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject visited_set, jobject value) {
     if (value == NULL) {
         return JS_NULL;
@@ -465,6 +494,9 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject visited_set
     } else if ((*env)->IsInstanceOf(env, value, cls_throwable(env))) {
         // Throwable
         result = java_throwable_to_js_error(env, context, (jthrowable) value);
+    } else if ((*env)->IsInstanceOf(env, value, cls_ubyte_array(env))) {
+        // UByteArray
+        result = kt_ubyte_array_to_js_uint8array(env, context, value);
     }
 
     if (!JS_IsUndefined(result)) {
@@ -478,6 +510,8 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject visited_set
     // Try by the class name
     if (strcmp("kotlin.Unit", cls_name) == 0) {
         result = JS_UNDEFINED;
+    } else if (strcmp("[B", cls_name) == 0) {
+        result = byte_array_to_js_int8array(env, context, value);
     } else if (strcmp("[Z", cls_name) == 0) {
         // boolean array
         int size = (*env)->GetArrayLength(env, value);

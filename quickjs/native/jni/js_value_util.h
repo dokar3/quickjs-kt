@@ -39,6 +39,31 @@ JSValue new_js_error(JSContext *context,
 int js_is_promise(JSContext *context, JSValue value);
 
 /**
+ * Check if the js value is a Promise.
+ */
+int js_is_promise_2(JSContext *context, JSValue global_this, JSValue value);
+
+/**
+ * Check if the js value is a Uint8Array.
+ */
+int js_is_uint8array(JSContext *context, JSValue global_this, JSValue value);
+
+/**
+ * Check if the js value is a Int8Array.
+ */
+int js_is_int8array(JSContext *context, JSValue global_this, JSValue value);
+
+/**
+ * Check if the js value is a Set.
+ */
+int js_is_set(JSContext *context, JSValue global_this, JSValue value);
+
+/**
+ * Check if the js value is a Map.
+ */
+int js_is_map(JSContext *context, JSValue global_this, JSValue value);
+
+/**
  * Get the value of a fulfilled promise.
  */
 JSValue js_promise_get_fulfilled_value(JSContext *context, JSValue promise);

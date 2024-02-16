@@ -3,6 +3,11 @@ package com.dokar.quickjs.bridge
 import com.dokar.quickjs.QuickJsException
 import com.dokar.quickjs.qjsError
 import com.dokar.quickjs.util.freeJsValues
+import com.dokar.quickjs.util.isInt8Array
+import com.dokar.quickjs.util.isMap
+import com.dokar.quickjs.util.isPromise
+import com.dokar.quickjs.util.isSet
+import com.dokar.quickjs.util.isUint8Array
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -30,12 +35,13 @@ import quickjs.JS_FreeCString
 import quickjs.JS_FreeValue
 import quickjs.JS_GPN_STRING_MASK
 import quickjs.JS_GPN_SYMBOL_MASK
+import quickjs.JS_GetArrayBuffer
 import quickjs.JS_GetException
+import quickjs.JS_GetGlobalObject
 import quickjs.JS_GetOwnPropertyNames
 import quickjs.JS_GetProperty
 import quickjs.JS_GetPropertyStr
 import quickjs.JS_GetPropertyUint32
-import quickjs.JS_GetPrototype
 import quickjs.JS_IsArray
 import quickjs.JS_IsError
 import quickjs.JS_IsException
@@ -113,23 +119,22 @@ internal fun CValue<JSValue>.toKtValue(context: CPointer<JSContext>): Any? {
     } else if (JS_IsError(context, this) == 1) {
         return jsErrorToKtError(context, this)
     } else if (tag == JS_TAG_OBJECT) {
-        val prototype = JS_GetPrototype(context, this)
-        return when (prototype.use(context) { toKtString(context) }) {
-            "[object Promise]" -> JsPromise(value = this)
-            "[object Set]" -> jsSetToKtSet(context, this)
-            "[object Map]" -> jsMapToKtMap(context, this)
-            else -> jsObjectToKtMap(context, this)
+        val globalThis = JS_GetGlobalObject(context)
+        try {
+            return when {
+                isPromise(context, globalThis) -> JsPromise(value = this)
+                isUint8Array(context, globalThis) -> jsUint8ArrayToKtUByteArray(context, this)
+                isInt8Array(context, globalThis) -> jsInt8ArrayToKtByteArray(context, this)
+                isSet(context, globalThis) -> jsSetToKtSet(context, this)
+                isMap(context, globalThis) -> jsMapToKtMap(context, this)
+                else -> jsObjectToKtMap(context, this)
+            }
+        } finally {
+            JS_FreeValue(context, globalThis)
         }
     } else {
         qjsError("Cannot convert js type to kotlin type. JS value tag: $tag")
     }
-}
-
-@OptIn(ExperimentalForeignApi::class)
-internal fun CValue<JSValue>.isPromise(context: CPointer<JSContext>): Boolean {
-    val tag = JsValueGetNormTag(this)
-    if (tag != JS_TAG_OBJECT) return false
-    return JS_GetPrototype(context, this).use(context) { toKtString(context) } == "[object Promise]"
 }
 
 @OptIn(ExperimentalForeignApi::class)
@@ -209,6 +214,33 @@ private fun newKtError(name: String, message: String?, stack: Array<String?>?): 
         NotImplementedError::class.qualifiedName -> NotImplementedError(m ?: "")
         QuickJsException::class.qualifiedName -> QuickJsException(m)
         else -> Error("$name: $m") // Unknown error, add the name back
+    }
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private inline fun jsUint8ArrayToKtUByteArray(
+    context: CPointer<JSContext>,
+    array: CValue<JSValue>
+): UByteArray {
+    return jsInt8ArrayToKtByteArray(context, array).asUByteArray()
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun jsInt8ArrayToKtByteArray(
+    context: CPointer<JSContext>,
+    array: CValue<JSValue>
+): ByteArray = memScoped {
+    val length = alloc<size_tVar>()
+    val arrayBuffer = JS_GetPropertyStr(context, array, "buffer")
+    val cBuffer = JS_GetArrayBuffer(context, length.ptr, arrayBuffer)
+    if (cBuffer == null) {
+        JS_FreeValue(context, arrayBuffer)
+        qjsError("Cannot read array buffer.")
+    }
+    try {
+        cBuffer.readBytes(length.value.toInt())
+    } finally {
+        JS_FreeValue(context, arrayBuffer)
     }
 }
 
