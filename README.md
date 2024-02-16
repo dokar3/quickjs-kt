@@ -277,6 +277,8 @@ Some built-in types are mapped automatically between C and Kotlin, this table sh
 | Map             | Map<Any?, Any?>     |
 | Error           | Error               |
 | Object          | Map<Any?, Any?> (4) |
+| Int8Array       | ByteArray           |
+| UInt8Array      | UByteArray          |
 
 (1) A Kotlin `Unit` will be mapped to a JavaScript `undefined`, conversely, JavaScript `undefined` won't be mapped to Kotlin `Unit`. 
 

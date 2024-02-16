@@ -1,6 +1,7 @@
 package com.dokar.quickjs.bridge
 
 import com.dokar.quickjs.QuickJsException
+import com.dokar.quickjs.util.isPromise
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CPointerVar
 import kotlinx.cinterop.CValue

@@ -4,6 +4,8 @@
 
 #include <jni.h>
 
+jclass cls_ubyte_array(JNIEnv *env);
+
 jclass cls_integer(JNIEnv *env);
 
 jclass cls_long(JNIEnv *env);
@@ -36,9 +38,9 @@ jclass cls_map(JNIEnv *env);
 
 jclass cls_map_entry(JNIEnv *env);
 
-jclass cls_linked_hash_map(JNIEnv *env);
-
 jclass cls_hash_set(JNIEnv *env);
+
+jclass cls_linked_hash_map(JNIEnv *env);
 
 jclass cls_linked_hash_set(JNIEnv *env);
 
@@ -53,6 +55,8 @@ jclass cls_js_property(JNIEnv *env);
 jclass cls_js_function(JNIEnv *env);
 
 jclass cls_js_object(JNIEnv *env);
+
+jmethodID method_ubyte_array_init(JNIEnv *env);
 
 jmethodID method_integer_value_of(JNIEnv *env);
 
@@ -108,11 +112,11 @@ jmethodID method_map_entry_get_key(JNIEnv *env);
 
 jmethodID method_map_entry_get_value(JNIEnv *env);
 
+jmethodID method_hash_set_init(JNIEnv *env);
+
 jmethodID method_linked_hash_map_init(JNIEnv *env);
 
 jmethodID method_linked_hash_map_put(JNIEnv *env);
-
-jmethodID method_hash_set_init(JNIEnv *env);
 
 jmethodID method_linked_hash_set_init(JNIEnv *env);
 
@@ -129,6 +133,8 @@ jmethodID method_quick_js_set_java_exception(JNIEnv *env);
 jmethodID method_quick_js_create_delay(JNIEnv *env);
 
 jmethodID method_memory_usage_init(JNIEnv *env);
+
+jfieldID field_ubyte_array_storage(JNIEnv *env);
 
 jfieldID field_double_na_n(JNIEnv *env);
 

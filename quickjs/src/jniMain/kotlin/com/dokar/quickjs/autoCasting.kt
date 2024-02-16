@@ -4,6 +4,7 @@ package com.dokar.quickjs
 @PublishedApi
 internal fun <T : Any?> jsAutoCastOrThrow(value: Any?, expectedType: Class<*>): T {
     val nonNull = value ?: return null as T
+    ubyteArrayOf()
     if (expectedType.isInstance(nonNull)) {
         return nonNull as T
     }

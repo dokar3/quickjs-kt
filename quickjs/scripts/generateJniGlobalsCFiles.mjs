@@ -10,6 +10,11 @@ const FILE_BASE_NAME = "jni_globals_generated";
 
 const JNI_REFS = [
   {
+    className: "kotlin/UByteArray",
+    methods: [{ name: "<init>", sign: "([B)V" }],
+    fields: [{ name: "storage", type: "[B" }],
+  },
+  {
     className: "java/lang/Integer",
     methods: [
       { name: "valueOf", sign: "(I)Ljava/lang/Integer;", isStatic: true },

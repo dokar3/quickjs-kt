@@ -6,18 +6,29 @@ import com.dokar.quickjs.util.allocArrayOf
 import com.dokar.quickjs.util.freeJsValues
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CValue
+import kotlinx.cinterop.CValues
 import kotlinx.cinterop.CValuesRef
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.cstr
 import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.reinterpret
+import kotlinx.cinterop.staticCFunction
+import kotlinx.cinterop.toCValues
+import platform.posix.free
+import platform.posix.malloc
+import platform.posix.memcpy
+import platform.posix.uint8_tVar
 import quickjs.JSContext
+import quickjs.JSRuntime
 import quickjs.JSValue
 import quickjs.JS_CallConstructor
+import quickjs.JS_FreeValue
 import quickjs.JS_GetGlobalObject
 import quickjs.JS_GetPropertyStr
 import quickjs.JS_IsNull
 import quickjs.JS_IsUndefined
 import quickjs.JS_NewArray
+import quickjs.JS_NewArrayBuffer
 import quickjs.JS_NewBool
 import quickjs.JS_NewError
 import quickjs.JS_NewFloat64
@@ -46,6 +57,8 @@ internal fun <T : Any?> T.toJsValue(
         is Float -> JS_NewFloat64(context, value.toDouble())
         is Double -> JS_NewFloat64(context, value)
         is String -> JS_NewString(context, value.cstr)
+        is ByteArray -> ktByteArrayToJsInt8Array(context, value)
+        is UByteArray -> ktUByteArrayToJsUint8Array(context, value)
         is Array<*> -> ktArrayToJsArray(context, value, visited ?: mutableSetOf())
         is Set<*> -> ktSetToJsSet(context, value, visited ?: mutableSetOf())
         is JsObject -> ktMapToJsObject(context, value, visited ?: mutableSetOf())
@@ -78,6 +91,67 @@ internal fun ktErrorToJsError(context: CPointer<JSContext>, error: Throwable): C
     JS_SetPropertyStr(context, jsError, "stack", stack)
 
     return jsError
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private inline fun ktByteArrayToJsInt8Array(
+    context: CPointer<JSContext>,
+    array: ByteArray,
+): CValue<JSValue> {
+    return ktByteBufferToJsByteArray(
+        context = context,
+        buffer = array.toCValues(),
+        size = array.size.toULong(),
+        arrayType = "Int8Array",
+    )
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private inline fun ktUByteArrayToJsUint8Array(
+    context: CPointer<JSContext>,
+    array: UByteArray,
+): CValue<JSValue> {
+    return ktByteBufferToJsByteArray(
+        context = context,
+        buffer = array.toCValues(),
+        size = array.size.toULong(),
+        arrayType = "Uint8Array",
+    )
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun ktByteBufferToJsByteArray(
+    context: CPointer<JSContext>,
+    buffer: CValues<*>,
+    size: ULong,
+    arrayType: String,
+): CValue<JSValue> = memScoped {
+    val cBuffer = malloc(size)?.reinterpret<uint8_tVar>()
+        ?: qjsError("Cannot alloc buffer for byte array.")
+    memcpy(cBuffer, buffer, size)
+    val arrayBuffer = JS_NewArrayBuffer(
+        ctx = context,
+        buf = cBuffer,
+        len = size,
+        free_func = staticCFunction(::freeJsArrayBuffer),
+        opaque = null,
+        is_shared = 0,
+    )
+    try {
+        newJsObjectFromConstructor(context, arrayType, 1, allocArrayOf(arrayBuffer))
+    } finally {
+        JS_FreeValue(context, arrayBuffer)
+    }
+}
+
+@Suppress("UNUSED_PARAMETER")
+@OptIn(ExperimentalForeignApi::class)
+private fun freeJsArrayBuffer(
+    runtime: CPointer<JSRuntime>?,
+    opaque: kotlinx.cinterop.COpaquePointer?,
+    ptr: kotlinx.cinterop.COpaquePointer?
+) {
+    free(ptr)
 }
 
 @OptIn(ExperimentalForeignApi::class)
