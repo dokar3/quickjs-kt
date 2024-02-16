@@ -19,11 +19,13 @@ import quickjs.JS_Eval
 import quickjs.JS_EvalFunction
 import quickjs.JS_FreeValue
 import quickjs.JS_GetException
+import quickjs.JS_GetRuntime
 import quickjs.JS_IsNull
 import quickjs.JS_READ_OBJ_BYTECODE
 import quickjs.JS_ReadObject
 import quickjs.JS_TAG_FUNCTION_BYTECODE
 import quickjs.JS_TAG_MODULE
+import quickjs.JS_UpdateStackTop
 import quickjs.JsValueGetNormTag
 
 @OptIn(ExperimentalForeignApi::class)
@@ -38,6 +40,7 @@ internal fun CPointer<JSContext>.compile(
         evalFlags = evalFlags or JS_EVAL_TYPE_MODULE
     }
     val cStr = code.cstr
+    JS_UpdateStackTop(JS_GetRuntime(this))
     val result = JS_Eval(
         ctx = this,
         input = cStr,
@@ -68,6 +71,7 @@ internal fun CPointer<JSContext>.evaluate(
         evalFlags = evalFlags or JS_EVAL_TYPE_MODULE
     }
     val cStr = code.cstr
+    JS_UpdateStackTop(JS_GetRuntime(context))
     val result = JS_Eval(
         ctx = this,
         input = cStr,
@@ -87,6 +91,7 @@ internal fun CPointer<JSContext>.evaluate(
 
     @Suppress("UNCHECKED_CAST")
     val buffer = bytecode.toCValues() as CValues<UByteVar>
+    JS_UpdateStackTop(JS_GetRuntime(context))
     val jsValue = JS_ReadObject(
         ctx = context,
         buf = buffer,

@@ -41,6 +41,7 @@ import quickjs.JS_RunGC
 import quickjs.JS_SetMaxStackSize
 import quickjs.JS_SetMemoryLimit
 import quickjs.JS_Throw
+import quickjs.JS_UpdateStackTop
 import quickjs.quickjs_version
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -94,6 +95,7 @@ actual class QuickJs private constructor(
         set(value) {
             ensureNotClosed()
             field = value
+            JS_UpdateStackTop(runtime)
             JS_SetMaxStackSize(runtime, value.toULong())
         }
 
