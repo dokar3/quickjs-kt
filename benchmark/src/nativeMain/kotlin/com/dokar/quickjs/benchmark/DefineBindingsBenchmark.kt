@@ -4,47 +4,39 @@ import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.binding.define
 import kotlinx.benchmark.Benchmark
 import kotlinx.benchmark.Scope
-import kotlinx.benchmark.Setup
 import kotlinx.benchmark.State
-import kotlinx.benchmark.TearDown
 
 @Suppress("unused")
 @State(Scope.Benchmark)
 class DefineBindingsBenchmark {
-    private lateinit var quickJs: QuickJs
-
-    @Setup
-    fun setup() {
-        quickJs = QuickJs.create()
-    }
-
-    @TearDown
-    fun cleanup() {
-        quickJs.close()
-    }
-
     @Benchmark
     fun defineDslBindings() {
-        quickJs.define("http") {
-            asyncFunction("fetch") {}
-        }
-        quickJs.define("console") {
-            function("debug") {}
-            function("log") {}
-            function("info") {}
-            function("warn") {}
-            function("error") {}
-        }
-        quickJs.define("app") {
-            property("name") {
-                getter { "MyApp" }
+        val quickJs = QuickJs.create()
+        try {
+            quickJs.define("http") {
+                asyncFunction("fetch") {}
             }
-
-            property("version") {
-                getter { "1.0.0" }
+            quickJs.define("console") {
+                function("debug") {}
+                function("log") {}
+                function("info") {}
+                function("warn") {}
+                function("error") {}
             }
+            quickJs.define("app") {
+                property("name") {
+                    getter { "MyApp" }
+                }
 
-            function("run") {}
+                property("version") {
+                    getter { "1.0.0" }
+                }
+
+                function("run") {}
+            }
+            quickJs.close()
+        } finally {
+            quickJs.close()
         }
     }
 }

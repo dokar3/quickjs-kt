@@ -142,6 +142,10 @@ ${jvmTableLines}
 | Name | Iterations | Score | Unit |
 | --- | --- | --- | --- |
 ${nativeTableLines}
+
+### Notes
+
+The engine creation times are included in define[Xzy]Bindings benchmarks, so the actual results should be much faster, but the relative results should remain the same.
 `;
 
 await fs.writeFile("./benchmark/README.md", README);
