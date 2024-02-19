@@ -3,10 +3,13 @@ package com.dokar.quickjs.binding
 import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.QuickJsException
 import com.dokar.quickjs.jsAutoCastOrThrow
+import com.dokar.quickjs.qjsError
+import kotlinx.coroutines.suspendCancellableCoroutine
 import java.lang.reflect.Field
 import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Method
 import java.lang.reflect.Modifier
-import kotlin.reflect.KFunction
+import kotlin.coroutines.Continuation
 
 /**
  * Define a binding for an instance.
@@ -52,8 +55,7 @@ fun <T> QuickJs.define(
     val binding = object : ObjectBinding {
         override val properties: List<JsProperty> = jsFields
         override val functions: List<JsFunction> = methods.values.map {
-            // TODO: Support suspend/async functions?
-            JsFunction(name = it.name, isAsync = false)
+            JsFunction(name = it.name, isAsync = it.canBeCalledAsSuspend())
         }
 
         override fun getter(name: String): Any? {
@@ -71,10 +73,18 @@ fun <T> QuickJs.define(
             val method = methods[name] ?: throw QuickJsException(
                 "Method '$name' not found in instance $instance"
             )
+            return if (method.canBeCalledAsSuspend()) {
+                invokeSuspend(method, args)
+            } else {
+                invokeNormal(method, args)
+            }
+        }
+
+        private fun invokeNormal(method: Method, args: Array<Any?>): Any? {
             if (method.parameterCount != args.size) {
-                throw QuickJsException(
+                qjsError(
                     "Parameter count mismatched on method '$name', " +
-                            "expect: ${args.size}, actual: ${method.parameterCount}"
+                            "js: ${args.size}, java: ${method.parameterCount}"
                 )
             }
             val parameterTypes = method.parameterTypes
@@ -85,6 +95,39 @@ fun <T> QuickJs.define(
                 .toTypedArray()
             try {
                 return method.invoke(instance, *parameters)
+            } catch (e: InvocationTargetException) {
+                throw e.targetException
+            }
+        }
+
+        private fun invokeSuspend(method: Method, args: Array<Any?>): Any? {
+            if (args.size < 2) {
+                qjsError(
+                    "Unexpected internal parameter count: ${args.size}, no promise " +
+                            "handles are provided."
+                )
+            }
+            val funcArgs = args.slice(2..args.lastIndex)
+            if (method.parameterCount != funcArgs.size + 1) {
+                qjsError(
+                    "Parameter count mismatched on method '$name', " +
+                            "js: ${funcArgs.size}, java: ${method.parameterCount - 1}"
+                )
+            }
+            val end = method.parameterTypes.lastIndex - 1
+            val parameterTypes = method.parameterTypes.slice(0..end)
+            val parameters = funcArgs
+                .mapIndexed { index, param ->
+                    jsAutoCastOrThrow<Any?>(param, parameterTypes[index])
+                }
+                .toTypedArray()
+            try {
+                invokeAsyncFunction(args) {
+                    suspendCancellableCoroutine { continuation ->
+                        method.invoke(instance, *parameters, continuation)
+                    }
+                }
+                return null
             } catch (e: InvocationTargetException) {
                 throw e.targetException
             }
@@ -100,3 +143,9 @@ private fun Field.toJsProperty(): JsProperty = JsProperty(
     writable = false,
     enumerable = true,
 )
+
+private fun Method.canBeCalledAsSuspend(): Boolean {
+    val args = this.parameterTypes
+    if (args.isEmpty()) return false
+    return Continuation::class.java.isAssignableFrom(args.last())
+}

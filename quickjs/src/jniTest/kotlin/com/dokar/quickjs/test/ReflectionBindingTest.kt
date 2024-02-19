@@ -2,8 +2,9 @@ package com.dokar.quickjs.test
 
 import com.dokar.quickjs.binding.define
 import com.dokar.quickjs.quickJs
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
-import org.junit.Test
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
 import kotlin.test.assertTrue
@@ -19,6 +20,17 @@ class ReflectionBindingTest {
             assertFails { evaluate("instance.privateFunc()") }
             assertEquals(instance.publicFunc(), evaluate("instance.publicFunc()"))
 
+        }
+    }
+
+    @Test
+    fun bindInstanceWithSuspendFunc() = runTest {
+        quickJs {
+            val instance = ClassWithSuspendFunc()
+            define("instance", ClassWithSuspendFunc::class.java, instance)
+
+            assertEquals("Hello", evaluate("await instance.greet()"))
+            assertEquals("No response", evaluate("await instance.fetch('whatever')"))
         }
     }
 
@@ -72,5 +84,18 @@ class ReflectionBindingTest {
         fun map(arg: Map<*, *>) {}
         fun objects(arg: Map<*, *>) {}
         fun multiple(int: Int, long: Long, float: Float, string: String, arr: Array<*>) {}
+    }
+
+    @Suppress("unused", "UNUSED_PARAMETER")
+    private class ClassWithSuspendFunc {
+        suspend fun greet(): String {
+            delay(100)
+            return "Hello"
+        }
+
+        suspend fun fetch(url: String): String {
+            delay(100)
+            return "No response"
+        }
     }
 }
