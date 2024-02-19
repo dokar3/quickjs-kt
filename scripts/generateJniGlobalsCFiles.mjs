@@ -5,7 +5,7 @@ import { promisify } from "util";
 
 const HEADER_DEFINE = "QJS_KT_JNI_GLOBALS_GENERATED_H";
 
-const WRITE_PATH = "../native/jni";
+const WRITE_PATH = "quickjs/native/jni";
 const FILE_BASE_NAME = "jni_globals_generated";
 
 const JNI_REFS = [
