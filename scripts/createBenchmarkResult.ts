@@ -10,10 +10,10 @@ type BenchmarkResult = {
   score: number;
 };
 
-async function throwIfStderrNotEmpty(output: ShellOutput) {
-  const err = output.stderr.toString().trim();
-  if (err.length > 0) {
-    throw new Error(err);
+async function throwIfGradleTaskNotSuccuss(output: ShellOutput) {
+  const stdout = output.stdout.toString().trim();
+  if (!stdout.includes("BUILD SUCCESSFUL")) {
+    throw new Error("Gradle task failed.");
   }
   return output;
 }
@@ -32,11 +32,15 @@ if (osArch !== "x64") {
 
 console.log(`Running benchmarks on ${osName} ${osArch}...`);
 
-await throwIfStderrNotEmpty(await $`./gradlew :benchmark:jvmBenchmark`);
+await throwIfGradleTaskNotSuccuss(await $`./gradlew :benchmark:jvmBenchmark`);
 if (osName === "linux") {
-  await throwIfStderrNotEmpty(await $`./gradlew :benchmark:linuxX64Benchmark`);
+  await throwIfGradleTaskNotSuccuss(
+    await $`./gradlew :benchmark:linuxX64Benchmark`
+  );
 } else {
-  await throwIfStderrNotEmpty(await $`./gradlew :benchmark:mingwX64Benchmark`);
+  await throwIfGradleTaskNotSuccuss(
+    await $`./gradlew :benchmark:mingwX64Benchmark`
+  );
 }
 
 // Collect results
