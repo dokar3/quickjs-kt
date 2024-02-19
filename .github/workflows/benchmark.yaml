@@ -42,7 +42,7 @@ jobs:
 
       - name: Install multiplatform JDKs
         run: |
-          bun quickjs/scripts/setupMultiplatformJdks.ts
+          bun scripts/setupMultiplatformJdks.ts
           printf "Exports:\n$(cat ~/java-home-vars-github.sh)"
           source ~/java-home-vars-github.sh
 
