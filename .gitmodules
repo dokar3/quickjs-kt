@@ -1,3 +1,6 @@
 [submodule "quickjs/native/quickjs"]
 	path = quickjs/native/quickjs
 	url = https://github.com/bellard/quickjs.git
+[submodule "quickjs/native/c-vector"]
+	path = quickjs/native/c-vector
+	url = https://github.com/eteran/c-vector.git

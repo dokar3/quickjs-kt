@@ -99,7 +99,7 @@ include_directories("quickjs" "common")
 
 if (BUILD_WITH_JNI)
     include_directories(
-            "cvector"
+            "c-vector"
             "jni"
             "jni/mapping")
 endif ()
