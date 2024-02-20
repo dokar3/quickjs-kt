@@ -145,8 +145,7 @@ private fun Field.toJsProperty(): JsProperty = JsProperty(
 )
 
 internal fun Method.canBeCalledAsSuspend(): Boolean {
-    val args = this.parameterTypes
-    if (args.isEmpty()) return false
-    return Continuation::class.java.isAssignableFrom(args.last()) &&
+    val lastArg = this.parameterTypes.lastOrNull() ?: return false
+    return Continuation::class.java.isAssignableFrom(lastArg) &&
             this.returnType == Any::class.java
 }
