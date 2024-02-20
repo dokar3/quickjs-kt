@@ -1,12 +1,15 @@
 package com.dokar.quickjs.test
 
+import com.dokar.quickjs.binding.canBeCalledAsSuspend
 import com.dokar.quickjs.binding.define
 import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
+import kotlin.coroutines.Continuation
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ReflectionBindingTest {
@@ -57,6 +60,17 @@ class ReflectionBindingTest {
         }
     }
 
+    @Test
+    fun canMethodsBeCalledAsSuspend() {
+        val methods = SuspendFunctions::class.java.methods.associateBy { it.name }
+        assertTrue(methods["realSuspend"]!!.canBeCalledAsSuspend())
+        assertTrue(methods["realSuspendWithArgs"]!!.canBeCalledAsSuspend())
+        assertFalse(methods["notSuspend"]!!.canBeCalledAsSuspend())
+        assertFalse(methods["likelyButNotSuspend"]!!.canBeCalledAsSuspend())
+        assertTrue(methods["compiledSuspend"]!!.canBeCalledAsSuspend())
+        assertTrue(methods["compiledSuspendWithArgs"]!!.canBeCalledAsSuspend())
+    }
+
     @Suppress("unused")
     private class TestClass {
         private val privateField = 0
@@ -97,5 +111,15 @@ class ReflectionBindingTest {
             delay(100)
             return "No response"
         }
+    }
+
+    @Suppress("unused", "UNUSED_PARAMETER")
+    private class SuspendFunctions {
+        suspend fun realSuspend() {}
+        suspend fun realSuspendWithArgs(name: String) {}
+        fun notSuspend() {}
+        fun likelyButNotSuspend(continuation: Continuation<*>) {}
+        fun compiledSuspend(continuation: Continuation<*>): Any? = null
+        fun compiledSuspendWithArgs(name: String, continuation: Continuation<*>): Any? = null
     }
 }
