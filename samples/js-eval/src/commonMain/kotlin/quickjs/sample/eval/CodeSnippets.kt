@@ -5,7 +5,22 @@ class CodeSnippet(
     val filename: String,
     val code: String,
     val asModule: Boolean,
+    val modules: List<Module> = emptyList(),
 )
+
+sealed class Module(
+    val name: String,
+) {
+    class ExternalModule(
+        name: String,
+        val fileResPath: String,
+    ) : Module(name)
+
+    class CodeModule(
+        name: String,
+        val code: String,
+    ) : Module(name)
+}
 
 val CodeSnippets = listOf(
     CodeSnippet(
@@ -49,6 +64,16 @@ val CodeSnippets = listOf(
             returns(hello.greeting());
         """.trimIndent(),
         asModule = true,
+        modules = listOf(
+            Module.CodeModule(
+                name = "hello",
+                code = """
+                    export function greeting() {
+                        return "Hi from the hello module!";
+                    }
+                """.trimIndent(),
+            ),
+        )
     ),
     CodeSnippet(
         code = """
@@ -70,5 +95,27 @@ val CodeSnippets = listOf(
         title = "Async functions",
         filename = "async.js",
         asModule = false,
+    ),
+    CodeSnippet(
+        title = "Preact-signals counter",
+        filename = "counter.js",
+        code = """
+            import { signal, effect } from "@preact/signals-core";
+
+            const count = signal(0);
+            
+            effect(() => {
+              console.log("Count", count.value);
+            });
+            
+            count.value++;
+        """.trimIndent(),
+        asModule = true,
+        modules = listOf(
+            Module.ExternalModule(
+                name = "@preact/signals-core",
+                fileResPath = "files/signals-core.mjs",
+            ),
+        )
     ),
 )

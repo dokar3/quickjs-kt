@@ -54,6 +54,8 @@ import com.dokar.quickjs.binding.function
 import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.ExperimentalResourceApi
+import quickjs_kt.samples.`js-eval`.generated.resources.Res
 
 @Composable
 fun EvalScreen(modifier: Modifier = Modifier) {
@@ -87,6 +89,7 @@ fun EvalScreen(modifier: Modifier = Modifier) {
     }
 }
 
+@OptIn(ExperimentalResourceApi::class)
 @Composable
 private fun ScreenContent(
     codeModifier: Modifier = Modifier,
@@ -119,14 +122,19 @@ private fun ScreenContent(
         val start = System.currentTimeMillis()
         result = runCatching {
             quickJs {
-                addModule(
-                    name = "hello",
-                    code = """
-                        export function greeting() {
-                            return "Hi from the hello module!";
-                        }
-                    """.trimIndent(),
-                )
+                for (module in codeSnippet.modules) {
+                    when (module) {
+                        is Module.CodeModule -> addModule(
+                            name = module.name,
+                            code = module.code,
+                        )
+
+                        is Module.ExternalModule -> addModule(
+                            name = module.name,
+                            code = Res.readBytes(module.fileResPath).decodeToString(),
+                        )
+                    }
+                }
 
                 define("console") {
                     // Define a nested object
@@ -219,6 +227,7 @@ private fun ScreenContent(
         ) {
             Row(
                 modifier = Modifier
+                    .weight(1f, fill = false)
                     .clip(CircleShape)
                     .background(
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
