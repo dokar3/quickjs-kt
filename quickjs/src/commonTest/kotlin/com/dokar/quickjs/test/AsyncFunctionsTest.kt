@@ -125,31 +125,6 @@ class AsyncFunctionsTest {
     }
 
     @Test
-    fun runPromiseDotAllWithOneRejected() = runTest {
-        quickJs {
-            var delayedCount = 0
-            asyncFunction("delay") {
-                delay(it[0] as Long)
-                delayedCount++
-            }
-            asyncFunction("fail") {
-                delay(1500)
-                error("Fails")
-            }
-
-            assertFails {
-                evaluate<String>(
-                    """
-                        await Promise.all([delay(1000), delay(2000), fail()]);
-                        "OK";
-                    """.trimIndent()
-                )
-            }
-            assertEquals(1, delayedCount)
-        }
-    }
-
-    @Test
     fun compileAndEvalAsync() = runTest {
         quickJs {
             asyncFunction("delay") { delay(it[0] as Long) }

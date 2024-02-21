@@ -11,6 +11,7 @@
 #include "jobject_to_js_value.h"
 #include "js_value_util.h"
 #include "quickjs_version.h"
+#include "promise_rejection_handler.h"
 
 JSRuntime *runtime_from_ptr(JNIEnv *env, jlong ptr) {
     if (ptr == 0) {
@@ -40,7 +41,8 @@ Globals *globals_from_ptr(JNIEnv *env, jlong ptr) {
  * Initialize global resources.
  */
 JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
-                                                                   jobject this) {
+                                                                   jobject this,
+                                                                   jlong runtime_ptr) {
     // Suppress lint: We will free it in releaseGlobals()
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "MemoryLeak"
@@ -54,6 +56,13 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
     globals->evaluate_result_promise = NULL;
 
     cache_java_vm(env);
+
+    JSRuntime *runtime = runtime_from_ptr(env, runtime_ptr);
+    jobject global_host_ref = (*env)->NewGlobalRef(env, this);
+    cvector_push_back(globals->global_object_refs, global_host_ref);
+    // Handle unhandled promise rejections
+    JS_SetHostPromiseRejectionTracker(runtime, promise_rejection_handler,
+                                      global_host_ref);
 
     return (jlong) globals;
 }
@@ -629,7 +638,7 @@ Java_com_dokar_quickjs_QuickJs_getEvaluateResult(JNIEnv *env,
                 JS_FreeCString(context, str);
             }
             // Set exception
-            jmethodID set_exception_method = method_quick_js_set_java_exception(env);
+            jmethodID set_exception_method = method_quick_js_set_eval_exception(env);
             (*env)->CallVoidMethod(env, this, set_exception_method, error);
         }
 

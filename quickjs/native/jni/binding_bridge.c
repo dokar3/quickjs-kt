@@ -12,8 +12,8 @@
 
 #define GLOBAL_THIS_HANDLE -1
 
-void set_java_exception_to_caller(JNIEnv *env, jobject call_host, jthrowable exception) {
-    jmethodID set_exception_method = method_quick_js_set_java_exception(env);
+void set_eval_exception_to_caller(JNIEnv *env, jobject call_host, jthrowable exception) {
+    jmethodID set_exception_method = method_quick_js_set_eval_exception(env);
     (*env)->CallVoidMethod(env, call_host, set_exception_method, exception);
 }
 
@@ -32,7 +32,7 @@ JSValue jni_invoke_getter(JSContext *context, jobject call_host, int64_t object_
     // Check java exceptions
     jthrowable exception = try_catch_java_exceptions(env);
     if (exception != NULL) {
-        set_java_exception_to_caller(env, call_host, exception);
+        set_eval_exception_to_caller(env, call_host, exception);
         (*env)->DeleteLocalRef(env, exception);
         return JS_EXCEPTION;
     }
@@ -55,7 +55,7 @@ JSValue jni_invoke_setter(JSContext *context, jobject call_host, int64_t object_
     // Check mapping exceptions
     jthrowable mapping_exception = try_catch_java_exceptions(env);
     if (mapping_exception != NULL) {
-        set_java_exception_to_caller(env, call_host, mapping_exception);
+        set_eval_exception_to_caller(env, call_host, mapping_exception);
         (*env)->DeleteLocalRef(env, value);
         (*env)->DeleteLocalRef(env, mapping_exception);
         return JS_EXCEPTION;
@@ -68,7 +68,7 @@ JSValue jni_invoke_setter(JSContext *context, jobject call_host, int64_t object_
     // Check java exceptions
     jthrowable exception = try_catch_java_exceptions(env);
     if (exception != NULL) {
-        set_java_exception_to_caller(env, call_host, exception);
+        set_eval_exception_to_caller(env, call_host, exception);
         (*env)->DeleteLocalRef(env, exception);
         return JS_EXCEPTION;
     }
@@ -87,7 +87,7 @@ JSValue jni_invoke_function(JSContext *context, jobject call_host, int64_t objec
         // Check mapping exceptions
         jthrowable exception = try_catch_java_exceptions(env);
         if (exception != NULL) {
-            set_java_exception_to_caller(env, call_host, exception);
+            set_eval_exception_to_caller(env, call_host, exception);
             (*env)->DeleteLocalRef(env, arg);
             (*env)->DeleteLocalRef(env, exception);
             return JS_EXCEPTION;
@@ -106,7 +106,7 @@ JSValue jni_invoke_function(JSContext *context, jobject call_host, int64_t objec
     // Check java exceptions
     jthrowable exception = try_catch_java_exceptions(env);
     if (exception != NULL) {
-        set_java_exception_to_caller(env, call_host, exception);
+        set_eval_exception_to_caller(env, call_host, exception);
         (*env)->DeleteLocalRef(env, exception);
         return JS_EXCEPTION;
     }
@@ -134,7 +134,7 @@ JSValue jni_invoke_async_function(JSContext *context, jobject call_host,
         // Check mapping exceptions
         jthrowable exception = try_catch_java_exceptions(env);
         if (exception != NULL) {
-            set_java_exception_to_caller(env, call_host, exception);
+            set_eval_exception_to_caller(env, call_host, exception);
             (*env)->DeleteLocalRef(env, arg);
             (*env)->DeleteLocalRef(env, exception);
             return JS_EXCEPTION;
@@ -153,7 +153,7 @@ JSValue jni_invoke_async_function(JSContext *context, jobject call_host,
     // Check java exceptions
     jthrowable exception = try_catch_java_exceptions(env);
     if (exception != NULL) {
-        set_java_exception_to_caller(env, call_host, exception);
+        set_eval_exception_to_caller(env, call_host, exception);
         (*env)->DeleteLocalRef(env, exception);
         return JS_EXCEPTION;
     }

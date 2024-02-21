@@ -66,8 +66,8 @@ static jmethodID _method_linked_hash_set_add = NULL;
 static jmethodID _method_quick_js_on_call_getter = NULL;
 static jmethodID _method_quick_js_on_call_setter = NULL;
 static jmethodID _method_quick_js_on_call_function = NULL;
-static jmethodID _method_quick_js_set_java_exception = NULL;
-static jmethodID _method_quick_js_create_delay = NULL;
+static jmethodID _method_quick_js_set_eval_exception = NULL;
+static jmethodID _method_quick_js_set_unhandled_promise_rejection = NULL;
 static jmethodID _method_memory_usage_init = NULL;
 
 // Cached fields
@@ -540,18 +540,18 @@ jmethodID method_quick_js_on_call_function(JNIEnv *env) {
     return _method_quick_js_on_call_function;
 }
 
-jmethodID method_quick_js_set_java_exception(JNIEnv *env) {
-    if (_method_quick_js_set_java_exception == NULL) {
-        _method_quick_js_set_java_exception = (*env)->GetMethodID(env, cls_quick_js(env), "setJavaException", "(Ljava/lang/Throwable;)V");
+jmethodID method_quick_js_set_eval_exception(JNIEnv *env) {
+    if (_method_quick_js_set_eval_exception == NULL) {
+        _method_quick_js_set_eval_exception = (*env)->GetMethodID(env, cls_quick_js(env), "setEvalException", "(Ljava/lang/Throwable;)V");
     }
-    return _method_quick_js_set_java_exception;
+    return _method_quick_js_set_eval_exception;
 }
 
-jmethodID method_quick_js_create_delay(JNIEnv *env) {
-    if (_method_quick_js_create_delay == NULL) {
-        _method_quick_js_create_delay = (*env)->GetMethodID(env, cls_quick_js(env), "createDelay", "(JJJ)V");
+jmethodID method_quick_js_set_unhandled_promise_rejection(JNIEnv *env) {
+    if (_method_quick_js_set_unhandled_promise_rejection == NULL) {
+        _method_quick_js_set_unhandled_promise_rejection = (*env)->GetMethodID(env, cls_quick_js(env), "setUnhandledPromiseRejection", "(Ljava/lang/Object;)V");
     }
-    return _method_quick_js_create_delay;
+    return _method_quick_js_set_unhandled_promise_rejection;
 }
 
 jmethodID method_memory_usage_init(JNIEnv *env) {
@@ -760,8 +760,8 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _method_quick_js_on_call_getter = NULL;
     _method_quick_js_on_call_setter = NULL;
     _method_quick_js_on_call_function = NULL;
-    _method_quick_js_set_java_exception = NULL;
-    _method_quick_js_create_delay = NULL;
+    _method_quick_js_set_eval_exception = NULL;
+    _method_quick_js_set_unhandled_promise_rejection = NULL;
     _method_memory_usage_init = NULL;
 
     _field_ubyte_array_storage = NULL;

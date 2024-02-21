@@ -13,9 +13,9 @@ import com.dokar.quickjs.bridge.defineObject
 import com.dokar.quickjs.bridge.evaluate
 import com.dokar.quickjs.bridge.executePendingJob
 import com.dokar.quickjs.bridge.invokeJsFunction
-import com.dokar.quickjs.bridge.ktErrorToJsError
 import com.dokar.quickjs.bridge.ktMemoryUsage
 import com.dokar.quickjs.bridge.objectHandleToStableRef
+import com.dokar.quickjs.bridge.setPromiseRejectionHandler
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -40,7 +40,6 @@ import quickjs.JS_NewRuntime
 import quickjs.JS_RunGC
 import quickjs.JS_SetMaxStackSize
 import quickjs.JS_SetMemoryLimit
-import quickjs.JS_Throw
 import quickjs.JS_UpdateStackTop
 import quickjs.quickjs_version
 import kotlin.coroutines.cancellation.CancellationException
@@ -60,7 +59,9 @@ actual class QuickJs private constructor(
     private var evalException: Throwable? = null
 
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
-        evalException = throwable
+        if (evalException == null) {
+            evalException = throwable
+        }
     }
     private val coroutineScope = CoroutineScope(jobDispatcher + exceptionHandler)
 
@@ -104,6 +105,10 @@ actual class QuickJs private constructor(
             ensureNotClosed()
             return runtime.ktMemoryUsage()
         }
+
+    init {
+        setPromiseRejectionHandler(ref, runtime)
+    }
 
     actual fun defineBinding(
         name: String,
@@ -245,14 +250,7 @@ actual class QuickJs private constructor(
                 val result = block(args.sliceArray(2..<args.size))
                 context.invokeJsFunction(resolveFunc, arrayOf(result))
             } catch (e: Throwable) {
-                // Cancel all if any fails
                 context.invokeJsFunction(rejectFunc, arrayOf(e))
-                JS_Throw(context, ktErrorToJsError(context, e))
-                asyncJobs.toList().forEach {
-                    if (it.isActive) {
-                        it.cancel()
-                    }
-                }
             }
         }
         job.invokeOnCompletion {
@@ -263,6 +261,7 @@ actual class QuickJs private constructor(
 
     private suspend inline fun evalAndAwait(block: () -> JsPromise): Any? {
         ensureNotClosed()
+        evalException = null
         loadModules()
         var resultPromise: JsPromise? = null
         try {
@@ -347,6 +346,14 @@ actual class QuickJs private constructor(
             val binding = objectBindings[parentHandle] ?: qjsError("Parent not found.")
             binding.invoke(name, args)
         }
+    }
+
+    internal fun setUnhandledPromiseRejection(reason: Any?) {
+        ensureNotClosed()
+        if (evalException == null) {
+            evalException = reason as? Throwable ?: Error(reason.toString())
+        }
+        asyncJobs.forEach { it.cancel() }
     }
 
     actual companion object {
