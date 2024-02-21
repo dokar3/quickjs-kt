@@ -65,11 +65,13 @@ actual class QuickJs private constructor(
 
     private val modules = mutableListOf<ByteArray>()
 
-    private var jniException: Throwable? = null
+    private var evalException: Throwable? = null
 
     // Coroutines and async jobs related
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
-        jniException = throwable
+        if (evalException == null) {
+            evalException = throwable
+        }
     }
     private val coroutineScope = CoroutineScope(jobDispatcher + exceptionHandler)
 
@@ -109,7 +111,7 @@ actual class QuickJs private constructor(
         try {
             runtime = newRuntime()
             context = newContext(runtime)
-            globals = initGlobals()
+            globals = initGlobals(runtime)
         } catch (e: QuickJsException) {
             close()
             throw e
@@ -211,6 +213,7 @@ actual class QuickJs private constructor(
 
     private suspend fun evalAndAwait(evalBlock: suspend () -> Any?): Any? {
         ensureNotClosed()
+        evalException = null
         loadModules()
         evalBlock()
         awaitAsyncJobs()
@@ -263,9 +266,9 @@ actual class QuickJs private constructor(
     }
 
     private fun handleException() {
-        val exception = jniException
+        val exception = evalException
         if (exception != null) {
-            jniException = null
+            evalException = null
             throw exception
         }
     }
@@ -300,12 +303,6 @@ actual class QuickJs private constructor(
                     args = arrayOf(result)
                 )
             } catch (e: Throwable) {
-                // Cancel all if any fails
-                asyncJobs.toList().forEach {
-                    if (it.isActive) {
-                        it.cancel()
-                    }
-                }
                 // Call reject() on JNI side
                 invokeJsFunction(
                     context = context,
@@ -313,7 +310,6 @@ actual class QuickJs private constructor(
                     handle = rejectHandle,
                     args = arrayOf(e)
                 )
-                throw e
             }
         }
         job.invokeOnCompletion {
@@ -397,9 +393,20 @@ actual class QuickJs private constructor(
     /**
      * Called from JNI.
      */
-    private fun setJavaException(exception: Throwable) {
+    private fun setEvalException(exception: Throwable) {
         ensureNotClosed()
-        this.jniException = exception
+        this.evalException = exception
+    }
+
+    /**
+     * Called from JNI.
+     */
+    private fun setUnhandledPromiseRejection(reason: Any?) {
+        ensureNotClosed()
+        if (evalException == null) {
+            evalException = reason as? Throwable ?: Error(reason.toString())
+        }
+        asyncJobs.forEach { it.cancel() }
     }
 
     private fun ensureNotClosed() = check(runtime != 0L) { "Already closed." }
@@ -409,7 +416,7 @@ actual class QuickJs private constructor(
     @Throws(QuickJsException::class)
     private external fun newContext(runtime: Long): Long
 
-    private external fun initGlobals(): Long
+    private external fun initGlobals(runtime: Long): Long
 
     @Throws(QuickJsException::class)
     private external fun releaseGlobals(context: Long, globals: Long)

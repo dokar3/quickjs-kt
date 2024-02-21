@@ -160,12 +160,12 @@ const JNI_REFS = [
         sign: "(JLjava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;",
       },
       {
-        name: "setJavaException",
+        name: "setEvalException",
         sign: "(Ljava/lang/Throwable;)V",
       },
       {
-        name: "createDelay",
-        sign: "(JJJ)V",
+        name: "setUnhandledPromiseRejection",
+        sign: "(Ljava/lang/Object;)V",
       },
     ],
   },

@@ -128,9 +128,9 @@ jmethodID method_quick_js_on_call_setter(JNIEnv *env);
 
 jmethodID method_quick_js_on_call_function(JNIEnv *env);
 
-jmethodID method_quick_js_set_java_exception(JNIEnv *env);
+jmethodID method_quick_js_set_eval_exception(JNIEnv *env);
 
-jmethodID method_quick_js_create_delay(JNIEnv *env);
+jmethodID method_quick_js_set_unhandled_promise_rejection(JNIEnv *env);
 
 jmethodID method_memory_usage_init(JNIEnv *env);
 
