@@ -638,7 +638,7 @@ Java_com_dokar_quickjs_QuickJs_getEvaluateResult(JNIEnv *env,
                 JS_FreeCString(context, str);
             }
             // Set exception
-            jmethodID set_exception_method = method_quick_js_set_java_exception(env);
+            jmethodID set_exception_method = method_quick_js_set_eval_exception(env);
             (*env)->CallVoidMethod(env, this, set_exception_method, error);
         }
 
