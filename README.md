@@ -96,7 +96,7 @@ quickJs {
 }
 ```
 
-With Reflection:
+With Reflection (JVM only):
 
 ```kotlin
 class Console {
@@ -120,7 +120,7 @@ quickJs {
 }
 ```
 
-Binding classes need to be added to ProGuard rules files.
+Binding classes need to be added to Android's ProGuard rules files.
 
 ```
 -keep class com.example.Console { *; }
