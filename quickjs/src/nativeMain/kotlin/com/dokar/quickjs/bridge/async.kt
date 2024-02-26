@@ -23,6 +23,7 @@ import quickjs.JS_IsException
 import quickjs.JS_IsNull
 import quickjs.JS_PromiseResult
 import quickjs.JS_PromiseState
+import quickjs.JS_UpdateStackTop
 
 @OptIn(ExperimentalForeignApi::class)
 internal value class JsPromise(
@@ -97,6 +98,7 @@ sealed interface ExecuteJobResult {
 
 @OptIn(ExperimentalForeignApi::class)
 internal fun executePendingJob(runtime: CPointer<JSRuntime>): ExecuteJobResult = memScoped {
+    JS_UpdateStackTop(runtime)
     val ctx = alloc<CPointerVar<JSContext>>()
     val ret = JS_ExecutePendingJob(runtime, ctx.ptr)
     if (ret < 0) {

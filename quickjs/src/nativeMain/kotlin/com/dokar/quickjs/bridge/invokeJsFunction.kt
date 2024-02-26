@@ -20,6 +20,8 @@ internal fun CPointer<JSContext>.invokeJsFunction(
 ): Unit = memScoped {
     val context = this@invokeJsFunction
 
+    JS_UpdateStackTop(JS_GetRuntime(context))
+
     val jsArgs = Array(args.size) { JsNull() }
     for (i in jsArgs.indices) {
         try {
@@ -33,8 +35,6 @@ internal fun CPointer<JSContext>.invokeJsFunction(
     }
 
     val argv = allocArrayOf(*jsArgs)
-
-    JS_UpdateStackTop(JS_GetRuntime(context))
 
     val result = JS_Call(
         ctx = context,

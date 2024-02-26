@@ -38,6 +38,7 @@ import quickjs.JSValue
 import quickjs.JS_FreeContext
 import quickjs.JS_FreeRuntime
 import quickjs.JS_FreeValue
+import quickjs.JS_GetRuntime
 import quickjs.JS_NewContext
 import quickjs.JS_NewRuntime
 import quickjs.JS_RunGC
@@ -95,6 +96,7 @@ actual class QuickJs private constructor(
         set(value) {
             ensureNotClosed()
             field = value
+            JS_UpdateStackTop(runtime)
             JS_SetMemoryLimit(runtime, value.toULong())
         }
 
@@ -109,6 +111,7 @@ actual class QuickJs private constructor(
     actual val memoryUsage: MemoryUsage
         get() {
             ensureNotClosed()
+            JS_UpdateStackTop(runtime)
             return runtime.ktMemoryUsage()
         }
 
@@ -222,6 +225,7 @@ actual class QuickJs private constructor(
 
     actual fun gc() {
         ensureNotClosed()
+        JS_UpdateStackTop(runtime)
         JS_RunGC(runtime)
     }
 
@@ -283,6 +287,7 @@ actual class QuickJs private constructor(
             resultPromise = block()
             awaitAsyncJobs()
             checkException()
+            JS_UpdateStackTop(JS_GetRuntime(context))
             return resultPromise.result(context)
         } finally {
             resultPromise?.free(context)

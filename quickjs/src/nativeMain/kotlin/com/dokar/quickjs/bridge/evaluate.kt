@@ -111,6 +111,7 @@ private fun handleEvalResult(
     result: CValue<JSValue>
 ): JsPromise {
     try {
+        JS_UpdateStackTop(JS_GetRuntime(context))
         checkContextException(context)
         val ktValue = result.toKtValue(context)
         if (ktValue !is JsPromise) {

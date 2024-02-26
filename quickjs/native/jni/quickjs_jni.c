@@ -252,6 +252,7 @@ Java_com_dokar_quickjs_QuickJs_defineFunction(JNIEnv *env, jobject this,
 JNIEXPORT void JNICALL
 Java_com_dokar_quickjs_QuickJs_gc(JNIEnv *env, jobject this, jlong runtime_ptr) {
     JSRuntime *runtime = runtime_from_ptr(env, runtime_ptr);
+    JS_UpdateStackTop(runtime);
     JS_RunGC(runtime);
 }
 
@@ -270,6 +271,7 @@ JNIEXPORT void JNICALL
 Java_com_dokar_quickjs_QuickJs_setMemoryLimit(JNIEnv *env, jobject this, jlong runtime_ptr,
                                               jlong byte_count) {
     JSRuntime *runtime = runtime_from_ptr(env, runtime_ptr);
+    JS_UpdateStackTop(runtime);
     JS_SetMemoryLimit(runtime, byte_count);
 }
 
@@ -294,6 +296,7 @@ JNIEXPORT jobject JNICALL
 Java_com_dokar_quickjs_QuickJs_getMemoryUsage(JNIEnv *env, jobject this, jlong runtime_ptr) {
     JSMemoryUsage memory_usage;
     JSRuntime *runtime = runtime_from_ptr(env, runtime_ptr);
+    JS_UpdateStackTop(runtime);
     JS_ComputeMemoryUsage(runtime, &memory_usage);
 
     jclass cls = cls_memory_usage(env);
@@ -334,6 +337,8 @@ jobject handle_eval_result(JNIEnv *env,
         // TODO: Handle this case
         return NULL;
     }
+
+    JS_UpdateStackTop(JS_GetRuntime(context));
 
     int tag = JS_VALUE_GET_NORM_TAG(value);
     int is_compiled_value = tag == JS_TAG_FUNCTION_BYTECODE || tag == JS_TAG_MODULE;
@@ -464,6 +469,8 @@ Java_com_dokar_quickjs_QuickJs_evaluateBytecode(JNIEnv *env, jobject this, jlong
     jlong buf_len = (*env)->GetArrayLength(env, jbuffer);
     jbyte *buffer = (*env)->GetByteArrayElements(env, jbuffer, NULL);
 
+    JS_UpdateStackTop(JS_GetRuntime(context));
+
     // Read buffer
     JSValue bytecode = JS_ReadObject(context, (uint8_t *) buffer, buf_len, JS_READ_OBJ_BYTECODE);
     if (JS_IsException(bytecode)) {
@@ -471,8 +478,6 @@ Java_com_dokar_quickjs_QuickJs_evaluateBytecode(JNIEnv *env, jobject this, jlong
         jni_throw_exception(env, "Cannot read buffer as bytecode.");
         return NULL;
     }
-
-    JS_UpdateStackTop(JS_GetRuntime(context));
 
     // Eval
     JSValue value = JS_EvalFunction(context, bytecode);
@@ -528,6 +533,8 @@ Java_com_dokar_quickjs_QuickJs_invokeJsFunction(JNIEnv *env,
         return;
     }
 
+    JS_UpdateStackTop(JS_GetRuntime(context));
+
     // Map args
     int argc = args != NULL ? (*env)->GetArrayLength(env, args) : 0;
     JSValue argv[argc];
@@ -545,8 +552,6 @@ Java_com_dokar_quickjs_QuickJs_invokeJsFunction(JNIEnv *env,
         argv[i] = item;
         (*env)->DeleteLocalRef(env, element);
     }
-
-    JS_UpdateStackTop(JS_GetRuntime(context));
 
     JSValue result = JS_Call(context, func, JS_NULL, argc, argv);
 
@@ -572,12 +577,13 @@ Java_com_dokar_quickjs_QuickJs_executePendingJob(JNIEnv *env,
     if (context == NULL) {
         return JNI_FALSE;
     }
+    JSRuntime *runtime = JS_GetRuntime(context);
+    JS_UpdateStackTop(runtime);
     if (check_js_context_exception(env, context)) {
         return JNI_FALSE;
     }
-    // Try find pending jobs to execute
     JSContext *ctx;
-    int ret = JS_ExecutePendingJob(JS_GetRuntime(context), &ctx);
+    int ret = JS_ExecutePendingJob(runtime, &ctx);
     if (ret == 0) {
         // No jobs
         return JNI_FALSE;
@@ -609,6 +615,10 @@ Java_com_dokar_quickjs_QuickJs_getEvaluateResult(JNIEnv *env,
         jni_throw_exception(env, "Result promise not found. Have you evaluated a script?");
         return NULL;
     }
+
+    JSRuntime *runtime = JS_GetRuntime(context);
+    JS_UpdateStackTop(runtime);
+
     JSValue result_promise = *globals->evaluate_result_promise;
     if (!js_is_promise(context, result_promise)) {
         JS_FreeValue(context, result_promise);

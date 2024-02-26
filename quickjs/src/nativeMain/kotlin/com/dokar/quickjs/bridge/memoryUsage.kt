@@ -41,6 +41,5 @@ internal fun CPointer<JSRuntime>.ktMemoryUsage(): MemoryUsage = memScoped {
         fastArrayElements = usage.fast_array_elements,
         binaryObjectCount = usage.binary_object_count,
         binaryObjectSize = usage.binary_object_size,
-
-        )
+    )
 }
