@@ -323,7 +323,11 @@ actual class QuickJs private constructor(
                     )
                 }
             }
-            synchronized(closeLock) { executePendingJob(context) }
+            synchronized(closeLock) {
+                while (executePendingJob(context)) {
+                    // The job is completed, see what we can do next
+                }
+            }
         }
         job.invokeOnCompletion {
             jobsMutex.withLockSync { asyncJobs.remove(job) }

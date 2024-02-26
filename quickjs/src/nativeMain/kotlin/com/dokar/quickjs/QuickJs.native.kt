@@ -270,7 +270,11 @@ actual class QuickJs private constructor(
                     context.invokeJsFunction(rejectFunc, arrayOf(e))
                 }
             }
-            synchronized(closeLock) { executePendingJob(runtime) }
+            synchronized(closeLock) {
+                while (executePendingJob(runtime) == ExecuteJobResult.Success) {
+                    // The job is completed, see what we can do next
+                }
+            }
         }
         job.invokeOnCompletion {
             jobsMutex.withLockSync { asyncJobs.remove(job) }

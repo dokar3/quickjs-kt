@@ -130,7 +130,7 @@ class AsyncErrorHandlingTest {
             }.also {
                 assertContains(it.message!!, "Error occurred")
             }
-            assertTrue(isDelayed)
+            assertFalse(isDelayed)
         }
     }
 
