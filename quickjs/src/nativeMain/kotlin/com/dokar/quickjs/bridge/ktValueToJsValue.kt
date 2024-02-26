@@ -65,7 +65,7 @@ internal fun <T : Any?> T.toJsValue(
         is Map<*, *> -> ktMapToJsMap(context, value, visited ?: mutableSetOf())
         is Iterable<*> -> ktIterableToJsArray(context, value, visited ?: mutableSetOf())
         is Throwable -> ktErrorToJsError(context, value)
-        else -> qjsError("Mapping an unsupported kt value to js value: $value")
+        else -> qjsError("Cannot convert kotlin type '${value::class.qualifiedName}' to a js value.")
     }
 }
 
