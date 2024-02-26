@@ -390,6 +390,12 @@ JSValue java_map_to_js_object(JNIEnv *env, JSContext *context,
         JSAtom js_key = JS_NewAtom(context, str_key);
         JSValue js_value = jobject_to_js_value(env, context, visited_set, value);
         if (JS_IsException(js_value)) {
+            JS_FreeValue(context, js_object);
+            (*env)->ReleaseStringUTFChars(env, key, str_key);
+            (*env)->DeleteLocalRef(env, entry);
+            (*env)->DeleteLocalRef(env, key);
+            (*env)->DeleteLocalRef(env, value);
+            (*env)->DeleteGlobalRef(env, visited_set);
             return js_value;
         }
         JS_SetProperty(context, js_object, js_key, js_value);
@@ -594,7 +600,7 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject visited_set
     } else {
         char message[100];
         sprintf(message, "Cannot convert java type '%s' to a js value.", cls_name);
-        JS_Throw(context, new_js_error(context, "TypeMappingError", message, 0, NULL));
+        JS_Throw(context, new_js_error(context, "TypeError", message, 0, NULL));
         result = JS_EXCEPTION;
     }
 

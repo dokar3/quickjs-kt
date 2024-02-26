@@ -540,7 +540,6 @@ Java_com_dokar_quickjs_QuickJs_invokeJsFunction(JNIEnv *env,
                 JS_FreeValue(context, argv[j]);
             }
             (*env)->DeleteLocalRef(env, element);
-            jni_throw_exception(env, "Failed to map java type to js type, arg index: %d", i);
             return;
         }
         argv[i] = item;
@@ -571,6 +570,7 @@ Java_com_dokar_quickjs_QuickJs_executePendingJob(JNIEnv *env,
     if (context == NULL) {
         return JNI_FALSE;
     }
+    check_js_context_exception(env, context);
     // Try find pending jobs to execute
     JSContext *ctx;
     int ret = JS_ExecutePendingJob(JS_GetRuntime(context), &ctx);

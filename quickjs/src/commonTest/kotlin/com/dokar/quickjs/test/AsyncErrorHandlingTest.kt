@@ -149,4 +149,25 @@ class AsyncErrorHandlingTest {
             assertTrue(isDelayed)
         }
     }
+
+    @Test
+    fun typeMappingErrorInAsyncFunc() = runTest {
+        quickJs {
+            var delayed = false
+
+            asyncFunction("fetch") { Any() }
+
+            asyncFunction("delay") {
+                delay(100)
+                delayed = true
+            }
+
+            assertFails {
+                evaluate("fetch(); delay();")
+            }.also {
+                assertContains(it.message!!, "Cannot convert")
+            }
+            assertFalse(delayed)
+        }
+    }
 }
