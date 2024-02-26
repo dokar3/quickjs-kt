@@ -9,6 +9,8 @@ import quickjs.JSContext
 import quickjs.JSValue
 import quickjs.JS_Call
 import quickjs.JS_FreeValue
+import quickjs.JS_GetRuntime
+import quickjs.JS_UpdateStackTop
 import quickjs.JsNull
 
 @OptIn(ExperimentalForeignApi::class)
@@ -31,6 +33,8 @@ internal fun CPointer<JSContext>.invokeJsFunction(
     }
 
     val argv = allocArrayOf(*jsArgs)
+
+    JS_UpdateStackTop(JS_GetRuntime(context))
 
     val result = JS_Call(
         ctx = context,

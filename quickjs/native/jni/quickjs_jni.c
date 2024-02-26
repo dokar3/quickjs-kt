@@ -546,6 +546,8 @@ Java_com_dokar_quickjs_QuickJs_invokeJsFunction(JNIEnv *env,
         (*env)->DeleteLocalRef(env, element);
     }
 
+    JS_UpdateStackTop(JS_GetRuntime(context));
+
     JSValue result = JS_Call(context, func, JS_NULL, argc, argv);
 
     // Free arguments
@@ -570,7 +572,9 @@ Java_com_dokar_quickjs_QuickJs_executePendingJob(JNIEnv *env,
     if (context == NULL) {
         return JNI_FALSE;
     }
-    check_js_context_exception(env, context);
+    if (check_js_context_exception(env, context)) {
+        return JNI_FALSE;
+    }
     // Try find pending jobs to execute
     JSContext *ctx;
     int ret = JS_ExecutePendingJob(JS_GetRuntime(context), &ctx);
