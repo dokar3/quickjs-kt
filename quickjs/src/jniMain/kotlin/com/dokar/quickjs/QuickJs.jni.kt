@@ -7,6 +7,7 @@ import com.dokar.quickjs.binding.JsFunction
 import com.dokar.quickjs.binding.JsObjectHandle
 import com.dokar.quickjs.binding.JsProperty
 import com.dokar.quickjs.binding.ObjectBinding
+import com.dokar.quickjs.util.withLockSync
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -80,6 +81,7 @@ actual class QuickJs private constructor(
      */
     private val evalMutex = Mutex()
 
+    private val jobsMutex = Mutex()
     private val asyncJobs = mutableListOf<Job>()
 
     actual var isClosed: Boolean = false
@@ -232,8 +234,10 @@ actual class QuickJs private constructor(
         objectBindings.clear()
         globalFunctions.clear()
         modules.clear()
-        asyncJobs.forEach { it.cancel() }
-        asyncJobs.clear()
+        jobsMutex.withLockSync {
+            asyncJobs.forEach { it.cancel() }
+            asyncJobs.clear()
+        }
         if (globals != 0L) {
             releaseGlobals(context, globals)
             globals = 0
@@ -256,7 +260,7 @@ actual class QuickJs private constructor(
             while (executePendingJob(context)) {
                 // Job executed
             }
-            val jobs = asyncJobs.filter { it.isActive }
+            val jobs = jobsMutex.withLock { asyncJobs.filter { it.isActive } }
             if (jobs.isEmpty()) {
                 // No jobs to run
                 break
@@ -314,9 +318,9 @@ actual class QuickJs private constructor(
             executePendingJob(context)
         }
         job.invokeOnCompletion {
-            asyncJobs.remove(job)
+            jobsMutex.withLockSync { asyncJobs.remove(job)}
         }
-        asyncJobs.add(job)
+        jobsMutex.withLockSync { asyncJobs.add(job) }
     }
 
     private fun promiseHandlesFromArgs(args: Array<Any?>): Pair<Long, Long> {
@@ -407,7 +411,7 @@ actual class QuickJs private constructor(
         if (evalException == null) {
             evalException = reason as? Throwable ?: Error(reason.toString())
         }
-        asyncJobs.forEach { it.cancel() }
+        jobsMutex.withLockSync { asyncJobs.forEach { it.cancel() } }
     }
 
     private fun ensureNotClosed() = check(runtime != 0L) { "Already closed." }

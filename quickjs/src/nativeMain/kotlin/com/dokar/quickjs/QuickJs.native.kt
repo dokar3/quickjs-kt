@@ -16,6 +16,7 @@ import com.dokar.quickjs.bridge.invokeJsFunction
 import com.dokar.quickjs.bridge.ktMemoryUsage
 import com.dokar.quickjs.bridge.objectHandleToStableRef
 import com.dokar.quickjs.bridge.setPromiseRejectionHandler
+import com.dokar.quickjs.util.withLockSync
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -72,6 +73,7 @@ actual class QuickJs private constructor(
 
     private val modules = mutableListOf<ByteArray>()
 
+    private val jobsMutex = Mutex()
     private val asyncJobs = mutableListOf<Job>()
 
     private val evalMutex = Mutex()
@@ -224,8 +226,10 @@ actual class QuickJs private constructor(
         isClosed = true
         evalException = null
         modules.clear()
-        asyncJobs.forEach { it.cancel() }
-        asyncJobs.clear()
+        jobsMutex.withLockSync {
+            asyncJobs.forEach { it.cancel() }
+            asyncJobs.clear()
+        }
         managedJsValues.forEach { JS_FreeValue(context, it) }
         managedJsValues.clear()
         // Dispose stable refs
@@ -255,9 +259,9 @@ actual class QuickJs private constructor(
             executePendingJob(runtime)
         }
         job.invokeOnCompletion {
-            asyncJobs.remove(job)
+            jobsMutex.withLockSync { asyncJobs.remove(job) }
         }
-        asyncJobs.add(job)
+        jobsMutex.withLockSync { asyncJobs.add(job) }
     }
 
     private suspend inline fun evalAndAwait(block: () -> JsPromise): Any? {
@@ -283,7 +287,7 @@ actual class QuickJs private constructor(
                     throw execResult.error
                 }
             } while (execResult == ExecuteJobResult.Success)
-            val jobs = asyncJobs.filter { it.isActive }
+            val jobs = jobsMutex.withLock { asyncJobs.filter { it.isActive } }
             if (jobs.isEmpty()) {
                 // No jobs to run
                 break
@@ -354,7 +358,7 @@ actual class QuickJs private constructor(
         if (evalException == null) {
             evalException = reason as? Throwable ?: Error(reason.toString())
         }
-        asyncJobs.forEach { it.cancel() }
+        jobsMutex.withLockSync { asyncJobs.forEach { it.cancel() } }
     }
 
     actual companion object {
