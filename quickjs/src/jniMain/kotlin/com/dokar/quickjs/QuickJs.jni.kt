@@ -311,6 +311,7 @@ actual class QuickJs private constructor(
                     args = arrayOf(e)
                 )
             }
+            executePendingJob(context)
         }
         job.invokeOnCompletion {
             asyncJobs.remove(job)
