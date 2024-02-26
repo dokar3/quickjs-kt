@@ -5,6 +5,9 @@ import com.dokar.quickjs.binding.asyncFunction
 import com.dokar.quickjs.binding.function
 import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -183,6 +186,43 @@ class AsyncFunctionsTest {
             job.cancel()
             yield()
             assertTrue(instance!!.isClosed)
+        }
+    }
+
+    @Test
+    fun setTimeout() = runTest {
+        quickJs {
+            var delayedCount = 0
+
+            val delays = mutableMapOf<Long, Job>()
+
+            function("delayed") { delayedCount++ }
+
+            function("cancelDelay") { delays[it.first()]?.cancel() }
+
+            asyncFunction("delay") {
+                coroutineScope {
+                    val job = async { delay(it.first() as Long) }
+                    delays[it[1] as Long] = job
+                    job.await()
+                }
+            }
+
+            evaluate<Any?>(
+                """
+                    function setTimeout(callback, millis, id) {
+                        delay(millis, id).then(() => callback()).catch(() => {});
+                    }
+                    
+                    function clearTimeout(id) {
+                        cancelDelay(id)
+                    }
+                    
+                    setTimeout(() => delayed(), 2000, 1);
+                    setTimeout(() => { delayed(); clearTimeout(1); }, 1000, 2);
+                """.trimIndent()
+            )
+            assertEquals(1, delayedCount)
         }
     }
 }

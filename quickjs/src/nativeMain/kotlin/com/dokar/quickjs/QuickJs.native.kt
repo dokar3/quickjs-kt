@@ -252,6 +252,7 @@ actual class QuickJs private constructor(
             } catch (e: Throwable) {
                 context.invokeJsFunction(rejectFunc, arrayOf(e))
             }
+            executePendingJob(runtime)
         }
         job.invokeOnCompletion {
             asyncJobs.remove(job)
