@@ -460,8 +460,8 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject visited_set
         result = JS_NewFloat64(context, unboxed);
     } else if ((*env)->IsInstanceOf(env, value, cls_long(env))) {
         // Long
-        jmethodID method = method_integer_int_value(env);
-        jlong unboxed = (*env)->CallIntMethod(env, value, method);
+        jmethodID method = method_long_long_value(env);
+        jlong unboxed = (*env)->CallLongMethod(env, value, method);
         result = JS_NewInt64(context, unboxed);
     } else if ((*env)->IsInstanceOf(env, value, cls_float(env))) {
         // Float
