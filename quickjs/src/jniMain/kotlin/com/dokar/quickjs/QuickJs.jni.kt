@@ -84,6 +84,8 @@ actual class QuickJs private constructor(
     private val jobsMutex = Mutex()
     private val asyncJobs = mutableListOf<Job>()
 
+    private val closeLock = Any()
+
     actual var isClosed: Boolean = false
         private set
 
@@ -231,24 +233,26 @@ actual class QuickJs private constructor(
 
     actual override fun close() {
         isClosed = true
-        objectBindings.clear()
-        globalFunctions.clear()
-        modules.clear()
         jobsMutex.withLockSync {
             asyncJobs.forEach { it.cancel() }
             asyncJobs.clear()
         }
-        if (globals != 0L) {
-            releaseGlobals(context, globals)
-            globals = 0
-        }
-        if (context != 0L) {
-            releaseContext(context)
-            context = 0
-        }
-        if (runtime != 0L) {
-            releaseRuntime(runtime)
-            runtime = 0
+        synchronized(closeLock) {
+            objectBindings.clear()
+            globalFunctions.clear()
+            modules.clear()
+            if (globals != 0L) {
+                releaseGlobals(context, globals)
+                globals = 0
+            }
+            if (context != 0L) {
+                releaseContext(context)
+                context = 0
+            }
+            if (runtime != 0L) {
+                releaseRuntime(runtime)
+                runtime = 0
+            }
         }
     }
 
@@ -299,26 +303,30 @@ actual class QuickJs private constructor(
         val job = coroutineScope.launch {
             try {
                 val result = block(args.sliceArray(2..<args.size))
-                // Call resolve() on JNI side
-                invokeJsFunction(
-                    context = context,
-                    globals = globals,
-                    handle = resolveHandle,
-                    args = arrayOf(result)
-                )
+                synchronized(closeLock) {
+                    // Call resolve() on JNI side
+                    invokeJsFunction(
+                        context = context,
+                        globals = globals,
+                        handle = resolveHandle,
+                        args = arrayOf(result)
+                    )
+                }
             } catch (e: Throwable) {
-                // Call reject() on JNI side
-                invokeJsFunction(
-                    context = context,
-                    globals = globals,
-                    handle = rejectHandle,
-                    args = arrayOf(e)
-                )
+                synchronized(closeLock) {
+                    // Call reject() on JNI side
+                    invokeJsFunction(
+                        context = context,
+                        globals = globals,
+                        handle = rejectHandle,
+                        args = arrayOf(e)
+                    )
+                }
             }
-            executePendingJob(context)
+            synchronized(closeLock) { executePendingJob(context) }
         }
         job.invokeOnCompletion {
-            jobsMutex.withLockSync { asyncJobs.remove(job)}
+            jobsMutex.withLockSync { asyncJobs.remove(job) }
         }
         jobsMutex.withLockSync { asyncJobs.add(job) }
     }

@@ -17,6 +17,8 @@ import com.dokar.quickjs.bridge.ktMemoryUsage
 import com.dokar.quickjs.bridge.objectHandleToStableRef
 import com.dokar.quickjs.bridge.setPromiseRejectionHandler
 import com.dokar.quickjs.util.withLockSync
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -77,6 +79,8 @@ actual class QuickJs private constructor(
     private val asyncJobs = mutableListOf<Job>()
 
     private val evalMutex = Mutex()
+
+    private val closeLock = SynchronizedObject()
 
     actual var isClosed: Boolean = false
         private set
@@ -225,20 +229,22 @@ actual class QuickJs private constructor(
         if (isClosed) return
         isClosed = true
         evalException = null
-        modules.clear()
         jobsMutex.withLockSync {
             asyncJobs.forEach { it.cancel() }
             asyncJobs.clear()
         }
-        managedJsValues.forEach { JS_FreeValue(context, it) }
-        managedJsValues.clear()
-        // Dispose stable refs
-        objectBindings.keys.forEach { objectHandleToStableRef(it)?.dispose() }
-        objectBindings.clear()
-        globalFunctions.clear()
-        JS_FreeContext(context)
-        JS_FreeRuntime(runtime)
-        ref.dispose()
+        synchronized(closeLock) {
+            modules.clear()
+            managedJsValues.forEach { JS_FreeValue(context, it) }
+            managedJsValues.clear()
+            // Dispose stable refs
+            objectBindings.keys.forEach { objectHandleToStableRef(it)?.dispose() }
+            objectBindings.clear()
+            globalFunctions.clear()
+            JS_FreeContext(context)
+            JS_FreeRuntime(runtime)
+            ref.dispose()
+        }
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -252,11 +258,15 @@ actual class QuickJs private constructor(
         val job = coroutineScope.launch {
             try {
                 val result = block(args.sliceArray(2..<args.size))
-                context.invokeJsFunction(resolveFunc, arrayOf(result))
+                synchronized(closeLock) {
+                    context.invokeJsFunction(resolveFunc, arrayOf(result))
+                }
             } catch (e: Throwable) {
-                context.invokeJsFunction(rejectFunc, arrayOf(e))
+                synchronized(closeLock) {
+                    context.invokeJsFunction(rejectFunc, arrayOf(e))
+                }
             }
-            executePendingJob(runtime)
+            synchronized(closeLock) { executePendingJob(runtime) }
         }
         job.invokeOnCompletion {
             jobsMutex.withLockSync { asyncJobs.remove(job) }
