@@ -95,20 +95,20 @@ actual class QuickJs private constructor(
         set(value) {
             ensureNotClosed()
             field = value
-            setMemoryLimit(runtime, value)
+            setMemoryLimit(runtime, globals, value)
         }
 
     actual var maxStackSize: Long = 256 * 1024L
         set(value) {
             ensureNotClosed()
             field = value
-            setMaxStackSize(runtime, value)
+            setMaxStackSize(runtime, globals, value)
         }
 
     actual val memoryUsage: MemoryUsage
         get() {
             ensureNotClosed()
-            return getMemoryUsage(runtime)
+            return getMemoryUsage(runtime, globals)
         }
 
     init {
@@ -228,7 +228,7 @@ actual class QuickJs private constructor(
 
     actual fun gc() {
         ensureNotClosed()
-        gc(runtime)
+        gc(runtime, globals)
     }
 
     actual override fun close() {
@@ -262,7 +262,7 @@ actual class QuickJs private constructor(
          * This is our simple 'event loop'.
          */
         while (true) {
-            while (executePendingJob(context)) {
+            while (executePendingJob(context, globals)) {
                 // Job executed
             }
             val jobs = jobsMutex.withLock { asyncJobs.filter { it.isActive } }
@@ -325,7 +325,7 @@ actual class QuickJs private constructor(
                 }
             }
             synchronized(closeLock) {
-                while (executePendingJob(context)) {
+                while (executePendingJob(context, globals)) {
                     // The job is completed, see what we can do next
                 }
             }
@@ -464,19 +464,19 @@ actual class QuickJs private constructor(
     )
 
     @Throws(QuickJsException::class)
-    private external fun gc(runtime: Long)
+    private external fun gc(runtime: Long, globals: Long)
 
     @Throws(QuickJsException::class)
     private external fun nativeGetVersion(): String
 
     @Throws(QuickJsException::class)
-    private external fun setMemoryLimit(runtime: Long, byteCount: Long)
+    private external fun setMemoryLimit(runtime: Long, globals: Long, byteCount: Long)
 
     @Throws(QuickJsException::class)
-    private external fun setMaxStackSize(runtime: Long, byteCount: Long)
+    private external fun setMaxStackSize(runtime: Long, globals: Long, byteCount: Long)
 
     @Throws(QuickJsException::class)
-    private external fun getMemoryUsage(runtime: Long): MemoryUsage
+    private external fun getMemoryUsage(runtime: Long, globals: Long): MemoryUsage
 
     @Throws(QuickJsException::class)
     private external fun compile(
@@ -512,7 +512,7 @@ actual class QuickJs private constructor(
     )
 
     @Throws(QuickJsException::class)
-    private external fun executePendingJob(context: Long): Boolean
+    private external fun executePendingJob(context: Long, globals: Long): Boolean
 
     @Throws(QuickJsException::class)
     private external fun getEvaluateResult(context: Long, globals: Long): Any?
