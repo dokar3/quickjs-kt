@@ -288,6 +288,12 @@ Some built-in types are mapped automatically between C and Kotlin, this table sh
 
 (4) To map a Kotlin `Map` to a JavaScript object, use the `Map.toJsObject()` extension function, this will create a delegate of the original map, and only `String` keys are supported.
 
+# Samples
+
+- **[js-eval](./samples/js-eval)**: A GUI Compose Multiplatform app to evaluate JS, some minimal JS snippets are builtin
+- **[openai](./samples/openai)**: Like `js-eval` but it has some Web API polyfills to run the bundled [openai-node](https://github.com/openai/openai-node)
+- **[repl](./samples/repl)**: Simple Multiplatform REPL command line tool using [clikt](https://github.com/ajalt/clikt)
+
 # Development
 
 You may need these tools to build and run this project:
