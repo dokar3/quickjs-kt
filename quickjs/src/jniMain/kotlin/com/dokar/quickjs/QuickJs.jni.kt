@@ -237,6 +237,7 @@ actual class QuickJs private constructor(
             asyncJobs.forEach { it.cancel() }
             asyncJobs.clear()
         }
+        evalMutex.withLockSync {}
         synchronized(closeLock) {
             objectBindings.clear()
             globalFunctions.clear()
