@@ -55,6 +55,8 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
     globals->created_js_functions = NULL;
     globals->evaluate_result_promise = NULL;
 
+    pthread_mutex_init(&globals->js_mutex, NULL);
+
     cache_java_vm(env);
 
     JSRuntime *runtime = runtime_from_ptr(env, runtime_ptr);
@@ -150,6 +152,9 @@ Java_com_dokar_quickjs_QuickJs_releaseGlobals(JNIEnv *env, jobject this, jlong c
         JS_FreeValue(context, *(globals->evaluate_result_promise));
         globals->evaluate_result_promise = NULL;
     }
+
+    // Destroy js mutex
+    pthread_mutex_destroy(&globals->js_mutex);
 
     // Clear Env, class, methodId, fieldId
     clear_java_vm_cache();
@@ -250,10 +255,13 @@ Java_com_dokar_quickjs_QuickJs_defineFunction(JNIEnv *env, jobject this,
  * Run QuickJS GC.
  */
 JNIEXPORT void JNICALL
-Java_com_dokar_quickjs_QuickJs_gc(JNIEnv *env, jobject this, jlong runtime_ptr) {
+Java_com_dokar_quickjs_QuickJs_gc(JNIEnv *env, jobject this, jlong runtime_ptr, jlong globals_ptr) {
     JSRuntime *runtime = runtime_from_ptr(env, runtime_ptr);
+    Globals *globals = globals_from_ptr(env, globals_ptr);
+    pthread_mutex_lock(&globals->js_mutex);
     JS_UpdateStackTop(runtime);
     JS_RunGC(runtime);
+    pthread_mutex_unlock(&globals->js_mutex);
 }
 
 /**
@@ -269,10 +277,17 @@ Java_com_dokar_quickjs_QuickJs_nativeGetVersion(JNIEnv *env, jobject this) {
  */
 JNIEXPORT void JNICALL
 Java_com_dokar_quickjs_QuickJs_setMemoryLimit(JNIEnv *env, jobject this, jlong runtime_ptr,
+                                              jlong globals_ptr,
                                               jlong byte_count) {
     JSRuntime *runtime = runtime_from_ptr(env, runtime_ptr);
+    Globals *globals = globals_from_ptr(env, globals_ptr);
+
+    pthread_mutex_lock(&globals->js_mutex);
+
     JS_UpdateStackTop(runtime);
     JS_SetMemoryLimit(runtime, byte_count);
+
+    pthread_mutex_unlock(&globals->js_mutex);
 }
 
 /**
@@ -280,25 +295,34 @@ Java_com_dokar_quickjs_QuickJs_setMemoryLimit(JNIEnv *env, jobject this, jlong r
  */
 JNIEXPORT void JNICALL
 Java_com_dokar_quickjs_QuickJs_setMaxStackSize(JNIEnv *env, jobject this, jlong runtime_ptr,
+                                               jlong globals_ptr,
                                                jlong byte_count) {
     JSRuntime *runtime = runtime_from_ptr(env, runtime_ptr);
-    // We need this to update the stack top pointer before updating the max stack size,
-    // otherwise, when calling it in a different thread rather than the initialization thread,
-    // we may get unexpected stack overflow errors.
+    Globals *globals = globals_from_ptr(env, globals_ptr);
+
+    pthread_mutex_lock(&globals->js_mutex);
+
     JS_UpdateStackTop(runtime);
     JS_SetMaxStackSize(runtime, byte_count);
+
+    pthread_mutex_unlock(&globals->js_mutex);
 }
 
 /**
  * Get the runtime memory usage.
  */
 JNIEXPORT jobject JNICALL
-Java_com_dokar_quickjs_QuickJs_getMemoryUsage(JNIEnv *env, jobject this, jlong runtime_ptr) {
+Java_com_dokar_quickjs_QuickJs_getMemoryUsage(JNIEnv *env, jobject this,
+                                              jlong runtime_ptr,
+                                              jlong globals_ptr) {
     JSMemoryUsage memory_usage;
     JSRuntime *runtime = runtime_from_ptr(env, runtime_ptr);
+    Globals *globals = globals_from_ptr(env, globals_ptr);
+
+    pthread_mutex_lock(&globals->js_mutex);
+
     JS_UpdateStackTop(runtime);
     JS_ComputeMemoryUsage(runtime, &memory_usage);
-
     jclass cls = cls_memory_usage(env);
     jobject usage = (*env)->NewObject(env, cls, method_memory_usage_init(env),
                                       memory_usage.malloc_limit,
@@ -320,6 +344,9 @@ Java_com_dokar_quickjs_QuickJs_getMemoryUsage(JNIEnv *env, jobject this, jlong r
                                       memory_usage.fast_array_elements,
                                       memory_usage.binary_object_count,
                                       memory_usage.binary_object_size);
+
+    pthread_mutex_unlock(&globals->js_mutex);
+
     return usage;
 }
 
@@ -337,8 +364,6 @@ jobject handle_eval_result(JNIEnv *env,
         // TODO: Handle this case
         return NULL;
     }
-
-    JS_UpdateStackTop(JS_GetRuntime(context));
 
     int tag = JS_VALUE_GET_NORM_TAG(value);
     int is_compiled_value = tag == JS_TAG_FUNCTION_BYTECODE || tag == JS_TAG_MODULE;
@@ -396,6 +421,8 @@ jobject eval(JNIEnv *env, jlong context_ptr,
         return NULL;
     }
 
+    pthread_mutex_lock(&globals->js_mutex);
+
     // Update the stack top pointer before running the code, otherwise, when calling
     // this in a different thread rather than the initialization, unexpected stack overflow
     // errors may occur.
@@ -409,6 +436,8 @@ jobject eval(JNIEnv *env, jlong context_ptr,
     (*env)->ReleaseStringUTFChars(env, jcode, code);
 
     int async = (eval_flags & JS_EVAL_FLAG_ASYNC) != 0;
+
+    pthread_mutex_unlock(&globals->js_mutex);
 
     return handle_eval_result(env, context, globals, value, async);
 }
@@ -469,6 +498,8 @@ Java_com_dokar_quickjs_QuickJs_evaluateBytecode(JNIEnv *env, jobject this, jlong
     jlong buf_len = (*env)->GetArrayLength(env, jbuffer);
     jbyte *buffer = (*env)->GetByteArrayElements(env, jbuffer, NULL);
 
+    pthread_mutex_lock(&globals->js_mutex);
+
     JS_UpdateStackTop(JS_GetRuntime(context));
 
     // Read buffer
@@ -476,6 +507,9 @@ Java_com_dokar_quickjs_QuickJs_evaluateBytecode(JNIEnv *env, jobject this, jlong
     if (JS_IsException(bytecode)) {
         (*env)->ReleaseByteArrayElements(env, jbuffer, buffer, 0);
         jni_throw_exception(env, "Cannot read buffer as bytecode.");
+
+        pthread_mutex_unlock(&globals->js_mutex);
+
         return NULL;
     }
 
@@ -483,6 +517,8 @@ Java_com_dokar_quickjs_QuickJs_evaluateBytecode(JNIEnv *env, jobject this, jlong
     JSValue value = JS_EvalFunction(context, bytecode);
 
     (*env)->ReleaseByteArrayElements(env, jbuffer, buffer, 0);
+
+    pthread_mutex_unlock(&globals->js_mutex);
 
     return handle_eval_result(env, context, globals, value, 1);
 }
@@ -533,6 +569,8 @@ Java_com_dokar_quickjs_QuickJs_invokeJsFunction(JNIEnv *env,
         return;
     }
 
+    pthread_mutex_lock(&globals->js_mutex);
+
     JS_UpdateStackTop(JS_GetRuntime(context));
 
     // Map args
@@ -547,6 +585,9 @@ Java_com_dokar_quickjs_QuickJs_invokeJsFunction(JNIEnv *env,
                 JS_FreeValue(context, argv[j]);
             }
             (*env)->DeleteLocalRef(env, element);
+
+            pthread_mutex_unlock(&globals->js_mutex);
+
             return;
         }
         argv[i] = item;
@@ -562,6 +603,8 @@ Java_com_dokar_quickjs_QuickJs_invokeJsFunction(JNIEnv *env,
 
     // Do nothing with the result
     JS_FreeValue(context, result);
+
+    pthread_mutex_unlock(&globals->js_mutex);
 }
 
 /**
@@ -572,26 +615,41 @@ Java_com_dokar_quickjs_QuickJs_invokeJsFunction(JNIEnv *env,
 JNIEXPORT jboolean JNICALL
 Java_com_dokar_quickjs_QuickJs_executePendingJob(JNIEnv *env,
                                                  jobject this,
-                                                 jlong context_ptr) {
+                                                 jlong context_ptr,
+                                                 jlong globals_ptr) {
     JSContext *context = context_from_ptr(env, context_ptr);
     if (context == NULL) {
         return JNI_FALSE;
     }
     JSRuntime *runtime = JS_GetRuntime(context);
+    Globals *globals = globals_from_ptr(env, globals_ptr);
+
+    pthread_mutex_lock(&globals->js_mutex);
+
     JS_UpdateStackTop(runtime);
     if (check_js_context_exception(env, context)) {
+        pthread_mutex_unlock(&globals->js_mutex);
+
         return JNI_FALSE;
     }
     JSContext *ctx;
     int ret = JS_ExecutePendingJob(runtime, &ctx);
     if (ret == 0) {
+        pthread_mutex_unlock(&globals->js_mutex);
+
         // No jobs
         return JNI_FALSE;
     }
     if (ret < 0) {
         jni_throw_exception(env, "Failed to execute pending jobs.");
+
+        pthread_mutex_unlock(&globals->js_mutex);
+
         return JNI_FALSE;
     }
+
+    pthread_mutex_unlock(&globals->js_mutex);
+
     return JNI_TRUE;
 }
 
@@ -617,6 +675,9 @@ Java_com_dokar_quickjs_QuickJs_getEvaluateResult(JNIEnv *env,
     }
 
     JSRuntime *runtime = JS_GetRuntime(context);
+
+    pthread_mutex_lock(&globals->js_mutex);
+
     JS_UpdateStackTop(runtime);
 
     JSValue result_promise = *globals->evaluate_result_promise;
@@ -624,6 +685,9 @@ Java_com_dokar_quickjs_QuickJs_getEvaluateResult(JNIEnv *env,
         JS_FreeValue(context, result_promise);
         globals->evaluate_result_promise = NULL;
         jni_throw_exception(env, "Invalid result promise object.");
+
+        pthread_mutex_unlock(&globals->js_mutex);
+
         return NULL;
     }
     JSPromiseStateEnum state = JS_PromiseState(context, result_promise);
@@ -665,5 +729,8 @@ Java_com_dokar_quickjs_QuickJs_getEvaluateResult(JNIEnv *env,
     // Clear the promise
     JS_FreeValue(context, result_promise);
     globals->evaluate_result_promise = NULL;
+
+    pthread_mutex_unlock(&globals->js_mutex);
+
     return result;
 }

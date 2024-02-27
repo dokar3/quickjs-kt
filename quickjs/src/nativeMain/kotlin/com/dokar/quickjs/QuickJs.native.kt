@@ -83,6 +83,12 @@ actual class QuickJs private constructor(
 
     private val closeLock = SynchronizedObject()
 
+    /**
+     * The mutex which is used to protect the JS stack in a multi-threaded environment.
+     * Scopes with a JS_UpdateStackTop() call are required to be locked.
+     */
+    private val jsRuntimeLock = SynchronizedObject()
+
     actual var isClosed: Boolean = false
         private set
 
@@ -96,23 +102,29 @@ actual class QuickJs private constructor(
         set(value) {
             ensureNotClosed()
             field = value
-            JS_UpdateStackTop(runtime)
-            JS_SetMemoryLimit(runtime, value.toULong())
+            synchronized(jsRuntimeLock) {
+                JS_UpdateStackTop(runtime)
+                JS_SetMemoryLimit(runtime, value.toULong())
+            }
         }
 
     actual var maxStackSize: Long = 256 * 1024L
         set(value) {
             ensureNotClosed()
             field = value
-            JS_UpdateStackTop(runtime)
-            JS_SetMaxStackSize(runtime, value.toULong())
+            synchronized(jsRuntimeLock) {
+                JS_UpdateStackTop(runtime)
+                JS_SetMaxStackSize(runtime, value.toULong())
+            }
         }
 
     actual val memoryUsage: MemoryUsage
         get() {
             ensureNotClosed()
-            JS_UpdateStackTop(runtime)
-            return runtime.ktMemoryUsage()
+            synchronized(jsRuntimeLock) {
+                JS_UpdateStackTop(runtime)
+                return runtime.ktMemoryUsage()
+            }
         }
 
     init {
@@ -183,7 +195,9 @@ actual class QuickJs private constructor(
         asModule: Boolean
     ): ByteArray {
         ensureNotClosed()
-        return context.compile(code = code, filename = filename, asModule = asModule)
+        synchronized(jsRuntimeLock) {
+            return context.compile(code = code, filename = filename, asModule = asModule)
+        }
     }
 
     @Throws(QuickJsException::class, CancellationException::class)
@@ -225,8 +239,10 @@ actual class QuickJs private constructor(
 
     actual fun gc() {
         ensureNotClosed()
-        JS_UpdateStackTop(runtime)
-        JS_RunGC(runtime)
+        synchronized(jsRuntimeLock) {
+            JS_UpdateStackTop(runtime)
+            JS_RunGC(runtime)
+        }
     }
 
     actual fun close() {
@@ -264,16 +280,22 @@ actual class QuickJs private constructor(
             try {
                 val result = block(args.sliceArray(2..<args.size))
                 synchronized(closeLock) {
-                    context.invokeJsFunction(resolveFunc, arrayOf(result))
+                    synchronized(jsRuntimeLock) {
+                        context.invokeJsFunction(resolveFunc, arrayOf(result))
+                    }
                 }
             } catch (e: Throwable) {
                 synchronized(closeLock) {
-                    context.invokeJsFunction(rejectFunc, arrayOf(e))
+                    synchronized(jsRuntimeLock) {
+                        context.invokeJsFunction(rejectFunc, arrayOf(e))
+                    }
                 }
             }
             synchronized(closeLock) {
-                while (executePendingJob(runtime) == ExecuteJobResult.Success) {
-                    // The job is completed, see what we can do next
+                synchronized(jsRuntimeLock) {
+                    while (executePendingJob(runtime) == ExecuteJobResult.Success) {
+                        // The job is completed, see what we can do next
+                    }
                 }
             }
         }
@@ -292,8 +314,10 @@ actual class QuickJs private constructor(
             resultPromise = block()
             awaitAsyncJobs()
             checkException()
-            JS_UpdateStackTop(JS_GetRuntime(context))
-            return resultPromise.result(context)
+            synchronized(jsRuntimeLock) {
+                JS_UpdateStackTop(JS_GetRuntime(context))
+                return resultPromise.result(context)
+            }
         } finally {
             resultPromise?.free(context)
         }
@@ -302,7 +326,9 @@ actual class QuickJs private constructor(
     private suspend fun awaitAsyncJobs() {
         while (true) {
             do {
-                val execResult = executePendingJob(runtime)
+                val execResult = synchronized(jsRuntimeLock) {
+                    executePendingJob(runtime)
+                }
                 if (execResult is ExecuteJobResult.Failure) {
                     throw execResult.error
                 }
