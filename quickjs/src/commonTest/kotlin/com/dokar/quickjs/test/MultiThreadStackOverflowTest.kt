@@ -15,6 +15,8 @@ class MultiThreadStackOverflowTest {
     fun stackOverflowWhenExecutingJobs() = runTest {
         // This ensures that our async jobs are executed in different threads
         quickJs(jobDispatcher = Dispatchers.IO.limitedParallelism(100)) {
+            maxStackSize = 512 * 1024 * 1024
+
             asyncFunction("runJob") { delay(50) }
 
             // This CAN throw a stack overflow error if executePendingJob()

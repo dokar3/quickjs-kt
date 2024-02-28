@@ -81,8 +81,6 @@ actual class QuickJs private constructor(
 
     private val evalMutex = Mutex()
 
-    private val closeLock = SynchronizedObject()
-
     /**
      * The mutex which is used to protect the JS stack in a multi-threaded environment.
      * Scopes with a JS_UpdateStackTop() call are required to be locked.
@@ -254,7 +252,7 @@ actual class QuickJs private constructor(
             asyncJobs.clear()
         }
         evalMutex.withLockSync {}
-        synchronized(closeLock) {
+        synchronized(jsRuntimeLock) {
             modules.clear()
             managedJsValues.forEach { JS_FreeValue(context, it) }
             managedJsValues.clear()
@@ -279,23 +277,17 @@ actual class QuickJs private constructor(
         val job = coroutineScope.launch {
             try {
                 val result = block(args.sliceArray(2..<args.size))
-                synchronized(closeLock) {
-                    synchronized(jsRuntimeLock) {
-                        context.invokeJsFunction(resolveFunc, arrayOf(result))
-                    }
+                synchronized(jsRuntimeLock) {
+                    context.invokeJsFunction(resolveFunc, arrayOf(result))
                 }
             } catch (e: Throwable) {
-                synchronized(closeLock) {
-                    synchronized(jsRuntimeLock) {
-                        context.invokeJsFunction(rejectFunc, arrayOf(e))
-                    }
+                synchronized(jsRuntimeLock) {
+                    context.invokeJsFunction(rejectFunc, arrayOf(e))
                 }
             }
-            synchronized(closeLock) {
-                synchronized(jsRuntimeLock) {
-                    while (executePendingJob(runtime) == ExecuteJobResult.Success) {
-                        // The job is completed, see what we can do next
-                    }
+            synchronized(jsRuntimeLock) {
+                while (executePendingJob(runtime) == ExecuteJobResult.Success) {
+                    // The job is completed, see what we can do next
                 }
             }
         }
