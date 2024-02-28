@@ -165,8 +165,6 @@ class AsyncFunctionsTest {
     fun cancelParentCoroutine() = runTest {
         var instance: QuickJs? = null
         val job = launch {
-            // Don't known why but the testScheduler from the test scope
-            // won't work on Kotlin/Native
             quickJs {
                 instance = this
 
@@ -183,6 +181,9 @@ class AsyncFunctionsTest {
         launch {
             delay(500)
             job.cancel()
+            // One may be enough for JVM,
+            // two for Native,
+            // three is safer
             yield()
             yield()
             yield()
