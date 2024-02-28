@@ -90,7 +90,7 @@ internal value class JsPromise(
     }
 }
 
-sealed interface ExecuteJobResult {
+internal sealed interface ExecuteJobResult {
     data object Success : ExecuteJobResult
     data object NoJobs : ExecuteJobResult
     class Failure(val error: Throwable) : ExecuteJobResult

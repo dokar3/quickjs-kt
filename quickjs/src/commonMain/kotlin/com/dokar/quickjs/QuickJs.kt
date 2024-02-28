@@ -17,7 +17,11 @@ import kotlin.coroutines.coroutineContext
  */
 @OptIn(ExperimentalStdlibApi::class)
 suspend inline fun <T : Any?> quickJs(block: QuickJs.() -> T): T {
-    val dispatcher = coroutineContext[CoroutineDispatcher] ?: Dispatchers.Unconfined
+    val dispatcher = coroutineContext[CoroutineDispatcher]
+        ?: throw UnsupportedOperationException(
+            "The current coroutine context does not have a coroutine context. " +
+                    "Please pass your dispatcher explicitly using another function."
+        )
     return quickJs(dispatcher, block)
 }
 

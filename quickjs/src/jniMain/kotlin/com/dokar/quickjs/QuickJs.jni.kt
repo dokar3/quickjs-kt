@@ -12,11 +12,13 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.Closeable
 
 /**
@@ -85,6 +87,12 @@ actual class QuickJs private constructor(
     private val asyncJobs = mutableListOf<Job>()
 
     private val closeLock = Any()
+
+    /**
+     * The dispatcher with the parallelism of 1 for executing JS.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val jsDispatcher = jobDispatcher.limitedParallelism(1)
 
     actual var isClosed: Boolean = false
         private set
@@ -262,9 +270,11 @@ actual class QuickJs private constructor(
          * This is our simple 'event loop'.
          */
         while (true) {
-            while (executePendingJob(context, globals)) {
-                // Job executed
-            }
+            do {
+                val executed = withContext(jsDispatcher) {
+                    executePendingJob(context, globals)
+                }
+            } while (executed)
             val jobs = jobsMutex.withLock { asyncJobs.filter { it.isActive } }
             if (jobs.isEmpty()) {
                 // No jobs to run
@@ -282,17 +292,11 @@ actual class QuickJs private constructor(
         }
     }
 
-    @Synchronized
     private fun loadModules() {
-        if (modules.isEmpty()) {
-            return
-        }
-        val iterator = modules.iterator()
-        while (iterator.hasNext()) {
-            val module = iterator.next()
+        for (module in modules) {
             evaluateBytecode(context = context, globals = globals, buffer = module)
-            iterator.remove()
         }
+        modules.clear()
     }
 
     internal actual fun invokeAsyncFunction(
@@ -304,7 +308,7 @@ actual class QuickJs private constructor(
         val job = coroutineScope.launch {
             try {
                 val result = block(args.sliceArray(2..<args.size))
-                synchronized(closeLock) {
+                withContext(jsDispatcher) {
                     // Call resolve() on JNI side
                     invokeJsFunction(
                         context = context,
@@ -314,7 +318,7 @@ actual class QuickJs private constructor(
                     )
                 }
             } catch (e: Throwable) {
-                synchronized(closeLock) {
+                withContext(jsDispatcher) {
                     // Call reject() on JNI side
                     invokeJsFunction(
                         context = context,
@@ -324,16 +328,16 @@ actual class QuickJs private constructor(
                     )
                 }
             }
-            synchronized(closeLock) {
+            withContext(jsDispatcher) {
                 while (executePendingJob(context, globals)) {
                     // The job is completed, see what we can do next
                 }
             }
         }
         job.invokeOnCompletion {
-            jobsMutex.withLockSync { asyncJobs.remove(job) }
+            jobsMutex.withLockSync { asyncJobs -= job }
         }
-        jobsMutex.withLockSync { asyncJobs.add(job) }
+        jobsMutex.withLockSync { asyncJobs += job }
     }
 
     private fun promiseHandlesFromArgs(args: Array<Any?>): Pair<Long, Long> {

@@ -27,11 +27,13 @@ import kotlinx.cinterop.toKStringFromUtf8
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import quickjs.JSContext
 import quickjs.JSRuntime
 import quickjs.JSValue
@@ -86,6 +88,12 @@ actual class QuickJs private constructor(
      * Scopes with a JS_UpdateStackTop() call are required to be locked.
      */
     private val jsRuntimeLock = SynchronizedObject()
+
+    /**
+     * The dispatcher with the parallelism of 1 for executing JS.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val jsDispatcher = jobDispatcher.limitedParallelism(1)
 
     actual var isClosed: Boolean = false
         private set
@@ -252,18 +260,16 @@ actual class QuickJs private constructor(
             asyncJobs.clear()
         }
         evalMutex.withLockSync {}
-        synchronized(jsRuntimeLock) {
-            modules.clear()
-            managedJsValues.forEach { JS_FreeValue(context, it) }
-            managedJsValues.clear()
-            // Dispose stable refs
-            objectBindings.keys.forEach { objectHandleToStableRef(it)?.dispose() }
-            objectBindings.clear()
-            globalFunctions.clear()
-            JS_FreeContext(context)
-            JS_FreeRuntime(runtime)
-            ref.dispose()
-        }
+        modules.clear()
+        managedJsValues.forEach { JS_FreeValue(context, it) }
+        managedJsValues.clear()
+        // Dispose stable refs
+        objectBindings.keys.forEach { objectHandleToStableRef(it)?.dispose() }
+        objectBindings.clear()
+        globalFunctions.clear()
+        JS_FreeContext(context)
+        JS_FreeRuntime(runtime)
+        ref.dispose()
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -277,27 +283,29 @@ actual class QuickJs private constructor(
         val job = coroutineScope.launch {
             try {
                 val result = block(args.sliceArray(2..<args.size))
-                synchronized(jsRuntimeLock) {
+                withContext(jsDispatcher) {
                     context.invokeJsFunction(resolveFunc, arrayOf(result))
                 }
             } catch (e: Throwable) {
-                synchronized(jsRuntimeLock) {
+                withContext(jsDispatcher) {
                     context.invokeJsFunction(rejectFunc, arrayOf(e))
                 }
             }
-            synchronized(jsRuntimeLock) {
+            withContext(jsDispatcher) {
                 while (executePendingJob(runtime) == ExecuteJobResult.Success) {
                     // The job is completed, see what we can do next
                 }
             }
         }
         job.invokeOnCompletion {
-            jobsMutex.withLockSync { asyncJobs.remove(job) }
+            jobsMutex.withLockSync { asyncJobs -= job }
         }
-        jobsMutex.withLockSync { asyncJobs.add(job) }
+        jobsMutex.withLockSync { asyncJobs += job }
     }
 
-    private suspend inline fun evalAndAwait(block: () -> JsPromise): Any? {
+    private suspend inline fun evalAndAwait(
+        crossinline block: () -> JsPromise
+    ): Any? = withContext(jsDispatcher) {
         ensureNotClosed()
         evalException = null
         loadModules()
@@ -308,7 +316,7 @@ actual class QuickJs private constructor(
             checkException()
             synchronized(jsRuntimeLock) {
                 JS_UpdateStackTop(JS_GetRuntime(context))
-                return resultPromise.result(context)
+                return@withContext resultPromise.result(context)
             }
         } finally {
             resultPromise?.free(context)
@@ -317,14 +325,14 @@ actual class QuickJs private constructor(
 
     private suspend fun awaitAsyncJobs() {
         while (true) {
-            do {
-                val execResult = synchronized(jsRuntimeLock) {
-                    executePendingJob(runtime)
-                }
-                if (execResult is ExecuteJobResult.Failure) {
-                    throw execResult.error
-                }
-            } while (execResult == ExecuteJobResult.Success)
+            withContext(jsDispatcher) {
+                do {
+                    val execResult = executePendingJob(runtime)
+                    if (execResult is ExecuteJobResult.Failure) {
+                        throw execResult.error
+                    }
+                } while (execResult == ExecuteJobResult.Success)
+            }
             val jobs = jobsMutex.withLock { asyncJobs.filter { it.isActive } }
             if (jobs.isEmpty()) {
                 // No jobs to run
