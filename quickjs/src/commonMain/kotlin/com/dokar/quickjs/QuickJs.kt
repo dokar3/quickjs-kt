@@ -12,8 +12,12 @@ import kotlin.coroutines.coroutineContext
 /**
  * DSL for [QuickJs]. The instance will be closed automatically when the [block] is finished.
  *
- * The dispatcher from the current coroutine context or [Dispatchers.Unconfined] will be
- * used to execute async jobs.
+ * The job dispatcher of current coroutine context (or throw if not found) will be
+ * used to run `async` function bindings, and a JavaScript execution dispatcher will
+ * be created from the job dispatcher using [CoroutineDispatcher.limitedParallelism]`(1)`.
+ *
+ * If the job dispatcher (e.g. [Dispatchers.Unconfined]) does not support
+ * [CoroutineDispatcher.limitedParallelism], this function will throw.
  */
 @OptIn(ExperimentalStdlibApi::class)
 suspend inline fun <T : Any?> quickJs(block: QuickJs.() -> T): T {
@@ -28,8 +32,14 @@ suspend inline fun <T : Any?> quickJs(block: QuickJs.() -> T): T {
 /**
  * DSL for [QuickJs]. The instance will be closed automatically when the [block] is finished.
  *
- * @param jobDispatcher The dispatcher for executing async jobs. Not used for [QuickJs.evaluate]
- * and [QuickJs.evaluate].
+ * A job dispatcher is required to run `async` function bindings,
+ * and a JavaScript execution dispatcher will be created from the
+ * job dispatcher using [CoroutineDispatcher.limitedParallelism]`(1)`.
+ *
+ * If the job dispatcher (e.g. [Dispatchers.Unconfined]) does not support
+ * [CoroutineDispatcher.limitedParallelism], this function will throw.
+ *
+ * @param jobDispatcher The dispatcher for executing async jobs.
  */
 inline fun <T : Any?> quickJs(jobDispatcher: CoroutineDispatcher, block: QuickJs.() -> T): T {
     val quickJs = QuickJs.create(jobDispatcher = jobDispatcher)
@@ -193,11 +203,17 @@ expect class QuickJs {
         /**
          * Create new QuickJS runtime.
          *
-         * @param jobDispatcher The dispatcher for executing async jobs. Not used for [evaluate]
-         * and [evaluate]. Defaults to [Dispatchers.Unconfined].
+         * A job dispatcher is required to run `async` function bindings,
+         * and a JavaScript execution dispatcher will be created from the
+         * job dispatcher using [CoroutineDispatcher.limitedParallelism]`(1)`.
+         *
+         * If the job dispatcher (e.g. [Dispatchers.Unconfined]) does not support
+         * [CoroutineDispatcher.limitedParallelism], this function will throw.
+         *
+         * @param jobDispatcher The dispatcher for executing async jobs.
          * @throws QuickJsException If failed to create a runtime.
          */
         @Throws(QuickJsException::class)
-        fun create(jobDispatcher: CoroutineDispatcher = Dispatchers.Unconfined): QuickJs
+        fun create(jobDispatcher: CoroutineDispatcher): QuickJs
     }
 }

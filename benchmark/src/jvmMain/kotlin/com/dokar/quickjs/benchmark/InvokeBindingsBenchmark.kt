@@ -7,6 +7,7 @@ import kotlinx.benchmark.Scope
 import kotlinx.benchmark.Setup
 import kotlinx.benchmark.State
 import kotlinx.benchmark.TearDown
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
 @Suppress("unused")
@@ -16,7 +17,7 @@ class InvokeBindingsBenchmark {
 
     @Setup
     fun setup() {
-        quickJs = QuickJs.create()
+        quickJs = QuickJs.create(Dispatchers.Default)
         quickJs.define("dslConsole") {
             property("level") {
                 getter { "Debug" }

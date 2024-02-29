@@ -5,13 +5,14 @@ import com.dokar.quickjs.binding.define
 import kotlinx.benchmark.Benchmark
 import kotlinx.benchmark.Scope
 import kotlinx.benchmark.State
+import kotlinx.coroutines.Dispatchers
 
 @Suppress("unused")
 @State(Scope.Benchmark)
 class DefineBindingsBenchmark {
     @Benchmark
     fun defineDslBindings() {
-        QuickJs.create().use { quickJs ->
+        QuickJs.create(Dispatchers.Default).use { quickJs ->
             quickJs.define("http") {
                 asyncFunction("fetch") {}
             }
@@ -38,7 +39,7 @@ class DefineBindingsBenchmark {
 
     @Benchmark
     fun defineReflectionBindings() {
-        QuickJs.create().use { quickJs ->
+        QuickJs.create(Dispatchers.Default).use { quickJs ->
             quickJs.define("http", Http::class.java, Http())
             quickJs.define("console", Console::class.java, Console())
             quickJs.define("app", App::class.java, App())
