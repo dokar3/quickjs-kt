@@ -10,7 +10,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
@@ -166,9 +165,7 @@ class AsyncFunctionsTest {
     fun cancelParentCoroutine() = runTest {
         var instance: QuickJs? = null
         val job = launch {
-            // Don't known why but the testScheduler from the test scope
-            // won't work on Kotlin/Native
-            quickJs(StandardTestDispatcher()) {
+            quickJs {
                 instance = this
 
                 asyncFunction("delay") {
@@ -184,6 +181,11 @@ class AsyncFunctionsTest {
         launch {
             delay(500)
             job.cancel()
+            // One may be enough for JVM,
+            // two for Native,
+            // three is safer
+            yield()
+            yield()
             yield()
             assertTrue(instance!!.isClosed)
         }
