@@ -92,10 +92,10 @@ if (nativeResult == null) {
 console.log("Writing results to benchmark/README.md...");
 
 async function libraryVersion(): Promise<string> {
-  const properties = await fs.open("gradle.properties");
-  for await (const line of properties.readLines()) {
+  const properties = (await fs.readFile("gradle.properties")).toString();
+  for (const line of properties.split("\n")) {
     if (line.startsWith("VERSION_NAME=")) {
-      return line.split("=")[1];
+      return line.split("=")[1].trim();
     }
   }
   throw new Error("No VERSION_NAME property found in gradle.properties");
