@@ -52,7 +52,7 @@ coroutineScope.launch {
 without DSL:
 
 ```kotlin
-val quickJs = QuickJs.create()
+val quickJs = QuickJs.create(Dispatchers.Default)
 
 coroutineScope.launch {
     val result = quickJs.evaluate<Int>("1 + 2")

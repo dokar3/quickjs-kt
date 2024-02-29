@@ -91,6 +91,16 @@ if (nativeResult == null) {
 
 console.log("Writing results to benchmark/README.md...");
 
+async function libraryVersion(): Promise<string> {
+  const properties = (await fs.readFile("gradle.properties")).toString();
+  for (const line of properties.split("\n")) {
+    if (line.startsWith("VERSION_NAME=")) {
+      return line.split("=")[1].trim();
+    }
+  }
+  throw new Error("No VERSION_NAME property found in gradle.properties");
+}
+
 function benchmarkResultAsTableLines(result: any): string {
   const items: BenchmarkResult[] = [];
   for (const item of result) {
@@ -126,6 +136,8 @@ const totalMemoryGB = (os.totalmem() / (1024 * 1024 * 1024)).toFixed(1);
 const README = `# Benchmark Results
 
 Generated on ${date}
+
+Version: ${await libraryVersion()}
 
 ### Test environment
 
