@@ -17,8 +17,6 @@ import com.dokar.quickjs.bridge.ktMemoryUsage
 import com.dokar.quickjs.bridge.objectHandleToStableRef
 import com.dokar.quickjs.bridge.setPromiseRejectionHandler
 import com.dokar.quickjs.util.withLockSync
-import kotlinx.atomicfu.locks.SynchronizedObject
-import kotlinx.atomicfu.locks.synchronized
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -27,13 +25,11 @@ import kotlinx.cinterop.toKStringFromUtf8
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import quickjs.JSContext
 import quickjs.JSRuntime
 import quickjs.JSValue
@@ -81,19 +77,10 @@ actual class QuickJs private constructor(
     private val jobsMutex = Mutex()
     private val asyncJobs = mutableListOf<Job>()
 
-    private val evalMutex = Mutex()
-
     /**
-     * The mutex which is used to protect the JS stack in a multi-threaded environment.
-     * Scopes with a JS_UpdateStackTop() call are required to be locked.
+     * Avoid concurrent executions.
      */
-    private val jsRuntimeLock = SynchronizedObject()
-
-    /**
-     * The dispatcher with the parallelism of 1 for executing JS.
-     */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val jsDispatcher = jobDispatcher.limitedParallelism(1)
+    private val jsMutex = Mutex()
 
     actual var isClosed: Boolean = false
         private set
@@ -108,29 +95,23 @@ actual class QuickJs private constructor(
         set(value) {
             ensureNotClosed()
             field = value
-            synchronized(jsRuntimeLock) {
-                JS_UpdateStackTop(runtime)
-                JS_SetMemoryLimit(runtime, value.toULong())
-            }
+            JS_UpdateStackTop(runtime)
+            JS_SetMemoryLimit(runtime, value.toULong())
         }
 
     actual var maxStackSize: Long = 256 * 1024L
         set(value) {
             ensureNotClosed()
             field = value
-            synchronized(jsRuntimeLock) {
-                JS_UpdateStackTop(runtime)
-                JS_SetMaxStackSize(runtime, value.toULong())
-            }
+            JS_UpdateStackTop(runtime)
+            JS_SetMaxStackSize(runtime, value.toULong())
         }
 
     actual val memoryUsage: MemoryUsage
         get() {
             ensureNotClosed()
-            synchronized(jsRuntimeLock) {
-                JS_UpdateStackTop(runtime)
-                return runtime.ktMemoryUsage()
-            }
+            JS_UpdateStackTop(runtime)
+            return runtime.ktMemoryUsage()
         }
 
     init {
@@ -201,7 +182,7 @@ actual class QuickJs private constructor(
         asModule: Boolean
     ): ByteArray {
         ensureNotClosed()
-        synchronized(jsRuntimeLock) {
+        jsMutex.withLockSync {
             return context.compile(code = code, filename = filename, asModule = asModule)
         }
     }
@@ -225,10 +206,8 @@ actual class QuickJs private constructor(
 
     @PublishedApi
     @Throws(QuickJsException::class, CancellationException::class)
-    internal suspend fun evalInternal(bytecode: ByteArray): Any? = evalMutex.withLock {
-        return evalAndAwait {
-            context.evaluate(bytecode = bytecode)
-        }
+    internal suspend fun evalInternal(bytecode: ByteArray): Any? = evalAndAwait {
+        context.evaluate(bytecode = bytecode)
     }
 
     @PublishedApi
@@ -237,15 +216,13 @@ actual class QuickJs private constructor(
         code: String,
         filename: String,
         asModule: Boolean
-    ): Any? = evalMutex.withLock {
-        return evalAndAwait {
-            context.evaluate(code = code, filename = filename, asModule = asModule)
-        }
+    ): Any? = evalAndAwait {
+        context.evaluate(code = code, filename = filename, asModule = asModule)
     }
 
     actual fun gc() {
         ensureNotClosed()
-        synchronized(jsRuntimeLock) {
+        jsMutex.withLockSync {
             JS_UpdateStackTop(runtime)
             JS_RunGC(runtime)
         }
@@ -259,7 +236,7 @@ actual class QuickJs private constructor(
             asyncJobs.forEach { it.cancel() }
             asyncJobs.clear()
         }
-        evalMutex.withLockSync {}
+        jsMutex.withLockSync {}
         modules.clear()
         managedJsValues.forEach { JS_FreeValue(context, it) }
         managedJsValues.clear()
@@ -283,15 +260,15 @@ actual class QuickJs private constructor(
         val job = coroutineScope.launch {
             try {
                 val result = block(args.sliceArray(2..<args.size))
-                withContext(jsDispatcher) {
+                jsMutex.withLock {
                     context.invokeJsFunction(resolveFunc, arrayOf(result))
                 }
             } catch (e: Throwable) {
-                withContext(jsDispatcher) {
+                jsMutex.withLock {
                     context.invokeJsFunction(rejectFunc, arrayOf(e))
                 }
             }
-            withContext(jsDispatcher) {
+            jsMutex.withLock {
                 while (executePendingJob(runtime) == ExecuteJobResult.Success) {
                     // The job is completed, see what we can do next
                 }
@@ -305,27 +282,27 @@ actual class QuickJs private constructor(
 
     private suspend inline fun evalAndAwait(
         crossinline block: () -> JsPromise
-    ): Any? = withContext(jsDispatcher) {
+    ): Any? {
         ensureNotClosed()
         evalException = null
         loadModules()
         var resultPromise: JsPromise? = null
         try {
-            resultPromise = block()
+            resultPromise = jsMutex.withLock { block() }
             awaitAsyncJobs()
             checkException()
-            synchronized(jsRuntimeLock) {
+            jsMutex.withLock {
                 JS_UpdateStackTop(JS_GetRuntime(context))
-                return@withContext resultPromise.result(context)
+                return resultPromise.result(context)
             }
         } finally {
-            resultPromise?.free(context)
+            jsMutex.withLock { resultPromise?.free(context) }
         }
     }
 
     private suspend fun awaitAsyncJobs() {
         while (true) {
-            withContext(jsDispatcher) {
+            jsMutex.withLock {
                 do {
                     val execResult = executePendingJob(runtime)
                     if (execResult is ExecuteJobResult.Failure) {
@@ -342,7 +319,7 @@ actual class QuickJs private constructor(
         }
     }
 
-    private fun loadModules() {
+    private suspend fun loadModules() = jsMutex.withLock {
         for (module in modules) {
             context.evaluate(module).free(context)
         }
