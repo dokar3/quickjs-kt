@@ -12,13 +12,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import java.io.Closeable
 
 /**
@@ -79,20 +77,12 @@ actual class QuickJs private constructor(
     private val coroutineScope = CoroutineScope(jobDispatcher + exceptionHandler)
 
     /**
-     * Concurrent [evaluate] is not supported.
+     * Avoid concurrent executions.
      */
-    private val evalMutex = Mutex()
+    private val jsMutex = Mutex()
 
     private val jobsMutex = Mutex()
     private val asyncJobs = mutableListOf<Job>()
-
-    private val closeLock = Any()
-
-    /**
-     * The dispatcher with the parallelism of 1 for executing JS.
-     */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val jsDispatcher = jobDispatcher.limitedParallelism(1)
 
     actual var isClosed: Boolean = false
         private set
@@ -188,7 +178,9 @@ actual class QuickJs private constructor(
     @Throws(QuickJsException::class)
     actual fun compile(code: String, filename: String, asModule: Boolean): ByteArray {
         ensureNotClosed()
-        return compile(context, globals, filename, code, asModule)
+        jsMutex.withLockSync {
+            return compile(context, globals, filename, code, asModule)
+        }
     }
 
     @Throws(QuickJsException::class, CancellationException::class)
@@ -206,10 +198,8 @@ actual class QuickJs private constructor(
     }
 
     @PublishedApi
-    internal suspend fun evaluateInternal(bytecode: ByteArray): Any? = evalMutex.withLock {
-        evalAndAwait {
-            evaluateBytecode(context = context, globals = globals, buffer = bytecode)
-        }
+    internal suspend fun evaluateInternal(bytecode: ByteArray): Any? = evalAndAwait {
+        evaluateBytecode(context = context, globals = globals, buffer = bytecode)
     }
 
     @PublishedApi
@@ -217,19 +207,17 @@ actual class QuickJs private constructor(
         code: String,
         filename: String,
         asModule: Boolean,
-    ): Any? = evalMutex.withLock {
-        evalAndAwait {
-            evaluate(context, globals, filename, code, asModule)
-        }
+    ): Any? = evalAndAwait {
+        evaluate(context, globals, filename, code, asModule)
     }
 
     private suspend fun evalAndAwait(evalBlock: suspend () -> Any?): Any? {
         ensureNotClosed()
         evalException = null
         loadModules()
-        evalBlock()
+        jsMutex.withLock { evalBlock() }
         awaitAsyncJobs()
-        val result = getEvaluateResult(context, globals)
+        val result = jsMutex.withLock { getEvaluateResult(context, globals) }
         handleException()
         return result
     }
@@ -245,23 +233,21 @@ actual class QuickJs private constructor(
             asyncJobs.forEach { it.cancel() }
             asyncJobs.clear()
         }
-        evalMutex.withLockSync {}
-        synchronized(closeLock) {
-            objectBindings.clear()
-            globalFunctions.clear()
-            modules.clear()
-            if (globals != 0L) {
-                releaseGlobals(context, globals)
-                globals = 0
-            }
-            if (context != 0L) {
-                releaseContext(context)
-                context = 0
-            }
-            if (runtime != 0L) {
-                releaseRuntime(runtime)
-                runtime = 0
-            }
+        jsMutex.withLockSync {}
+        objectBindings.clear()
+        globalFunctions.clear()
+        modules.clear()
+        if (globals != 0L) {
+            releaseGlobals(context, globals)
+            globals = 0
+        }
+        if (context != 0L) {
+            releaseContext(context)
+            context = 0
+        }
+        if (runtime != 0L) {
+            releaseRuntime(runtime)
+            runtime = 0
         }
     }
 
@@ -270,11 +256,11 @@ actual class QuickJs private constructor(
          * This is our simple 'event loop'.
          */
         while (true) {
-            do {
-                val executed = withContext(jsDispatcher) {
-                    executePendingJob(context, globals)
-                }
-            } while (executed)
+            jsMutex.withLock {
+                do {
+                    val executed = executePendingJob(context, globals)
+                } while (executed)
+            }
             val jobs = jobsMutex.withLock { asyncJobs.filter { it.isActive } }
             if (jobs.isEmpty()) {
                 // No jobs to run
@@ -292,7 +278,7 @@ actual class QuickJs private constructor(
         }
     }
 
-    private fun loadModules() {
+    private suspend fun loadModules() = jsMutex.withLock {
         for (module in modules) {
             evaluateBytecode(context = context, globals = globals, buffer = module)
         }
@@ -308,7 +294,7 @@ actual class QuickJs private constructor(
         val job = coroutineScope.launch {
             try {
                 val result = block(args.sliceArray(2..<args.size))
-                withContext(jsDispatcher) {
+                jsMutex.withLock {
                     // Call resolve() on JNI side
                     invokeJsFunction(
                         context = context,
@@ -318,7 +304,7 @@ actual class QuickJs private constructor(
                     )
                 }
             } catch (e: Throwable) {
-                withContext(jsDispatcher) {
+                jsMutex.withLock {
                     // Call reject() on JNI side
                     invokeJsFunction(
                         context = context,
@@ -328,7 +314,7 @@ actual class QuickJs private constructor(
                     )
                 }
             }
-            withContext(jsDispatcher) {
+            jsMutex.withLock {
                 while (executePendingJob(context, globals)) {
                     // The job is completed, see what we can do next
                 }

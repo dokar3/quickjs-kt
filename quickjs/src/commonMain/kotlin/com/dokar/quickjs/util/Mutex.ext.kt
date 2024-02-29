@@ -2,14 +2,14 @@ package com.dokar.quickjs.util
 
 import kotlinx.coroutines.sync.Mutex
 
-internal inline fun Mutex.withLockSync(
-    block: () -> Unit,
-) {
+internal inline fun <T> Mutex.withLockSync(
+    block: () -> T,
+): T {
     try {
         while (!this.tryLock()) {
             // Loop until the lock is available
         }
-        block()
+        return block()
     } finally {
         this.unlock()
     }
