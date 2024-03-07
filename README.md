@@ -288,6 +288,19 @@ Some built-in types are mapped automatically between C and Kotlin, this table sh
 
 (4) To map a Kotlin `Map` to a JavaScript object, use the `Map.toJsObject()` extension function, this will create a delegate of the original map, and only `String` keys are supported.
 
+# Error handling
+
+Most of functions may throw:
+
+- `IllegalStateException`, if some function was called after calling `close`
+
+`evaluate()` and `compile()` may throw:
+
+- `QuickJsException`, if a JavaScript error occurred or failed to map a type between JavaScript and Kotlin
+- Other exceptions, if they were occurred in the Kotlin binding
+
+If you find other suspicious errors, please feel free to open an issue to report
+
 # Samples
 
 - **[js-eval](./samples/js-eval)**: A GUI Compose Multiplatform app to evaluate JS, some minimal JS snippets are builtin
