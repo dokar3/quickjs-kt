@@ -34,7 +34,7 @@ jthrowable js_error_to_java_error(JNIEnv *env, JSContext *context, JSValue error
         if (c_str != NULL) {
             JS_FreeCString(context, c_str);
         }
-        jthrowable java_error = new_java_error(env, str);
+        jthrowable java_error = new_qjs_exception(env, str);
         JS_FreeValue(context, js_name);
         return java_error;
     }
@@ -117,7 +117,7 @@ jthrowable js_error_to_java_error(JNIEnv *env, JSContext *context, JSValue error
     }
 
     // Fallback to the default error class
-    return new_java_error(env, full_message);
+    return new_qjs_exception(env, full_message);
 }
 
 jobjectArray to_java_array(JNIEnv *env, JSContext *context, JSValue value) {
@@ -308,7 +308,7 @@ jobject js_int8array_to_java_byte_array(JNIEnv *env, JSContext *context, JSValue
     uint8_t *c_buffer = JS_GetArrayBuffer(context, &size, buffer);
     if (c_buffer == NULL) {
         JS_FreeValue(context, buffer);
-        jni_throw_exception(env, "Cannot read array buffer.");
+        jni_throw_qjs_exception(env, "Cannot read array buffer.");
         return NULL;
     }
     jbyteArray array = (*env)->NewByteArray(env, size);
@@ -375,7 +375,7 @@ jobject js_value_to_jobject(JNIEnv *env, JSContext *context, JSValue value) {
         uint8_t *buffer = JS_WriteObject(context, &length, value,
                                          JS_WRITE_OBJ_BYTECODE | JS_WRITE_OBJ_REFERENCE);
         if (buffer == NULL) {
-            jni_throw_exception(env, "Failed to compiled JavaScript code.");
+            jni_throw_qjs_exception(env, "Failed to compiled JavaScript code.");
             return NULL;
         }
 
@@ -408,7 +408,7 @@ jobject js_value_to_jobject(JNIEnv *env, JSContext *context, JSValue value) {
         return result;
     } else {
         const char *string = JS_ToCString(context, value);
-        jni_throw_exception(env, "Unsupported js value type: %s, tag: %d", string, tag);
+        jni_throw_qjs_exception(env, "Unsupported js value type: %s, tag: %d", string, tag);
         JS_FreeCString(context, string);
         return NULL;
     }

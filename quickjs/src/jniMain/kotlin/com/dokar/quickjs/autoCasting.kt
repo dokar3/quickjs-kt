@@ -74,7 +74,5 @@ internal fun <T : Any?> jsAutoCastOrThrow(value: Any?, expectedType: Class<*>): 
             }
         }
     }
-    throw IllegalStateException(
-        "Type mismatch: expected ${expectedType}, found ${paramType.simpleName}"
-    )
+    qjsError("Type mismatch: expected ${expectedType}, found ${paramType.simpleName}")
 }

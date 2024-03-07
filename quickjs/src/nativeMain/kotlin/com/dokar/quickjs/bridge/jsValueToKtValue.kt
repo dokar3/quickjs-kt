@@ -151,7 +151,7 @@ internal fun CValue<JSValue>.toKtString(context: CPointer<JSContext>): String? {
 internal fun jsErrorToKtError(context: CPointer<JSContext>, error: CValue<JSValue>): Throwable {
     val name = JS_GetPropertyStr(context, error, "name")
         .use(context = context) { toKtString(context) }
-        ?: return Error(error.toKtString(context) ?: "<NULL>")
+        ?: return QuickJsException(error.toKtString(context) ?: "<NULL>")
     val message = JS_GetPropertyStr(context, error, "message")
         .use(context) { toKtString(context) }
     val stack = JS_GetPropertyStr(context, error, "stack")
@@ -213,7 +213,7 @@ private fun newKtError(name: String, message: String?, stack: Array<String?>?): 
         ConcurrentModificationException::class.qualifiedName -> ConcurrentModificationException(m)
         NotImplementedError::class.qualifiedName -> NotImplementedError(m ?: "")
         QuickJsException::class.qualifiedName -> QuickJsException(m)
-        else -> Error("$name: $m") // Unknown error, add the name back
+        else -> QuickJsException("$name: $m") // Unknown error, add the name back
     }
 }
 

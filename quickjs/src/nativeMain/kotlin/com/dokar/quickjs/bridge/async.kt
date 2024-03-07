@@ -1,6 +1,7 @@
 package com.dokar.quickjs.bridge
 
 import com.dokar.quickjs.QuickJsException
+import com.dokar.quickjs.qjsError
 import com.dokar.quickjs.util.isPromise
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CPointerVar
@@ -36,7 +37,7 @@ internal value class JsPromise(
                 if (JS_IsError(context, this) == 1) {
                     throw jsErrorToKtError(context, this)
                 } else {
-                    throw Error(toKtString(context))
+                    throw QuickJsException(toKtString(context))
                 }
             }
         }
@@ -50,7 +51,7 @@ internal value class JsPromise(
                             JSPromiseStateEnum.JS_PROMISE_PENDING -> STATE_PENDING
                             JSPromiseStateEnum.JS_PROMISE_FULFILLED -> STATE_FULFILLED
                             JSPromiseStateEnum.JS_PROMISE_REJECTED -> STATE_REJECTED
-                            else -> error("Unknown promise state: $retState")
+                            else -> qjsError("Unknown promise state: $retState")
                         }
                         JS_FreeValue(context, result)
                         stateText
@@ -69,13 +70,13 @@ internal value class JsPromise(
                 if (result is Throwable) {
                     throw result
                 } else {
-                    throw Error(result?.toString())
+                    throw QuickJsException(result?.toString())
                 }
             }
 
             JSPromiseStateEnum.JS_PROMISE_PENDING -> STATE_PENDING
 
-            else -> error("Unknown promise state: $state")
+            else -> qjsError("Unknown promise state: $state")
         }
     }
 

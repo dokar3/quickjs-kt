@@ -5,9 +5,9 @@
 #include "jni.h"
 #include "quickjs.h"
 
-jthrowable new_java_error(JNIEnv *env, const char *format, ...);
+jthrowable new_qjs_exception(JNIEnv *env, const char *format, ...);
 
-void jni_throw_exception(JNIEnv *env, const char *format, ...);
+void jni_throw_qjs_exception(JNIEnv *env, const char *format, ...);
 
 jthrowable try_catch_java_exceptions(JNIEnv *env);
 
