@@ -80,10 +80,6 @@ const JNI_REFS = [
     ],
   },
   {
-    className: "java/lang/Error",
-    methods: [{ name: "<init>", sign: "(Ljava/lang/String;)V" }],
-  },
-  {
     className: "java/util/Set",
     methods: [
       { name: "iterator", sign: "()Ljava/util/Iterator;" },
@@ -143,6 +139,7 @@ const JNI_REFS = [
   },
   {
     className: "com/dokar/quickjs/QuickJsException",
+    methods: [{ name: "<init>", sign: "(Ljava/lang/String;)V" }],
   },
   {
     className: "com/dokar/quickjs/QuickJs",

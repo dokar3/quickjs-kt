@@ -40,13 +40,11 @@ internal fun <T : Any?> jsAutoCastOrThrow(value: Any?, expectedType: KClass<*>):
         }
 
         Double::class -> {
-           if (value is Long) {
+            if (value is Long) {
                 // Long -> double
                 return value.toDouble() as T
             }
         }
     }
-    throw IllegalStateException(
-        "Type mismatch: expected ${expectedType}, found ${paramType.simpleName}"
-    )
+    qjsError("Type mismatch: expected ${expectedType}, found ${paramType.simpleName}")
 }

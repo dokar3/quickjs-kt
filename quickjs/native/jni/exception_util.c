@@ -5,7 +5,7 @@
 #include "log_util.h"
 #include "js_value_util.h"
 
-jthrowable new_java_error(JNIEnv *env, const char *format, ...) {
+jthrowable new_qjs_exception(JNIEnv *env, const char *format, ...) {
     va_list args;
     va_start(args, format);
     int length = vsnprintf(NULL, 0, format, args);
@@ -18,10 +18,11 @@ jthrowable new_java_error(JNIEnv *env, const char *format, ...) {
     va_end(args);
 
     jstring message = (*env)->NewStringUTF(env, result);
-    return (*env)->NewObject(env, cls_error(env), method_error_init(env), message);
+    return (*env)->NewObject(env, cls_quick_js_exception(env),
+                             method_quick_js_exception_init(env), message);
 }
 
-void jni_throw_exception(JNIEnv *env, const char *format, ...) {
+void jni_throw_qjs_exception(JNIEnv *env, const char *format, ...) {
     va_list args;
     va_start(args, format);
     int length = vsnprintf(NULL, 0, format, args);
@@ -55,7 +56,7 @@ int check_js_context_exception(JNIEnv *env, JSContext *context) {
         // Free values
         JS_FreeValue(context, exception);
         // Throw java exception
-        jni_throw_exception(env, message);
+        jni_throw_qjs_exception(env, message);
         return 1;
     } else {
         return 0;

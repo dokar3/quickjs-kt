@@ -412,7 +412,7 @@ actual class QuickJs private constructor(
     private fun setUnhandledPromiseRejection(reason: Any?) {
         ensureNotClosed()
         if (evalException == null) {
-            evalException = reason as? Throwable ?: Error(reason.toString())
+            evalException = reason as? Throwable ?: QuickJsException(reason.toString())
         }
         jobsMutex.withLockSync { asyncJobs.forEach { it.cancel() } }
     }

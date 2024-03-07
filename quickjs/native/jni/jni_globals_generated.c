@@ -13,7 +13,6 @@ static jclass _cls_object = NULL;
 static jclass _cls_system = NULL;
 static jclass _cls_class = NULL;
 static jclass _cls_throwable = NULL;
-static jclass _cls_error = NULL;
 static jclass _cls_set = NULL;
 static jclass _cls_iterator = NULL;
 static jclass _cls_list = NULL;
@@ -46,7 +45,6 @@ static jmethodID _method_class_get_name = NULL;
 static jmethodID _method_class_is_array = NULL;
 static jmethodID _method_throwable_get_message = NULL;
 static jmethodID _method_throwable_get_stack_trace = NULL;
-static jmethodID _method_error_init = NULL;
 static jmethodID _method_set_iterator = NULL;
 static jmethodID _method_set_add = NULL;
 static jmethodID _method_set_contains = NULL;
@@ -63,6 +61,7 @@ static jmethodID _method_linked_hash_map_init = NULL;
 static jmethodID _method_linked_hash_map_put = NULL;
 static jmethodID _method_linked_hash_set_init = NULL;
 static jmethodID _method_linked_hash_set_add = NULL;
+static jmethodID _method_quick_js_exception_init = NULL;
 static jmethodID _method_quick_js_on_call_getter = NULL;
 static jmethodID _method_quick_js_on_call_setter = NULL;
 static jmethodID _method_quick_js_on_call_function = NULL;
@@ -166,14 +165,6 @@ jclass cls_throwable(JNIEnv *env) {
         _cls_throwable = (*env)->NewGlobalRef(env, cls);
     }
     return _cls_throwable;
-}
-
-jclass cls_error(JNIEnv *env) {
-    if (_cls_error == NULL) {
-        jclass cls = (*env)->FindClass(env, "java/lang/Error");
-        _cls_error = (*env)->NewGlobalRef(env, cls);
-    }
-    return _cls_error;
 }
 
 jclass cls_set(JNIEnv *env) {
@@ -400,13 +391,6 @@ jmethodID method_throwable_get_stack_trace(JNIEnv *env) {
     return _method_throwable_get_stack_trace;
 }
 
-jmethodID method_error_init(JNIEnv *env) {
-    if (_method_error_init == NULL) {
-        _method_error_init = (*env)->GetMethodID(env, cls_error(env), "<init>", "(Ljava/lang/String;)V");
-    }
-    return _method_error_init;
-}
-
 jmethodID method_set_iterator(JNIEnv *env) {
     if (_method_set_iterator == NULL) {
         _method_set_iterator = (*env)->GetMethodID(env, cls_set(env), "iterator", "()Ljava/util/Iterator;");
@@ -517,6 +501,13 @@ jmethodID method_linked_hash_set_add(JNIEnv *env) {
         _method_linked_hash_set_add = (*env)->GetMethodID(env, cls_linked_hash_set(env), "add", "(Ljava/lang/Object;)Z");
     }
     return _method_linked_hash_set_add;
+}
+
+jmethodID method_quick_js_exception_init(JNIEnv *env) {
+    if (_method_quick_js_exception_init == NULL) {
+        _method_quick_js_exception_init = (*env)->GetMethodID(env, cls_quick_js_exception(env), "<init>", "(Ljava/lang/String;)V");
+    }
+    return _method_quick_js_exception_init;
 }
 
 jmethodID method_quick_js_on_call_getter(JNIEnv *env) {
@@ -651,9 +642,6 @@ void clear_jni_refs_cache(JNIEnv *env) {
     if (_cls_throwable != NULL) {
         (*env)->DeleteGlobalRef(env, _cls_throwable);
     }
-    if (_cls_error != NULL) {
-        (*env)->DeleteGlobalRef(env, _cls_error);
-    }
     if (_cls_set != NULL) {
         (*env)->DeleteGlobalRef(env, _cls_set);
     }
@@ -708,7 +696,6 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _cls_system = NULL;
     _cls_class = NULL;
     _cls_throwable = NULL;
-    _cls_error = NULL;
     _cls_set = NULL;
     _cls_iterator = NULL;
     _cls_list = NULL;
@@ -740,7 +727,6 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _method_class_is_array = NULL;
     _method_throwable_get_message = NULL;
     _method_throwable_get_stack_trace = NULL;
-    _method_error_init = NULL;
     _method_set_iterator = NULL;
     _method_set_add = NULL;
     _method_set_contains = NULL;
@@ -757,6 +743,7 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _method_linked_hash_map_put = NULL;
     _method_linked_hash_set_init = NULL;
     _method_linked_hash_set_add = NULL;
+    _method_quick_js_exception_init = NULL;
     _method_quick_js_on_call_getter = NULL;
     _method_quick_js_on_call_setter = NULL;
     _method_quick_js_on_call_function = NULL;

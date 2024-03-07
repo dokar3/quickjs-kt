@@ -1,5 +1,6 @@
 package com.dokar.quickjs.test
 
+import com.dokar.quickjs.QuickJsException
 import com.dokar.quickjs.binding.define
 import com.dokar.quickjs.binding.function
 import com.dokar.quickjs.quickJs
@@ -16,6 +17,33 @@ class EvalErrorsTest {
             quickJs {
                 evaluate<Any?>("fn test() {}")
             }
+        }.also {
+            assertEquals(QuickJsException::class, it::class)
+            assertContains(it.message!!, "SyntaxError")
+        }
+    }
+
+    @Test
+    fun evalWithTypeError() = runTest {
+        assertFails {
+            quickJs {
+                evaluate<Any?>("const x = 0; x();")
+            }
+        }.also {
+            assertEquals(QuickJsException::class, it::class)
+            assertContains(it.message!!, "TypeError")
+        }
+    }
+
+    @Test
+    fun evalWithReferenceError() = runTest {
+        assertFails {
+            quickJs {
+                evaluate<Any?>("x + y")
+            }
+        }.also {
+            assertEquals(QuickJsException::class, it::class)
+            assertContains(it.message!!, "ReferenceError")
         }
     }
 
@@ -26,6 +54,7 @@ class EvalErrorsTest {
                 evaluate<Any?>("throw 'Bad'")
             }
         }.also {
+            assertEquals(QuickJsException::class, it::class)
             assertEquals("Bad", it.message)
         }
         assertFails {
@@ -33,6 +62,7 @@ class EvalErrorsTest {
                 evaluate<Any?>("throw 1")
             }
         }.also {
+            assertEquals(QuickJsException::class, it::class)
             assertEquals("1", it.message)
         }
     }
@@ -44,6 +74,7 @@ class EvalErrorsTest {
                 evaluate<Any?>("throw new Error('Something wrong')")
             }
         }.also {
+            assertEquals(QuickJsException::class, it::class)
             assertContains(it.message!!, "Something wrong")
         }
     }
@@ -58,13 +89,14 @@ class EvalErrorsTest {
 
     @Test
     fun evalWithFunctionCallErrors() = runTest {
-        val exception = assertFails {
+        assertFails {
             quickJs {
                 function("call") { error("Something wrong") }
                 evaluate<Any?>("call()")
             }
+        }.also {
+            assertContains(it.message!!, "Something wrong")
         }
-        assertContains(exception.message!!, "Something wrong")
     }
 
     @Test

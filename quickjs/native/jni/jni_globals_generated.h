@@ -26,8 +26,6 @@ jclass cls_class(JNIEnv *env);
 
 jclass cls_throwable(JNIEnv *env);
 
-jclass cls_error(JNIEnv *env);
-
 jclass cls_set(JNIEnv *env);
 
 jclass cls_iterator(JNIEnv *env);
@@ -88,8 +86,6 @@ jmethodID method_throwable_get_message(JNIEnv *env);
 
 jmethodID method_throwable_get_stack_trace(JNIEnv *env);
 
-jmethodID method_error_init(JNIEnv *env);
-
 jmethodID method_set_iterator(JNIEnv *env);
 
 jmethodID method_set_add(JNIEnv *env);
@@ -121,6 +117,8 @@ jmethodID method_linked_hash_map_put(JNIEnv *env);
 jmethodID method_linked_hash_set_init(JNIEnv *env);
 
 jmethodID method_linked_hash_set_add(JNIEnv *env);
+
+jmethodID method_quick_js_exception_init(JNIEnv *env);
 
 jmethodID method_quick_js_on_call_getter(JNIEnv *env);
 

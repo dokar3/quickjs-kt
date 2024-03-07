@@ -15,7 +15,7 @@
 
 JSRuntime *runtime_from_ptr(JNIEnv *env, jlong ptr) {
     if (ptr == 0) {
-        jni_throw_exception(env, "JS runtime is destroyed.");
+        jni_throw_qjs_exception(env, "JS runtime is destroyed.");
         return NULL;
     }
     return (JSRuntime *) ptr;
@@ -23,7 +23,7 @@ JSRuntime *runtime_from_ptr(JNIEnv *env, jlong ptr) {
 
 JSContext *context_from_ptr(JNIEnv *env, jlong ptr) {
     if (ptr == 0) {
-        jni_throw_exception(env, "JS context is destroyed.");
+        jni_throw_qjs_exception(env, "JS context is destroyed.");
         return NULL;
     }
     return (JSContext *) ptr;
@@ -31,7 +31,7 @@ JSContext *context_from_ptr(JNIEnv *env, jlong ptr) {
 
 Globals *globals_from_ptr(JNIEnv *env, jlong ptr) {
     if (ptr == 0) {
-        jni_throw_exception(env, "Globals is destroyed.");
+        jni_throw_qjs_exception(env, "Globals is destroyed.");
         return NULL;
     }
     return (Globals *) ptr;
@@ -106,7 +106,7 @@ Java_com_dokar_quickjs_QuickJs_releaseGlobals(JNIEnv *env, jobject this, jlong c
     }
     JSContext *context = context_from_ptr(env, context_ptr);
     if (context == NULL) {
-        jni_throw_exception(env, "Context is already destroyed.");
+        jni_throw_qjs_exception(env, "Context is already destroyed.");
         return;
     }
 
@@ -210,7 +210,7 @@ Java_com_dokar_quickjs_QuickJs_defineObject(JNIEnv *env, jobject this,
     int64_t parent_index = parent;
     uint32_t defined_size = cvector_size(globals->defined_js_objects);
     if (parent_index >= defined_size) {
-        jni_throw_exception(env, "Parent handle out of the bounds.");
+        jni_throw_qjs_exception(env, "Parent handle out of the bounds.");
         return -1;
     }
     JSValue *parent_val = parent_index < 0 ? NULL : &globals->defined_js_objects[parent_index];
@@ -370,7 +370,7 @@ jobject handle_eval_result(JNIEnv *env,
     if (async && !is_compiled_value) {
         // Ensure the result is a promise
         if (!js_is_promise(context, value)) {
-            jni_throw_exception(env, "Require the async eval flag.");
+            jni_throw_qjs_exception(env, "Require the async eval flag.");
             JS_FreeValue(context, value);
             return NULL;
         }
@@ -401,13 +401,13 @@ jobject eval(JNIEnv *env, jlong context_ptr,
              int eval_flags) {
     const char *filename = (*env)->GetStringUTFChars(env, jfilename, NULL);
     if (filename == NULL) {
-        jni_throw_exception(env, "Cannot read filename.");
+        jni_throw_qjs_exception(env, "Cannot read filename.");
         return NULL;
     }
 
     const char *code = (*env)->GetStringUTFChars(env, jcode, NULL);
     if (code == NULL) {
-        jni_throw_exception(env, "Cannot read code.");
+        jni_throw_qjs_exception(env, "Cannot read code.");
         return NULL;
     }
 
@@ -506,7 +506,7 @@ Java_com_dokar_quickjs_QuickJs_evaluateBytecode(JNIEnv *env, jobject this, jlong
     JSValue bytecode = JS_ReadObject(context, (uint8_t *) buffer, buf_len, JS_READ_OBJ_BYTECODE);
     if (JS_IsException(bytecode)) {
         (*env)->ReleaseByteArrayElements(env, jbuffer, buffer, 0);
-        jni_throw_exception(env, "Cannot read buffer as bytecode.");
+        jni_throw_qjs_exception(env, "Cannot read buffer as bytecode.");
 
         pthread_mutex_unlock(&globals->js_mutex);
 
@@ -542,7 +542,7 @@ Java_com_dokar_quickjs_QuickJs_invokeJsFunction(JNIEnv *env,
     }
 
     if (handle < 0) {
-        jni_throw_exception(env, "Invalid handle: %ld", handle);
+        jni_throw_qjs_exception(env, "Invalid handle: %ld", handle);
         return;
     }
 
@@ -552,20 +552,20 @@ Java_com_dokar_quickjs_QuickJs_invokeJsFunction(JNIEnv *env,
     }
 
     if (globals->created_js_functions == NULL) {
-        jni_throw_exception(env, "Function not found.");
+        jni_throw_qjs_exception(env, "Function not found.");
         return;
     }
 
     size_t size = cvector_size(globals->created_js_functions);
     uint64_t index = (uint64_t) handle;
     if (index >= size) {
-        jni_throw_exception(env, "Invalid handle: %ld", handle);
+        jni_throw_qjs_exception(env, "Invalid handle: %ld", handle);
         return;
     }
 
     JSValue func = globals->created_js_functions[index];
     if (!JS_IsFunction(context, func)) {
-        jni_throw_exception(env, "Can't get a valid function.");
+        jni_throw_qjs_exception(env, "Can't get a valid function.");
         return;
     }
 
@@ -641,7 +641,7 @@ Java_com_dokar_quickjs_QuickJs_executePendingJob(JNIEnv *env,
         return JNI_FALSE;
     }
     if (ret < 0) {
-        jni_throw_exception(env, "Failed to execute pending jobs.");
+        jni_throw_qjs_exception(env, "Failed to execute pending jobs.");
 
         pthread_mutex_unlock(&globals->js_mutex);
 
@@ -670,7 +670,7 @@ Java_com_dokar_quickjs_QuickJs_getEvaluateResult(JNIEnv *env,
         return NULL;
     }
     if (globals->evaluate_result_promise == NULL) {
-        jni_throw_exception(env, "Result promise not found. Have you evaluated a script?");
+        jni_throw_qjs_exception(env, "Result promise not found. Have you evaluated a script?");
         return NULL;
     }
 
@@ -684,7 +684,7 @@ Java_com_dokar_quickjs_QuickJs_getEvaluateResult(JNIEnv *env,
     if (!js_is_promise(context, result_promise)) {
         JS_FreeValue(context, result_promise);
         globals->evaluate_result_promise = NULL;
-        jni_throw_exception(env, "Invalid result promise object.");
+        jni_throw_qjs_exception(env, "Invalid result promise object.");
 
         pthread_mutex_unlock(&globals->js_mutex);
 
@@ -712,7 +712,7 @@ Java_com_dokar_quickjs_QuickJs_getEvaluateResult(JNIEnv *env,
                 error = (jthrowable) result;
             } else {
                 const char *str = JS_ToCString(context, js_result);
-                error = new_java_error(env, str);
+                error = new_qjs_exception(env, str);
                 JS_FreeCString(context, str);
             }
             // Set exception
