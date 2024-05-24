@@ -55,7 +55,7 @@ import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.ExperimentalResourceApi
-import quickjs_kt.samples.`js-eval`.generated.resources.Res
+import quickjs_kt.samples.js_eval.generated.resources.Res
 
 @Composable
 fun EvalScreen(modifier: Modifier = Modifier) {
