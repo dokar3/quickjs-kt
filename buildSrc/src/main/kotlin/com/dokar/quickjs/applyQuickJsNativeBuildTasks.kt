@@ -180,6 +180,14 @@ private fun Project.findBuildPlatformsFromStartTaskNames(): List<Platform> {
                 )
             }
 
+            Platform.macos_aarch64 -> {
+                return listOf(
+                    Platform.macos_aarch64,
+                    Platform.ios_aarch64,
+                    Platform.ios_simulator_aarch64,
+                )
+            }
+
             Platform.windows_x64 -> {
                 return listOf(Platform.windows_x64)
             }
