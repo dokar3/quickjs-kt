@@ -73,6 +73,10 @@ expect class QuickJs {
      */
     val memoryUsage: MemoryUsage
 
+    /**
+     * Add type converters to extend the type mapping on function parameters,
+     * function returns, and [evaluate] results.
+     */
     fun addTypeConverters(vararg converters: TypeConverter<*, *>)
 
     /**
