@@ -4,12 +4,15 @@ import kotlin.reflect.KClass
 
 @Suppress("unchecked_cast")
 @PublishedApi
-internal fun <T : Any?> jsAutoCastOrThrow(value: Any?, expectedType: KClass<*>): T {
+internal fun <T : Any?> typeConvertOr(
+    value: Any?,
+    expectedType: KClass<*>,
+    fallback: (value: Any) -> T
+): T {
     val nonNull = value ?: return null as T
     if (expectedType.isInstance(nonNull)) {
         return nonNull as T
     }
-    val paramType = nonNull::class
     when (expectedType) {
         Int::class -> {
             when (value) {
@@ -46,5 +49,5 @@ internal fun <T : Any?> jsAutoCastOrThrow(value: Any?, expectedType: KClass<*>):
             }
         }
     }
-    qjsError("Type mismatch: expected ${expectedType}, found ${paramType.simpleName}")
+    return fallback(value)
 }

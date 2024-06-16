@@ -68,6 +68,7 @@ static jmethodID _method_quick_js_on_call_function = NULL;
 static jmethodID _method_quick_js_set_eval_exception = NULL;
 static jmethodID _method_quick_js_set_unhandled_promise_rejection = NULL;
 static jmethodID _method_memory_usage_init = NULL;
+static jmethodID _method_js_object_init = NULL;
 
 // Cached fields
 static jfieldID _field_ubyte_array_storage = NULL;
@@ -552,6 +553,13 @@ jmethodID method_memory_usage_init(JNIEnv *env) {
     return _method_memory_usage_init;
 }
 
+jmethodID method_js_object_init(JNIEnv *env) {
+    if (_method_js_object_init == NULL) {
+        _method_js_object_init = (*env)->GetMethodID(env, cls_js_object(env), "<init>", "(Ljava/util/Map;)V");
+    }
+    return _method_js_object_init;
+}
+
 jfieldID field_ubyte_array_storage(JNIEnv *env) {
     if (_field_ubyte_array_storage == NULL) {
         _field_ubyte_array_storage = (*env)->GetFieldID(env, cls_ubyte_array(env), "storage", "[B");
@@ -750,6 +758,7 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _method_quick_js_set_eval_exception = NULL;
     _method_quick_js_set_unhandled_promise_rejection = NULL;
     _method_memory_usage_init = NULL;
+    _method_js_object_init = NULL;
 
     _field_ubyte_array_storage = NULL;
     _field_double_na_n = NULL;

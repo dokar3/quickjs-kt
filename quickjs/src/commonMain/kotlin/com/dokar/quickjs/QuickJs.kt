@@ -4,6 +4,8 @@ import com.dokar.quickjs.binding.AsyncFunctionBinding
 import com.dokar.quickjs.binding.FunctionBinding
 import com.dokar.quickjs.binding.JsObjectHandle
 import com.dokar.quickjs.binding.ObjectBinding
+import com.dokar.quickjs.converter.TypeConverter
+import com.dokar.quickjs.converter.TypeConverters
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.coroutineContext
@@ -42,6 +44,9 @@ inline fun <T : Any?> quickJs(jobDispatcher: CoroutineDispatcher, block: QuickJs
  * The QuickJS runtime.
  */
 expect class QuickJs {
+    @PublishedApi
+    internal val typeConverters: TypeConverters
+
     /**
      * Whether the instance has closed.
      */
@@ -67,6 +72,8 @@ expect class QuickJs {
      * The memory usage of the js runtime.
      */
     val memoryUsage: MemoryUsage
+
+    fun addTypeConverters(vararg converters: TypeConverter<*, *>)
 
     /**
      * Define a JavaScript object from kotlin object.

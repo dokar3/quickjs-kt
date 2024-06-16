@@ -7,6 +7,8 @@ import com.dokar.quickjs.binding.JsFunction
 import com.dokar.quickjs.binding.JsObjectHandle
 import com.dokar.quickjs.binding.JsProperty
 import com.dokar.quickjs.binding.ObjectBinding
+import com.dokar.quickjs.converter.TypeConverter
+import com.dokar.quickjs.converter.TypeConverters
 import com.dokar.quickjs.util.withLockSync
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -32,7 +34,10 @@ suspend fun <T> QuickJs.evaluate(
     bytecode: ByteArray,
     type: Class<T>
 ): T {
-    return jsAutoCastOrThrow(evaluateInternal(bytecode), type)
+    return typeConvertOr(evaluateInternal(bytecode), type) {
+        val kClass = (type as Class<*>).kotlin
+        typeConverters.convert(source = it, sourceType = it::class, targetType = kClass)
+    }
 }
 
 /**
@@ -50,7 +55,10 @@ suspend fun <T> QuickJs.evaluate(
     filename: String = "main.js",
     asModule: Boolean = false
 ): T {
-    return jsAutoCastOrThrow(evaluateInternal(code, filename, asModule), type)
+    return typeConvertOr(evaluateInternal(code, filename, asModule), type) {
+        val kClass = (type as Class<*>).kotlin
+        typeConverters.convert(source = it, sourceType = it::class, targetType = kClass)
+    }
 }
 
 actual class QuickJs private constructor(
@@ -83,6 +91,9 @@ actual class QuickJs private constructor(
 
     private val jobsMutex = Mutex()
     private val asyncJobs = mutableListOf<Job>()
+
+    @PublishedApi
+    internal actual val typeConverters = TypeConverters()
 
     actual var isClosed: Boolean = false
         private set
@@ -118,6 +129,10 @@ actual class QuickJs private constructor(
             close()
             throw e
         }
+    }
+
+    actual fun addTypeConverters(vararg converters: TypeConverter<*, *>) {
+        typeConverters.addConverters(*converters)
     }
 
     actual fun defineBinding(
@@ -185,7 +200,9 @@ actual class QuickJs private constructor(
 
     @Throws(QuickJsException::class, CancellationException::class)
     actual suspend inline fun <reified T> evaluate(bytecode: ByteArray): T {
-        return jsAutoCastOrThrow(evaluateInternal(bytecode), T::class.java)
+        return typeConvertOr(evaluateInternal(bytecode), T::class.java) {
+            typeConverters.convert(source = it, sourceType = it::class, targetType = T::class)
+        }
     }
 
     @Throws(QuickJsException::class, CancellationException::class)
@@ -194,7 +211,9 @@ actual class QuickJs private constructor(
         filename: String,
         asModule: Boolean
     ): T {
-        return jsAutoCastOrThrow(evaluateInternal(code, filename, asModule), T::class.java)
+        return typeConvertOr(evaluateInternal(code, filename, asModule), T::class.java) {
+            typeConverters.convert(source = it, sourceType = it::class, targetType = T::class)
+        }
     }
 
     @PublishedApi

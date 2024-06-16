@@ -9,7 +9,7 @@ fun QuickJs.define(
     name: String,
     block: ObjectBindingScope.() -> Unit,
 ) {
-    val scope = ObjectBindingScopeImpl(name = name)
+    val scope = ObjectBindingScopeImpl(typeConverters = typeConverters, name = name)
     scope.block()
     define(scope, parent = JsObjectHandle.globalThis)
 }

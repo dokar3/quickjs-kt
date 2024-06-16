@@ -16,6 +16,8 @@ import com.dokar.quickjs.bridge.invokeJsFunction
 import com.dokar.quickjs.bridge.ktMemoryUsage
 import com.dokar.quickjs.bridge.objectHandleToStableRef
 import com.dokar.quickjs.bridge.setPromiseRejectionHandler
+import com.dokar.quickjs.converter.TypeConverter
+import com.dokar.quickjs.converter.TypeConverters
 import com.dokar.quickjs.util.withLockSync
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CValue
@@ -82,6 +84,9 @@ actual class QuickJs private constructor(
      */
     private val jsMutex = Mutex()
 
+    @PublishedApi
+    internal actual val typeConverters = TypeConverters()
+
     actual var isClosed: Boolean = false
         private set
 
@@ -116,6 +121,10 @@ actual class QuickJs private constructor(
 
     init {
         setPromiseRejectionHandler(ref, runtime)
+    }
+
+    actual fun addTypeConverters(vararg converters: TypeConverter<*, *>) {
+        typeConverters.addConverters(*converters)
     }
 
     actual fun defineBinding(
@@ -189,7 +198,9 @@ actual class QuickJs private constructor(
 
     @Throws(QuickJsException::class, CancellationException::class)
     actual suspend inline fun <reified T> evaluate(bytecode: ByteArray): T {
-        return jsAutoCastOrThrow(evalInternal(bytecode = bytecode), T::class)
+        return typeConvertOr(evalInternal(bytecode = bytecode), T::class) {
+            typeConverters.convert(source = it, sourceType = it::class, targetType = T::class)
+        }
     }
 
     @Throws(QuickJsException::class, CancellationException::class)
@@ -198,10 +209,12 @@ actual class QuickJs private constructor(
         filename: String,
         asModule: Boolean
     ): T {
-        return jsAutoCastOrThrow(
+        return typeConvertOr(
             evalInternal(code = code, filename = filename, asModule = asModule),
             T::class
-        )
+        ) {
+            typeConverters.convert(source = it, sourceType = it::class, targetType = T::class)
+        }
     }
 
     @PublishedApi

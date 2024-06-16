@@ -2,8 +2,8 @@ package com.dokar.quickjs.binding
 
 import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.QuickJsException
-import com.dokar.quickjs.jsAutoCastOrThrow
 import com.dokar.quickjs.qjsError
+import com.dokar.quickjs.typeConvertOr
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.lang.reflect.Field
 import java.lang.reflect.InvocationTargetException
@@ -90,7 +90,14 @@ fun <T> QuickJs.define(
             val parameterTypes = method.parameterTypes
             val parameters = args
                 .mapIndexed { index, param ->
-                    jsAutoCastOrThrow<Any?>(param, parameterTypes[index])
+                    val targetType = parameterTypes[index]
+                    typeConvertOr<Any?>(param, targetType) {
+                        typeConverters.convert(
+                            source = it,
+                            sourceType = it::class,
+                            targetType = targetType.kotlin
+                        )
+                    }
                 }
                 .toTypedArray()
             try {
@@ -118,7 +125,14 @@ fun <T> QuickJs.define(
             val parameterTypes = method.parameterTypes.slice(0..end)
             val parameters = funcArgs
                 .mapIndexed { index, param ->
-                    jsAutoCastOrThrow<Any?>(param, parameterTypes[index])
+                    val targetType = parameterTypes[index]
+                    typeConvertOr<Any?>(param, targetType) {
+                        typeConverters.convert(
+                            source = it,
+                            sourceType = it::class,
+                            targetType = targetType.kotlin
+                        )
+                    }
                 }
                 .toTypedArray()
             try {

@@ -1,5 +1,8 @@
 package com.dokar.quickjs.test
 
+import com.dokar.quickjs.QuickJsException
+import com.dokar.quickjs.binding.asyncFunction
+import com.dokar.quickjs.binding.define
 import com.dokar.quickjs.binding.function
 import com.dokar.quickjs.binding.toJsObject
 import com.dokar.quickjs.quickJs
@@ -9,6 +12,7 @@ import kotlin.test.assertContains
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class TypeMappingTest {
@@ -331,7 +335,7 @@ class TypeMappingTest {
             }
 
             function("circularRefMap") {
-                val map = mutableMapOf<String,Any?>()
+                val map = mutableMapOf<String, Any?>()
                 map["next"] = arrayOf(map)
                 map
             }
@@ -344,6 +348,43 @@ class TypeMappingTest {
                 .also { assertContains(it.message!!, "circular reference") }
             assertFails { evaluate("circularRefMap()") }
                 .also { assertContains(it.message!!, "circular reference") }
+        }
+    }
+
+    @Test
+    fun typedParameters() = runTest {
+        quickJs {
+            function<String, String>("greet") { "Hello, $it!" }
+
+            function<String?, String>("nullableGreet") { "Hello, $it!" }
+
+            asyncFunction<String, String>("greetAsync") { "Hello, $it!" }
+
+            define("http") {
+                function<String, String>("fetchSync") { "OK" }
+
+                asyncFunction<String, String>("fetch") { "OK" }
+            }
+
+            assertFailsWith<QuickJsException> { evaluate<String>("greet()") }.also {
+                val message = "Function 'greet' requires 1 parameter but none was passed."
+                assertTrue(it.message!!.startsWith(message))
+            }
+            assertFailsWith<QuickJsException> { evaluate<String>("greet(1, 2)") }.also {
+                val message = "Function 'greet' requires 1 parameter but 2 were passed."
+                assertTrue(it.message!!.startsWith(message))
+            }
+            assertFailsWith<QuickJsException> { evaluate<String>("greet(null)") }.also {
+                val message =
+                    "Function 'greet' requires 1 non-null parameter but null was passed."
+                assertTrue(it.message!!.startsWith(message))
+            }
+            assertEquals("Hello, null!", evaluate<String>("""nullableGreet(null)"""))
+            assertEquals("Hello, Jack!", evaluate<String>("""greet("Jack")"""))
+            assertEquals("Hello, Jack!", evaluate<String>("""await greetAsync("Jack")"""))
+
+            assertEquals("OK", evaluate<String>("""http.fetchSync("something")"""))
+            assertEquals("OK", evaluate<String>("""await http.fetch("something")"""))
         }
     }
 }

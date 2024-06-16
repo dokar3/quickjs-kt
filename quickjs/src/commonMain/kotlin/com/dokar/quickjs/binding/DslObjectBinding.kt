@@ -1,6 +1,7 @@
 package com.dokar.quickjs.binding
 
 import com.dokar.quickjs.QuickJs
+import com.dokar.quickjs.converter.TypeConverters
 import com.dokar.quickjs.qjsError
 
 internal class DslObjectBinding(
@@ -55,7 +56,9 @@ private fun List<DslFunction>.toJsFunctions(): List<JsFunction> = map {
     )
 }
 
+@PublishedApi
 internal class ObjectBindingScopeImpl(
+    val typeConverters: TypeConverters,
     val name: String,
 ) : ObjectBindingScope {
     val properties = mutableListOf<DslProperty<*>>()
@@ -65,7 +68,12 @@ internal class ObjectBindingScopeImpl(
     val subScopes = mutableListOf<ObjectBindingScopeImpl>()
 
     override fun define(name: String, block: ObjectBindingScope.() -> Unit) {
-        subScopes.add(ObjectBindingScopeImpl(name = name).also(block))
+        subScopes.add(
+            ObjectBindingScopeImpl(
+                typeConverters = typeConverters,
+                name = name,
+            ).also(block)
+        )
     }
 
     override fun <T> property(name: String, block: PropertyScope<T>.() -> Unit) {

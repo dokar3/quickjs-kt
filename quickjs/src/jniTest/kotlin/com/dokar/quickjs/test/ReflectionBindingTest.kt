@@ -1,11 +1,14 @@
 package com.dokar.quickjs.test
 
+import com.dokar.quickjs.binding.JsObject
 import com.dokar.quickjs.binding.canBeCalledAsSuspend
 import com.dokar.quickjs.binding.define
+import com.dokar.quickjs.converter.JsObjectConverter
 import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import kotlin.coroutines.Continuation
+import kotlin.reflect.KClass
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
@@ -14,7 +17,7 @@ import kotlin.test.assertTrue
 
 class ReflectionBindingTest {
     @Test
-    fun bindInstance() = runTest {
+    fun bindInstance(): Unit = runTest {
         quickJs {
             val instance = TestClass()
             define("instance", TestClass::class.java, instance)
@@ -27,7 +30,7 @@ class ReflectionBindingTest {
     }
 
     @Test
-    fun bindInstanceWithSuspendFunc() = runTest {
+    fun bindInstanceWithSuspendFunc(): Unit = runTest {
         quickJs {
             val instance = ClassWithSuspendFunc()
             define("instance", ClassWithSuspendFunc::class.java, instance)
@@ -38,7 +41,7 @@ class ReflectionBindingTest {
     }
 
     @Test
-    fun functionParameters() = runTest {
+    fun functionParameters(): Unit = runTest {
         quickJs {
             val instance = Functions()
             define<Functions>("functions", instance)
@@ -70,6 +73,30 @@ class ReflectionBindingTest {
         assertTrue(methods["compiledSuspend"]!!.canBeCalledAsSuspend())
         assertTrue(methods["compiledSuspendWithArgs"]!!.canBeCalledAsSuspend())
     }
+
+    @Test
+    fun convertCustomTypes() = runTest {
+        quickJs {
+            addTypeConverters(FetchParamsConverter)
+
+            define<HttpFetch>("http", HttpFetch())
+
+            val syncResult = evaluate<String>(
+                """
+                    http.fetchSync({ url: "https://example.com", method: "GET" })
+                """.trimIndent()
+            )
+            assertEquals("Fetched https://example.com", syncResult)
+
+            val result = evaluate<String>(
+                """
+                    await http.fetch({ url: "https://example.com", method: "GET" })
+                """.trimIndent()
+            )
+            assertEquals("Fetched https://example.com", result)
+        }
+    }
+
 
     @Suppress("unused")
     private class TestClass {
@@ -121,5 +148,25 @@ class ReflectionBindingTest {
         fun likelyButNotSuspend(continuation: Continuation<*>) {}
         fun compiledSuspend(continuation: Continuation<*>): Any? = null
         fun compiledSuspendWithArgs(name: String, continuation: Continuation<*>): Any? = null
+    }
+
+    private data class FetchParams(
+        val url: String,
+        val method: String,
+    )
+
+    @Suppress("unused")
+    private class HttpFetch {
+        fun fetchSync(params: FetchParams) = "Fetched ${params.url}"
+        suspend fun fetch(params: FetchParams): String = "Fetched ${params.url}"
+    }
+
+    private object FetchParamsConverter : JsObjectConverter<FetchParams> {
+        override val targetType: KClass<*> = FetchParams::class
+
+        override fun convertToTarget(value: JsObject): FetchParams = FetchParams(
+            url = value["url"] as String,
+            method = value["method"] as String,
+        )
     }
 }

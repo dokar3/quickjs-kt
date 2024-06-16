@@ -2,12 +2,15 @@ package com.dokar.quickjs
 
 @Suppress("unchecked_cast")
 @PublishedApi
-internal fun <T : Any?> jsAutoCastOrThrow(value: Any?, expectedType: Class<*>): T {
+internal fun <T : Any?> typeConvertOr(
+    value: Any?,
+    expectedType: Class<*>,
+    fallback: (value: Any) -> T
+): T {
     val nonNull = value ?: return null as T
     if (expectedType.isInstance(nonNull)) {
         return nonNull as T
     }
-    val paramType = nonNull::class.java
     when (expectedType) {
         Boolean::class.java -> {
             if (value is Boolean) {
@@ -74,5 +77,5 @@ internal fun <T : Any?> jsAutoCastOrThrow(value: Any?, expectedType: Class<*>): 
             }
         }
     }
-    qjsError("Type mismatch: expected ${expectedType}, found ${paramType.simpleName}")
+    return fallback(value)
 }

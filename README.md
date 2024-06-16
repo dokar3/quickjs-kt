@@ -78,19 +78,22 @@ With DSL:
 ```kotlin
 quickJs {
     define("console") {
-        function("log") { args -> 
-            println(args.joinToString(" ")) 
+        function("log") { args ->
+            println(args.joinToString(" "))
         }
     }
-    
-    function("fetch") { args -> 
-        someClient.request(args[0]) 
+
+    function("fetch") { args ->
+        someClient.request(args[0])
     }
-    
+
+    function<String, String>("greet") { "Hello, $it!" }
+
     evaluate<Any?>(
         """
         console.log("Hello from JavaScript!")
         fetch("https://www.example.com")
+        greet("Jack")
         """.trimIndent()
     )
 }
@@ -211,7 +214,7 @@ quickJs {
     // ...
     var result: Any? = null
     function("returns") { result = it.first() }
-    
+
     evaluate<Any?>(
         """
             import * as hello from "hello";
@@ -263,22 +266,23 @@ Use the DSL aliases then!
 
 # Type mappings
 
-Some built-in types are mapped automatically between C and Kotlin, this table shows how they are mapped.
+Some built-in types are mapped automatically between C and Kotlin, this table shows how they are
+mapped.
 
-| JavaScript type | Kotlin type         |
-|-----------------|---------------------|
-| null            | null                |
-| undefined       | null (1)            |
-| boolean         | Boolean             |
-| Number          | Long/Double (2)     |
-| String          | String              |
-| Array           | Array<Any?> (3)     |
-| Set             | Set<Any?>           |
-| Map             | Map<Any?, Any?>     |
-| Error           | Error               |
-| Object          | Map<Any?, Any?> (4) |
-| Int8Array       | ByteArray           |
-| UInt8Array      | UByteArray          |
+| JavaScript type | Kotlin type     |
+|-----------------|-----------------|
+| null            | null            |
+| undefined       | null (1)        |
+| boolean         | Boolean         |
+| Number          | Long/Double (2) |
+| string          | String          |
+| Array           | Array<Any?> (3) |
+| Set             | Set<Any?>       |
+| Map             | Map<Any?, Any?> |
+| Error           | Error           |
+| object          | JsObject        |
+| Int8Array       | ByteArray       |
+| UInt8Array      | UByteArray      |
 
 (1) A Kotlin `Unit` will be mapped to a JavaScript `undefined`, conversely, JavaScript `undefined` won't be mapped to Kotlin `Unit`. 
 
@@ -286,7 +290,72 @@ Some built-in types are mapped automatically between C and Kotlin, this table sh
 
 (3) A Kotlin `List` can be mapped to a JavaScript `Array` too.
 
-(4) To map a Kotlin `Map` to a JavaScript object, use the `Map.toJsObject()` extension function, this will create a delegate of the original map, and only `String` keys are supported.
+### Custom types
+
+`TypeConverter`s are used to support mapping non-built-in types. You can implement your own type
+converters:
+
+```kotlin
+data class FetchParams(val url: String, val method: String)
+
+// interface JsObjectConverter<T : Any?> : TypeConverter<JsObject, T>
+object FetchParamsConverter : JsObjectConverter<FetchParams> {
+    override val targetType: KClass<*> = FetchParams::class
+
+    override fun convertToTarget(value: JsObject): FetchParams = FetchParams(
+        url = value["url"] as String,
+        method = value["method"] as String,
+    )
+
+    override fun convertToSource(value: FetchParams): JsObject =
+        mapOf("url" to value.url, "method" to value.method).toJsObject()
+}
+
+quickJs {
+    addTypeConverters(FetchParamsConverter)
+
+    asyncFunction<FetchParams, String>("fetch") {
+        // Use the typed fetch params
+        val (url, method) = it
+    }
+}
+```
+
+You can also use the converter from `quickjs-kt-converter-ktxserialization`
+and `quickjs-kt-convereter-moshi` (JVM only).
+
+1. Add the dependency
+    ```kotlin
+    implementation("io.github.dokar3:quickjs-kt-converter-ktxserialization:<VERSION>")
+    // Or use the moshi converter
+    implementation("io.github.dokar3:quickjs-kt-converter-moshi:<VERSION>")
+    ```
+
+2. Add the type converters of your classes
+   ```kotlin
+   import com.dokar.quickjs.conveter.SerializableConverter
+   // For moshi
+   import com.dokar.quickjs.conveter.JsonClassConverter
+   
+   @kotlinx.serialization.Serializable
+   // For moshi
+   @com.squareup.moshi.JsonClass(generateAdapter = true)
+   data class FetchParams(val url: String, val method: String)
+   
+   quickJs {
+       addTypeConverters(SerializableConverter<FetchParams>())
+       // For moshi
+       addTypeConverters(JsonClassConverter<FetchParams>())
+   
+       asyncFunction<FetchParams, String>("fetch") {
+           // Use the typed fetch params
+           val (url, method) = it
+       }
+   }
+   ```
+
+> [!NOTE]
+> The typed functions only support 1 parameter, it will throw if no parameter is passed or multiple parameters are passed.
 
 # Error handling
 
