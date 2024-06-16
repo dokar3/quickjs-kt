@@ -272,7 +272,7 @@ class TypeMappingTest {
             }
 
             val globalThis = evaluate<Map<Any?, Any?>>("globalThis")
-            assertEquals("[object Object]", globalThis["globalThis"])
+            assertEquals("[object global]", globalThis["globalThis"])
         }
     }
 
