@@ -1,3 +1,5 @@
+import com.dokar.quickjs.disableUnsupportedPlatformTasks
+
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
@@ -54,3 +56,5 @@ android {
         consumerProguardFiles("consumer-rules.pro")
     }
 }
+
+disableUnsupportedPlatformTasks()

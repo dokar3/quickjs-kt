@@ -1,3 +1,5 @@
+import com.dokar.quickjs.disableUnsupportedPlatformTasks
+
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
@@ -48,3 +50,5 @@ android {
 dependencies {
     ksp(libs.moshi.kotlin.codegen)
 }
+
+disableUnsupportedPlatformTasks()
