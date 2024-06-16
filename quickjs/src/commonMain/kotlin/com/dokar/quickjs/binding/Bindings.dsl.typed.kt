@@ -77,7 +77,7 @@ inline fun <reified T : Any?, reified R : Any?> ObjectBindingScope.function(
  *
  * This function requires a typed parameter [T].
  */
-inline fun <reified T : Any, reified R : Any?> ObjectBindingScope.asyncFunction(
+inline fun <reified T : Any?, reified R : Any?> ObjectBindingScope.asyncFunction(
     name: String,
     crossinline block: suspend (T) -> R
 ) {
