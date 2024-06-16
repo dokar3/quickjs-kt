@@ -317,7 +317,12 @@ quickJs {
     asyncFunction<FetchParams, String>("fetch") {
         // Use the typed fetch params
         val (url, method) = it
+        TODO()
     }
+
+    val result = evaluate<String>(
+       """await fetch({ url: "https://example.com", method: "GET" })"""
+    )
 }
 ```
 
@@ -332,25 +337,30 @@ and `quickjs-kt-convereter-moshi` (JVM only).
     ```
 
 2. Add the type converters of your classes
-   ```kotlin
-   import com.dokar.quickjs.conveter.SerializableConverter
-   // For moshi
-   import com.dokar.quickjs.conveter.JsonClassConverter
+    ```kotlin
+    import com.dokar.quickjs.conveter.SerializableConverter
+    // For moshi
+    import com.dokar.quickjs.conveter.JsonClassConverter
+
+    @kotlinx.serialization.Serializable
+    // For moshi
+    @com.squareup.moshi.JsonClass(generateAdapter = true)
+    data class FetchParams(val url: String, val method: String)
+
+    quickJs {
+        addTypeConverters(SerializableConverter<FetchParams>())
+        // For moshi
+        addTypeConverters(JsonClassConverter<FetchParams>())
+
+        asyncFunction<FetchParams, String>("fetch") {
+            // Use the typed fetch params
+            val (url, method) = it
+            TODO()
+        }
    
-   @kotlinx.serialization.Serializable
-   // For moshi
-   @com.squareup.moshi.JsonClass(generateAdapter = true)
-   data class FetchParams(val url: String, val method: String)
-   
-   quickJs {
-       addTypeConverters(SerializableConverter<FetchParams>())
-       // For moshi
-       addTypeConverters(JsonClassConverter<FetchParams>())
-   
-       asyncFunction<FetchParams, String>("fetch") {
-           // Use the typed fetch params
-           val (url, method) = it
-       }
+        val result = evaluate<String>(
+            """await fetch({ url: "https://example.com", method: "GET" })"""
+        )
    }
    ```
 
