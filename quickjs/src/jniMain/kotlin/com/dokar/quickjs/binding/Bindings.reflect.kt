@@ -10,6 +10,8 @@ import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import kotlin.coroutines.Continuation
+import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
+import kotlin.coroutines.resume
 
 /**
  * Define a binding for an instance.
@@ -138,7 +140,10 @@ fun <T> QuickJs.define(
             try {
                 invokeAsyncFunction(args) {
                     suspendCancellableCoroutine { continuation ->
-                        method.invoke(instance, *parameters, continuation)
+                        val ret = method.invoke(instance, *parameters, continuation)
+                        if (ret != COROUTINE_SUSPENDED) {
+                            continuation.resume(ret)
+                        }
                     }
                 }
                 return null

@@ -37,6 +37,10 @@ class ReflectionBindingTest {
 
             assertEquals("Hello", evaluate("await instance.greet()"))
             assertEquals("No response", evaluate("await instance.fetch('whatever')"))
+            assertEquals(
+                "No response",
+                evaluate("await instance.fetchWithoutSuspendCalls('whatever')")
+            )
         }
     }
 
@@ -136,6 +140,10 @@ class ReflectionBindingTest {
 
         suspend fun fetch(url: String): String {
             delay(100)
+            return "No response"
+        }
+
+        suspend fun fetchWithoutSuspendCalls(url: String): String {
             return "No response"
         }
     }
