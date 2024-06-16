@@ -2,14 +2,16 @@ package com.dokar.quickjs.binding
 
 import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.QuickJsException
-import com.dokar.quickjs.jsAutoCastOrThrow
 import com.dokar.quickjs.qjsError
+import com.dokar.quickjs.typeConvertOr
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.lang.reflect.Field
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import kotlin.coroutines.Continuation
+import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
+import kotlin.coroutines.resume
 
 /**
  * Define a binding for an instance.
@@ -90,7 +92,14 @@ fun <T> QuickJs.define(
             val parameterTypes = method.parameterTypes
             val parameters = args
                 .mapIndexed { index, param ->
-                    jsAutoCastOrThrow<Any?>(param, parameterTypes[index])
+                    val targetType = parameterTypes[index]
+                    typeConvertOr<Any?>(param, targetType) {
+                        typeConverters.convert(
+                            source = it,
+                            sourceType = it::class,
+                            targetType = targetType.kotlin
+                        )
+                    }
                 }
                 .toTypedArray()
             try {
@@ -118,13 +127,23 @@ fun <T> QuickJs.define(
             val parameterTypes = method.parameterTypes.slice(0..end)
             val parameters = funcArgs
                 .mapIndexed { index, param ->
-                    jsAutoCastOrThrow<Any?>(param, parameterTypes[index])
+                    val targetType = parameterTypes[index]
+                    typeConvertOr<Any?>(param, targetType) {
+                        typeConverters.convert(
+                            source = it,
+                            sourceType = it::class,
+                            targetType = targetType.kotlin
+                        )
+                    }
                 }
                 .toTypedArray()
             try {
                 invokeAsyncFunction(args) {
                     suspendCancellableCoroutine { continuation ->
-                        method.invoke(instance, *parameters, continuation)
+                        val ret = method.invoke(instance, *parameters, continuation)
+                        if (ret != COROUTINE_SUSPENDED) {
+                            continuation.resume(ret)
+                        }
                     }
                 }
                 return null

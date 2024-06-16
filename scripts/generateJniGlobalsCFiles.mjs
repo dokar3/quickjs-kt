@@ -188,6 +188,7 @@ const JNI_REFS = [
   },
   {
     className: "com/dokar/quickjs/binding/JsObject",
+    methods: [{ name: "<init>", sign: "(Ljava/util/Map;)V" }],
   },
 ];
 

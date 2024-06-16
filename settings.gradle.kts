@@ -24,6 +24,8 @@ rootProject.name = "quickjs-kt"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 include(":quickjs")
+include(":quickjs-converter-ktxserialization")
+include(":quickjs-converter-moshi")
 include(":samples:js-eval")
 include(":samples:repl")
 include(":samples:openai")

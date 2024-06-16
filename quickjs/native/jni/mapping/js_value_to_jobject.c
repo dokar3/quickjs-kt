@@ -222,7 +222,7 @@ jobject to_java_map(JNIEnv *env, JSContext *context, JSValue map) {
     return java_map;
 }
 
-jobject object_to_java_map(JNIEnv *env, JSContext *context, JSValue value) {
+jobject object_to_java_js_object(JNIEnv *env, JSContext *context, JSValue value) {
     // This can check circular references for us
     JSValue json = JS_JSONStringify(context, value, JS_UNDEFINED, JS_UNDEFINED);
     if (JS_IsException(json)) {
@@ -299,7 +299,12 @@ jobject object_to_java_map(JNIEnv *env, JSContext *context, JSValue value) {
 
     js_free(context, props);
 
-    return java_map;
+    // Wrap java_map as JsObject
+    jclass js_object_cls = cls_js_object(env);
+    jmethodID js_object_constructor = method_js_object_init(env);
+    jobject js_object = (*env)->NewObject(env, js_object_cls, js_object_constructor, java_map);
+
+    return js_object;
 }
 
 jobject js_int8array_to_java_byte_array(JNIEnv *env, JSContext *context, JSValue value) {
@@ -400,7 +405,7 @@ jobject js_value_to_jobject(JNIEnv *env, JSContext *context, JSValue value) {
         } else if (js_is_int8array(context, global_this, value)) {
             result = js_int8array_to_java_byte_array(env, context, value);
         } else {
-            result = object_to_java_map(env, context, value);
+            result = object_to_java_js_object(env, context, value);
         }
 
         JS_FreeValue(context, global_this);

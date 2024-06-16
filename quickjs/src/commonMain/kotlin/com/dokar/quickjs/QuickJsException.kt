@@ -7,4 +7,5 @@ class QuickJsException(
     override val message: String?,
 ) : Exception()
 
+@PublishedApi
 internal fun qjsError(message: String): Nothing = throw QuickJsException(message)

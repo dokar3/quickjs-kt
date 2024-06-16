@@ -132,6 +132,8 @@ jmethodID method_quick_js_set_unhandled_promise_rejection(JNIEnv *env);
 
 jmethodID method_memory_usage_init(JNIEnv *env);
 
+jmethodID method_js_object_init(JNIEnv *env);
+
 jfieldID field_ubyte_array_storage(JNIEnv *env);
 
 jfieldID field_double_na_n(JNIEnv *env);

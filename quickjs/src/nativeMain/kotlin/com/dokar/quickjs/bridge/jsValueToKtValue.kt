@@ -1,6 +1,8 @@
 package com.dokar.quickjs.bridge
 
 import com.dokar.quickjs.QuickJsException
+import com.dokar.quickjs.binding.JsObject
+import com.dokar.quickjs.binding.toJsObject
 import com.dokar.quickjs.qjsError
 import com.dokar.quickjs.util.freeJsValues
 import com.dokar.quickjs.util.isInt8Array
@@ -127,7 +129,7 @@ internal fun CValue<JSValue>.toKtValue(context: CPointer<JSContext>): Any? {
                 isInt8Array(context, globalThis) -> jsInt8ArrayToKtByteArray(context, this)
                 isSet(context, globalThis) -> jsSetToKtSet(context, this)
                 isMap(context, globalThis) -> jsMapToKtMap(context, this)
-                else -> jsObjectToKtMap(context, this)
+                else -> jsObjectToKtJsObject(context, this)
             }
         } finally {
             JS_FreeValue(context, globalThis)
@@ -333,10 +335,10 @@ private fun jsMapToKtMap(
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun jsObjectToKtMap(
+private fun jsObjectToKtJsObject(
     context: CPointer<JSContext>,
     jsObject: CValue<JSValue>
-): Map<String, Any?> = memScoped {
+): JsObject = memScoped {
     // Check circular refs
     val json = JS_JSONStringify(context, jsObject, JsUndefined(), JsUndefined())
     if (JS_IsException(json) == 1) {
@@ -394,7 +396,7 @@ private fun jsObjectToKtMap(
 
     js_free(context, propsPointer)
 
-    result
+    result.toJsObject()
 }
 
 @OptIn(ExperimentalForeignApi::class)
