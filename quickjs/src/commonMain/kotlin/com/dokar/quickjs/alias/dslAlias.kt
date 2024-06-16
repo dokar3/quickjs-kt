@@ -32,11 +32,33 @@ fun <R> QuickJs.func(name: String, block: FunctionBinding<R>) {
 }
 
 /**
+ * Alias for [QuickJs.function].
+ */
+@ExperimentalQuickJsApi
+inline fun <reified T : Any?, reified R : Any?> QuickJs.func(
+    name: String,
+    crossinline block: (T) -> R
+) {
+    function<T, R>(name = name, block = block)
+}
+
+/**
  * Alias for [QuickJs.asyncFunction].
  */
 @ExperimentalQuickJsApi
 fun <R> QuickJs.asyncFunc(name: String, block: AsyncFunctionBinding<R>) {
     asyncFunction(name = name, block = block)
+}
+
+/**
+ * Alias for [QuickJs.asyncFunction].
+ */
+@ExperimentalQuickJsApi
+inline fun <reified T : Any?, reified R : Any?> QuickJs.asyncFunc(
+    name: String,
+    crossinline block: suspend (T) -> R
+) {
+    asyncFunction<T, R>(name = name, block = block)
 }
 
 /**
@@ -86,6 +108,17 @@ fun <R> ObjectBindingScope.func(name: String, block: FunctionBinding<R>) {
 }
 
 /**
+ * Alias for [ObjectBindingScope.function].
+ */
+@ExperimentalQuickJsApi
+inline fun <reified T : Any?, reified R : Any?> ObjectBindingScope.func(
+    name: String,
+    crossinline block: (T) -> R
+) {
+    function(name = name, block = block)
+}
+
+/**
  * Alias for [ObjectBindingScope.asyncFunction].
  */
 @ExperimentalQuickJsApi
@@ -93,3 +126,13 @@ fun <R> ObjectBindingScope.asyncFunc(name: String, block: AsyncFunctionBinding<R
     asyncFunction(name = name, block = block)
 }
 
+/**
+ * Alias for [ObjectBindingScope.asyncFunction].
+ */
+@ExperimentalQuickJsApi
+inline fun <reified T : Any?, reified R : Any?> ObjectBindingScope.asyncFunc(
+    name: String,
+    crossinline block: suspend (T) -> R
+) {
+    asyncFunction(name = name, block = block)
+}
