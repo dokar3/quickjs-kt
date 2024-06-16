@@ -365,7 +365,7 @@ and `quickjs-kt-convereter-moshi` (JVM only).
    ```
 
 > [!NOTE]
-> The typed functions only support 1 parameter, it will throw if no parameter is passed or multiple parameters are passed.
+> Functions with generic <T, R> require exactly 1 parameter on the JS side, it will throw if no parameter is passed or multiple parameters are passed.
 
 # Error handling
 
