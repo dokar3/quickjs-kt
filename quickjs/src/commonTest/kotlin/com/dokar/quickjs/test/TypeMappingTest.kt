@@ -1,6 +1,7 @@
 package com.dokar.quickjs.test
 
 import com.dokar.quickjs.QuickJsException
+import com.dokar.quickjs.binding.JsObject
 import com.dokar.quickjs.binding.asyncFunction
 import com.dokar.quickjs.binding.define
 import com.dokar.quickjs.binding.function
@@ -44,13 +45,13 @@ class TypeMappingTest {
                 evaluate("new Map([[0, 'Red'], [1, 'Pink']])")
             )
             // Object
-            val result = evaluate<Map<String, Any>>(
+            val result = evaluate<JsObject>(
                 """
                     const result = { ok: false, error: 'Seems good' };
                     result
                 """.trimIndent()
             )
-            assertEquals(mapOf("ok" to false, "error" to "Seems good"), result)
+            assertEquals(mapOf("ok" to false, "error" to "Seems good").toJsObject(), result)
         }
     }
 
