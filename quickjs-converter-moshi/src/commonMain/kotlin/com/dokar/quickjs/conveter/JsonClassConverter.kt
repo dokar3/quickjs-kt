@@ -15,8 +15,10 @@ import kotlin.reflect.KClass
  */
 @OptIn(ExperimentalStdlibApi::class)
 @Suppress("FunctionName", "UNCHECKED_CAST")
-inline fun <reified T : Any> JsonClassConverter(): JsObjectConverter<T> {
-    val adapter = Moshi.Builder().build().adapter<T>()
+inline fun <reified T : Any> JsonClassConverter(
+    moshi: Moshi = Moshi.Builder().build()
+): JsObjectConverter<T> {
+    val adapter = moshi.adapter<T>()
     return object : JsObjectConverter<T> {
         override val targetType: KClass<*> = T::class
 
