@@ -276,7 +276,7 @@ mapped.
 | boolean         | Boolean         |
 | Number          | Long/Double (2) |
 | string          | String          |
-| Array           | Array<Any?> (3) |
+| Array           | List<Any?>      |
 | Set             | Set<Any?>       |
 | Map             | Map<Any?, Any?> |
 | Error           | Error           |
@@ -287,8 +287,6 @@ mapped.
 (1) A Kotlin `Unit` will be mapped to a JavaScript `undefined`, conversely, JavaScript `undefined` won't be mapped to Kotlin `Unit`. 
 
 (2) A `Number` in JavaScript can be cast to an `Int` or a `Float` to match the Kotlin type.
-
-(3) A Kotlin `List` can be mapped to a JavaScript `Array` too.
 
 ### Custom types
 

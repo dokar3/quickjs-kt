@@ -23,7 +23,8 @@ class SerializableConverterTest {
 
             val result = evaluate<FetchResponse>(
                 """
-                    await fetch({ url: "https://example.com", method: "GET" })
+                    const headers = { "Content-Type": "application/json" };
+                    await fetch({ url: "https://example.com", method: "GET", headers: headers })
                 """.trimIndent()
             )
             val expected = FetchResponse(ok = true, body = "Fetched https://example.com")
@@ -36,6 +37,7 @@ class SerializableConverterTest {
 private data class FetchParams(
     val url: String,
     val method: String,
+    val headers: Map<String, String>,
 )
 
 @Serializable

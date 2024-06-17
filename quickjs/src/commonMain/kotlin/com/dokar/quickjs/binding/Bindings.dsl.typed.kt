@@ -142,7 +142,7 @@ internal fun canConvertInternally(type: KClass<*>): Boolean {
             type == Float::class || type == Double::class ||
             type == Boolean::class || type == String::class ||
             type == ByteArray::class || type == UByteArray::class ||
-            type == Array::class || type == Collection::class ||
+            type == Array::class || type == List::class ||
             type == Set::class || type == Map::class ||
             type == Error::class || type == JsObject::class
 }

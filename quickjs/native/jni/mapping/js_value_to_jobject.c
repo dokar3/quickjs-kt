@@ -120,24 +120,25 @@ jthrowable js_error_to_java_error(JNIEnv *env, JSContext *context, JSValue error
     return new_qjs_exception(env, full_message);
 }
 
-jobjectArray to_java_array(JNIEnv *env, JSContext *context, JSValue value) {
+jobjectArray to_java_list(JNIEnv *env, JSContext *context, JSValue value) {
     uint32_t len, i;
     JSValue js_arr_len = JS_GetPropertyStr(context, value, "length");
     JS_ToUint32(context, &len, js_arr_len);
     JS_FreeValue(context, js_arr_len);
-    // Create java object array
-    jclass cls = cls_object(env);
-    jobjectArray array = (*env)->NewObjectArray(env, len, cls, NULL);
+    // Create a new java list
+    jclass array_list_cls = cls_array_list(env);
+    jmethodID array_list_constructor = method_array_list_init_with_capacity(env);
+    jobject list = (*env)->NewObject(env, array_list_cls, array_list_constructor, len);
+    jmethodID list_add_method = method_list_add(env);
     // Convert items
     for (i = 0; i < len; i++) {
         JSValue val = JS_GetPropertyUint32(context, value, i);
         jobject item = js_value_to_jobject(env, context, val);
         JS_FreeValue(context, val);
-        (*env)->SetObjectArrayElement(env, array, i, item);
+        (*env)->CallBooleanMethod(env, list, list_add_method, item);
         (*env)->DeleteLocalRef(env, item);
     }
-    // Wrap
-    return array;
+    return list;
 }
 
 jobject to_java_set(JNIEnv *env, JSContext *context, JSValue set) {
@@ -373,7 +374,7 @@ jobject js_value_to_jobject(JNIEnv *env, JSContext *context, JSValue value) {
         return js_error_to_java_error(env, context, value);
     } else if (JS_IsArray(context, value)) {
         // Array
-        return to_java_array(env, context, value);
+        return to_java_list(env, context, value);
     } else if (tag == JS_TAG_FUNCTION_BYTECODE || tag == JS_TAG_MODULE) {
         // Bytecode
         size_t length;

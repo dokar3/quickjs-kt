@@ -11,6 +11,7 @@ import kotlin.test.assertEquals
 class JsonClassConverterTest {
     @Test
     fun convertSerializableClasses() = runTest {
+
         quickJs {
             addTypeConverters(
                 JsonClassConverter<FetchParams>(),
@@ -23,7 +24,8 @@ class JsonClassConverterTest {
 
             val result = evaluate<FetchResponse>(
                 """
-                    await fetch({ url: "https://example.com", method: "GET" })
+                    const headers = { "Content-Type": "application/json" };
+                    await fetch({ url: "https://example.com", method: "GET", headers: headers })
                 """.trimIndent()
             )
             val expected = FetchResponse(ok = true, body = "Fetched https://example.com")
@@ -36,6 +38,7 @@ class JsonClassConverterTest {
 internal data class FetchParams(
     val url: String,
     val method: String,
+    val headers: Map<String, String>,
 )
 
 @JsonClass(generateAdapter = true)
