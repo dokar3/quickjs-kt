@@ -11,6 +11,7 @@ import com.dokar.quickjs.binding.asyncFunction
 import com.dokar.quickjs.binding.define
 import com.dokar.quickjs.binding.function
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.jvm.JvmName
 
 /**
  * Alias for [QuickJs.define].
@@ -27,7 +28,10 @@ inline fun QuickJs.def(
  * Alias for [QuickJs.function].
  */
 @ExperimentalQuickJsApi
-inline fun <R> QuickJs.func(name: String, block: FunctionBinding<R>) {
+inline fun <reified R : Any?> QuickJs.func(
+    name: String,
+    crossinline block: (args: Array<Any?>) -> R
+) {
     function(name = name, block = block)
 }
 
@@ -35,6 +39,7 @@ inline fun <R> QuickJs.func(name: String, block: FunctionBinding<R>) {
  * Alias for [QuickJs.function].
  */
 @ExperimentalQuickJsApi
+@JvmName("funcWithTypedArg")
 inline fun <reified T : Any?, reified R : Any?> QuickJs.func(
     name: String,
     crossinline block: (T) -> R
@@ -46,7 +51,10 @@ inline fun <reified T : Any?, reified R : Any?> QuickJs.func(
  * Alias for [QuickJs.asyncFunction].
  */
 @ExperimentalQuickJsApi
-inline fun <R> QuickJs.asyncFunc(name: String, block: AsyncFunctionBinding<R>) {
+inline fun <reified R : Any?> QuickJs.asyncFunc(
+    name: String,
+    crossinline block: suspend (args: Array<Any?>) -> R
+) {
     asyncFunction(name = name, block = block)
 }
 
@@ -54,6 +62,7 @@ inline fun <R> QuickJs.asyncFunc(name: String, block: AsyncFunctionBinding<R>) {
  * Alias for [QuickJs.asyncFunction].
  */
 @ExperimentalQuickJsApi
+@JvmName("asyncFuncWithTypedArg")
 inline fun <reified T : Any?, reified R : Any?> QuickJs.asyncFunc(
     name: String,
     crossinline block: suspend (T) -> R

@@ -2,7 +2,10 @@ package com.dokar.quickjs.binding
 
 import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.converter.TypeConverters
+import com.dokar.quickjs.converter.canConvertReturnInternally
+import com.dokar.quickjs.converter.typeOfInstance
 import com.dokar.quickjs.qjsError
+import kotlin.reflect.typeOf
 
 internal class DslObjectBinding(
     private val scope: ObjectBindingScopeImpl,
@@ -32,11 +35,23 @@ internal class DslObjectBinding(
     override fun invoke(name: String, args: Array<Any?>): Any? {
         val func = functionsDef[name]
             ?: qjsError("Function '$name' not found on object '${scope.name}'")
-        return when (val call = func.call) {
+        val result = when (val call = func.call) {
             is AsyncFunctionBinding<*> -> quickJs.invokeAsyncFunction(args) { call.invoke(it) }
             is FunctionBinding<*> -> call.invoke(args)
             is ObjectBinding -> qjsError("Object cannot be invoked!")
         }
+
+        if (canConvertReturnInternally(result)) {
+            return result
+        }
+
+        // Convert result to JsObject
+        val typeConverters = quickJs.typeConverters
+        return typeConverters.convert<Any?, JsObject>(
+            source = result,
+            sourceType = typeOfInstance(typeConverters, result),
+            targetType = typeOf<JsObject>(),
+        )
     }
 }
 

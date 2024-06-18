@@ -117,7 +117,7 @@ internal fun CValue<JSValue>.toKtValue(context: CPointer<JSContext>): Any? {
             buffer
         }
     } else if (JS_IsArray(context, this) == 1) {
-        return jsArrayToKtArray(context, this)
+        return jsArrayToKtList(context, this)
     } else if (JS_IsError(context, this) == 1) {
         return jsErrorToKtError(context, this)
     } else if (tag == JS_TAG_OBJECT) {
@@ -247,16 +247,16 @@ private fun jsInt8ArrayToKtByteArray(
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun jsArrayToKtArray(
+private fun jsArrayToKtList(
     context: CPointer<JSContext>,
     array: CValue<JSValue>
-): Array<Any?> = memScoped {
+): List<Any?> = memScoped {
     val length = alloc<int64_tVar>()
     JS_GetPropertyStr(context, array, "length").use(context) {
         JS_ToInt64(context, length.ptr, this)
     }
 
-    Array(length.value.toInt()) {
+    List(length.value.toInt()) {
         JS_GetPropertyUint32(context, array, it.toUInt()).use(context) {
             if (this.isTheSameObject(array)) {
                 circularRefError()

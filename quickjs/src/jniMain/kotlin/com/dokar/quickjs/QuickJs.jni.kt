@@ -9,6 +9,8 @@ import com.dokar.quickjs.binding.JsProperty
 import com.dokar.quickjs.binding.ObjectBinding
 import com.dokar.quickjs.converter.TypeConverter
 import com.dokar.quickjs.converter.TypeConverters
+import com.dokar.quickjs.converter.typeOfClass
+import com.dokar.quickjs.converter.typeOfInstance
 import com.dokar.quickjs.util.withLockSync
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -20,6 +22,30 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.Closeable
+import kotlin.reflect.KType
+import kotlin.reflect.typeOf
+
+/**
+ * Evaluate QuickJS-compiled bytecode.
+ *
+ * This function provides a [type] parameter, useful when the inline version of
+ * [QuickJs.evaluate] is not available. You can use [typeOf] to get the type of a class.
+ *
+ * @see [QuickJs.evaluate]
+ */
+@Throws(QuickJsException::class)
+suspend fun <T> QuickJs.evaluate(
+    bytecode: ByteArray,
+    type: KType
+): T {
+    return typeConvertOr(evaluateInternal(bytecode), type) {
+        typeConverters.convert(
+            source = it,
+            sourceType = typeOfInstance(typeConverters, it),
+            targetType = type
+        )
+    }
+}
 
 /**
  * Evaluate QuickJS-compiled bytecode.
@@ -30,13 +56,45 @@ import java.io.Closeable
  * @see [QuickJs.evaluate]
  */
 @Throws(QuickJsException::class)
+@Deprecated(
+    message = "Use evaluate(ByteArray, KType) instead.",
+    replaceWith = ReplaceWith("evaluate<T>(bytecode, typeOf<T>()"),
+)
 suspend fun <T> QuickJs.evaluate(
     bytecode: ByteArray,
     type: Class<T>
 ): T {
-    return typeConvertOr(evaluateInternal(bytecode), type) {
-        val kClass = (type as Class<*>).kotlin
-        typeConverters.convert(source = it, sourceType = it::class, targetType = kClass)
+    val kType = typeOfClass(typeConverters, (type as Class<*>).kotlin)
+    return typeConvertOr(evaluateInternal(bytecode), kType) {
+        typeConverters.convert(
+            source = it,
+            sourceType = typeOfInstance(typeConverters, it),
+            targetType = kType
+        )
+    }
+}
+
+/**
+ * Evaluate JavaScript code.
+ *
+ * This function provides a [type] parameter, useful when the inline version of
+ * [QuickJs.evaluate] is not available. You can use [typeOf] to get the type of a class.
+ *
+ * @see [QuickJs.evaluate]
+ */
+@Throws(QuickJsException::class)
+suspend fun <T> QuickJs.evaluate(
+    code: String,
+    type: KType,
+    filename: String = "main.js",
+    asModule: Boolean = false
+): T {
+    return typeConvertOr(evaluateInternal(code, filename, asModule), type) {
+        typeConverters.convert(
+            source = it,
+            sourceType = typeOfInstance(typeConverters, it),
+            targetType = type
+        )
     }
 }
 
@@ -49,15 +107,23 @@ suspend fun <T> QuickJs.evaluate(
  * @see [QuickJs.evaluate]
  */
 @Throws(QuickJsException::class)
+@Deprecated(
+    message = "Use evaluate(String, KType, String, Boolean) instead.",
+    replaceWith = ReplaceWith("evaluate<T>(code, typeOf<T>())"),
+)
 suspend fun <T> QuickJs.evaluate(
     code: String,
     type: Class<T>,
     filename: String = "main.js",
     asModule: Boolean = false
 ): T {
-    return typeConvertOr(evaluateInternal(code, filename, asModule), type) {
-        val kClass = (type as Class<*>).kotlin
-        typeConverters.convert(source = it, sourceType = it::class, targetType = kClass)
+    val kType = typeOfClass(typeConverters, (type as Class<*>).kotlin)
+    return typeConvertOr(evaluateInternal(code, filename, asModule), kType) {
+        typeConverters.convert(
+            source = it,
+            sourceType = typeOfInstance(typeConverters, it),
+            targetType = kType,
+        )
     }
 }
 
@@ -200,8 +266,12 @@ actual class QuickJs private constructor(
 
     @Throws(QuickJsException::class, CancellationException::class)
     actual suspend inline fun <reified T> evaluate(bytecode: ByteArray): T {
-        return typeConvertOr(evaluateInternal(bytecode), T::class.java) {
-            typeConverters.convert(source = it, sourceType = it::class, targetType = T::class)
+        return typeConvertOr(evaluateInternal(bytecode), typeOf<T>()) {
+            typeConverters.convert(
+                source = it,
+                sourceType = typeOfInstance(typeConverters, it),
+                targetType = typeOf<T>()
+            )
         }
     }
 
@@ -211,8 +281,12 @@ actual class QuickJs private constructor(
         filename: String,
         asModule: Boolean
     ): T {
-        return typeConvertOr(evaluateInternal(code, filename, asModule), T::class.java) {
-            typeConverters.convert(source = it, sourceType = it::class, targetType = T::class)
+        return typeConvertOr(evaluateInternal(code, filename, asModule), typeOf<T>()) {
+            typeConverters.convert(
+                source = it,
+                sourceType = typeOfInstance(typeConverters, it),
+                targetType = typeOf<T>()
+            )
         }
     }
 

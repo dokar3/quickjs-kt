@@ -32,6 +32,8 @@ jclass cls_iterator(JNIEnv *env);
 
 jclass cls_list(JNIEnv *env);
 
+jclass cls_array_list(JNIEnv *env);
+
 jclass cls_map(JNIEnv *env);
 
 jclass cls_map_entry(JNIEnv *env);
@@ -101,6 +103,12 @@ jmethodID method_iterator_next(JNIEnv *env);
 jmethodID method_list_size(JNIEnv *env);
 
 jmethodID method_list_get(JNIEnv *env);
+
+jmethodID method_list_add(JNIEnv *env);
+
+jmethodID method_array_list_init(JNIEnv *env);
+
+jmethodID method_array_list_init_with_capacity(JNIEnv *env);
 
 jmethodID method_map_entry_set(JNIEnv *env);
 

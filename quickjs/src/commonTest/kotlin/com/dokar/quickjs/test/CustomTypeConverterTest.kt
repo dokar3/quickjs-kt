@@ -7,7 +7,8 @@ import com.dokar.quickjs.binding.toJsObject
 import com.dokar.quickjs.converter.JsObjectConverter
 import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.test.runTest
-import kotlin.reflect.KClass
+import kotlin.reflect.KType
+import kotlin.reflect.typeOf
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -18,8 +19,8 @@ class CustomTypeConverterTest {
             addTypeConverters(FetchParamsConverter, FetchResponseConverter)
 
             function<FetchParams, FetchResponse>("fetchSync") { args ->
-                val (url, method) = args
-                FetchResponse(ok = true, body = "Hello from ${args.url}")
+                val (url) = args
+                FetchResponse(ok = true, body = "Hello from $url")
             }
 
             asyncFunction<FetchParams, FetchResponse>("fetch") { args ->
@@ -56,7 +57,7 @@ private data class FetchResponse(
 )
 
 private object FetchParamsConverter : JsObjectConverter<FetchParams> {
-    override val targetType: KClass<*> = FetchParams::class
+    override val targetType: KType = typeOf<FetchParams>()
 
     override fun convertToTarget(value: JsObject): FetchParams = FetchParams(
         url = value["url"] as String,
@@ -68,7 +69,7 @@ private object FetchParamsConverter : JsObjectConverter<FetchParams> {
 }
 
 private object FetchResponseConverter : JsObjectConverter<FetchResponse> {
-    override val targetType: KClass<*> = FetchResponse::class
+    override val targetType: KType = typeOf<FetchResponse>()
 
     override fun convertToTarget(value: JsObject): FetchResponse = FetchResponse(
         ok = value["ok"] as Boolean,

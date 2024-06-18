@@ -100,6 +100,14 @@ const JNI_REFS = [
     methods: [
       { name: "size", sign: "()I" },
       { name: "get", sign: "(I)Ljava/lang/Object;" },
+      { name: "add", sign: "(Ljava/lang/Object;)Z"}
+    ],
+  },
+  {
+    className: "java/util/ArrayList",
+    methods: [
+      { name: "<init>", sign: "()V" },
+      { name: "<init>", alias: "init_with_capacity", sign: "(I)V" },
     ],
   },
   {
@@ -228,14 +236,15 @@ function srcClassName(jniName) {
 /**
  * @param {string} jniClassName
  * @param {string} jniName
+ * @param {string} alias Optional alias for the method
  * @returns {string}
  */
-function srcMethodName(jniClassName, jniName) {
+function srcMethodName(jniClassName, jniName, alias) {
   return (
     "method_" +
     camelCaseSnackCase(jniClassName) +
     "_" +
-    camelCaseSnackCase(jniName)
+    camelCaseSnackCase(alias != null ? alias : jniName)
   );
 }
 
@@ -270,7 +279,7 @@ function generateHeader() {
     }
     return acc.concat(
       methods.map((method) => {
-        const name = srcMethodName(className, method.name);
+        const name = srcMethodName(className, method.name, method.alias);
         return `jmethodID ${name}(JNIEnv *env);`;
       })
     );
@@ -350,7 +359,7 @@ function generateSource() {
     }
     return acc.concat(
       methods.map((method) => {
-        const name = srcMethodName(className, method.name);
+        const name = srcMethodName(className, method.name, method.alias);
         return `static jmethodID _${name} = NULL;`;
       })
     );
@@ -364,7 +373,7 @@ function generateSource() {
     const classFunName = srcClassName(className);
     return acc.concat(
       methods.map((method) => {
-        const name = srcMethodName(className, method.name);
+        const name = srcMethodName(className, method.name, method.alias);
         const staticPart = method.isStatic === true ? "Static" : "";
         return `jmethodID ${name}(JNIEnv *env) {
     if (_${name} == NULL) {

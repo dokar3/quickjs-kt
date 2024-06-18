@@ -2,29 +2,45 @@ package com.dokar.quickjs.converter
 
 import com.dokar.quickjs.qjsError
 import kotlin.reflect.KClass
+import kotlin.reflect.KType
 
 @PublishedApi
 internal class TypeConverters {
-    private val serializers = mutableListOf<TypeConverter<*, *>>()
+    private val converters = mutableListOf<TypeConverter<*, *>>()
+    private val classTypeMap = mutableMapOf<KClass<*>, KType>()
 
     fun addConverters(vararg serializers: TypeConverter<*, *>) {
-        this.serializers.addAll(serializers)
+        this.converters.addAll(serializers)
+        for (converter in converters) {
+            classTypeMap[converter.sourceType.classifier as KClass<*>] = converter.sourceType
+            classTypeMap[converter.targetType.classifier as KClass<*>] = converter.targetType
+        }
+    }
+
+    fun typeOfClass(cls: KClass<*>): KType? {
+        return classTypeMap[cls]
     }
 
     @Suppress("UNCHECKED_CAST")
-    fun <S : Any?, T : Any?> convert(source: S, sourceType: KClass<*>, targetType: KClass<*>): T {
+    fun <S : Any?, T : Any?> convert(source: S, sourceType: KType, targetType: KType): T {
         if (sourceType == targetType) {
             return source as T
         }
-        val converter = serializers
-            .find { it.sourceType.isInstance(source) && it.targetType == targetType }
+        val converter = converters
+            .find {
+                it.sourceType.equalsWithoutNullable(sourceType) &&
+                        it.targetType.equalsWithoutNullable(targetType)
+            }
                 as TypeConverter<S, T>?
         if (converter != null) {
             return converter.convertToTarget(source)
         }
-        // Try convertBack()
-        val backConverter = serializers
-            .find { it.sourceType == targetType && it.targetType.isInstance(source) }
+        // Try convertToSource()
+        val backConverter = converters
+            .find {
+                it.sourceType.equalsWithoutNullable(targetType) &&
+                        it.targetType.equalsWithoutNullable(sourceType)
+            }
                 as TypeConverter<T, S>?
         if (backConverter != null) {
             val result = backConverter.convertToSource(source)
@@ -33,5 +49,9 @@ internal class TypeConverters {
             }
         }
         qjsError("No such type converter to convert '$sourceType' to '$targetType'")
+    }
+
+    private fun KType.equalsWithoutNullable(other: KType): Boolean {
+        return this.classifier == other.classifier && this.arguments == other.arguments
     }
 }

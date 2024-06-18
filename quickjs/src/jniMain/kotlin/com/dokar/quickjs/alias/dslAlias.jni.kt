@@ -6,6 +6,7 @@ import com.dokar.quickjs.QuickJsException
 import com.dokar.quickjs.binding.JsObjectHandle
 import com.dokar.quickjs.binding.define
 import com.dokar.quickjs.evaluate
+import kotlin.reflect.KType
 
 /**
  * Alias for inline version of [QuickJs.define].
@@ -39,7 +40,7 @@ fun <T> QuickJs.def(
 @Throws(QuickJsException::class)
 suspend fun <T> QuickJs.eval(
     bytecode: ByteArray,
-    type: Class<T>
+    type: KType
 ): T {
     return evaluate(bytecode = bytecode, type = type)
 }
@@ -51,7 +52,7 @@ suspend fun <T> QuickJs.eval(
 @Throws(QuickJsException::class)
 suspend fun <T> QuickJs.eval(
     code: String,
-    type: Class<T>,
+    type: KType,
     filename: String = "main.js",
     asModule: Boolean = false
 ): T {

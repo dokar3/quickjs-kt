@@ -165,7 +165,7 @@ class AsyncErrorHandlingTest {
             assertFails {
                 evaluate("fetch(); delay();")
             }.also {
-                assertContains(it.message!!, "Cannot convert")
+                assertContains(it.message!!, "Cannot find the kotlin type of object")
             }
             assertFalse(delayed)
         }

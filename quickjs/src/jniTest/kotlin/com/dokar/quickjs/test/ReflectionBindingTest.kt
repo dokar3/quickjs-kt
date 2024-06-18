@@ -8,7 +8,8 @@ import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import kotlin.coroutines.Continuation
-import kotlin.reflect.KClass
+import kotlin.reflect.KType
+import kotlin.reflect.typeOf
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
@@ -124,11 +125,11 @@ class ReflectionBindingTest {
         fun float(arg: Float) {}
         fun double(arg: Double) {}
         fun string(arg: String) {}
-        fun array(arg: Array<Any?>) {}
+        fun array(arg: List<Any?>) {}
         fun set(arg: Set<*>) {}
         fun map(arg: Map<*, *>) {}
         fun objects(arg: Map<*, *>) {}
-        fun multiple(int: Int, long: Long, float: Float, string: String, arr: Array<*>) {}
+        fun multiple(int: Int, long: Long, float: Float, string: String, arr: List<*>) {}
     }
 
     @Suppress("unused", "UNUSED_PARAMETER")
@@ -170,7 +171,7 @@ class ReflectionBindingTest {
     }
 
     private object FetchParamsConverter : JsObjectConverter<FetchParams> {
-        override val targetType: KClass<*> = FetchParams::class
+        override val targetType: KType = typeOf<FetchParams>()
 
         override fun convertToTarget(value: JsObject): FetchParams = FetchParams(
             url = value["url"] as String,

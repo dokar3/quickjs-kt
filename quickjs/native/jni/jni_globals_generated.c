@@ -16,6 +16,7 @@ static jclass _cls_throwable = NULL;
 static jclass _cls_set = NULL;
 static jclass _cls_iterator = NULL;
 static jclass _cls_list = NULL;
+static jclass _cls_array_list = NULL;
 static jclass _cls_map = NULL;
 static jclass _cls_map_entry = NULL;
 static jclass _cls_hash_set = NULL;
@@ -53,6 +54,9 @@ static jmethodID _method_iterator_has_next = NULL;
 static jmethodID _method_iterator_next = NULL;
 static jmethodID _method_list_size = NULL;
 static jmethodID _method_list_get = NULL;
+static jmethodID _method_list_add = NULL;
+static jmethodID _method_array_list_init = NULL;
+static jmethodID _method_array_list_init_with_capacity = NULL;
 static jmethodID _method_map_entry_set = NULL;
 static jmethodID _method_map_entry_get_key = NULL;
 static jmethodID _method_map_entry_get_value = NULL;
@@ -190,6 +194,14 @@ jclass cls_list(JNIEnv *env) {
         _cls_list = (*env)->NewGlobalRef(env, cls);
     }
     return _cls_list;
+}
+
+jclass cls_array_list(JNIEnv *env) {
+    if (_cls_array_list == NULL) {
+        jclass cls = (*env)->FindClass(env, "java/util/ArrayList");
+        _cls_array_list = (*env)->NewGlobalRef(env, cls);
+    }
+    return _cls_array_list;
 }
 
 jclass cls_map(JNIEnv *env) {
@@ -448,6 +460,27 @@ jmethodID method_list_get(JNIEnv *env) {
     return _method_list_get;
 }
 
+jmethodID method_list_add(JNIEnv *env) {
+    if (_method_list_add == NULL) {
+        _method_list_add = (*env)->GetMethodID(env, cls_list(env), "add", "(Ljava/lang/Object;)Z");
+    }
+    return _method_list_add;
+}
+
+jmethodID method_array_list_init(JNIEnv *env) {
+    if (_method_array_list_init == NULL) {
+        _method_array_list_init = (*env)->GetMethodID(env, cls_array_list(env), "<init>", "()V");
+    }
+    return _method_array_list_init;
+}
+
+jmethodID method_array_list_init_with_capacity(JNIEnv *env) {
+    if (_method_array_list_init_with_capacity == NULL) {
+        _method_array_list_init_with_capacity = (*env)->GetMethodID(env, cls_array_list(env), "<init>", "(I)V");
+    }
+    return _method_array_list_init_with_capacity;
+}
+
 jmethodID method_map_entry_set(JNIEnv *env) {
     if (_method_map_entry_set == NULL) {
         _method_map_entry_set = (*env)->GetMethodID(env, cls_map(env), "entrySet", "()Ljava/util/Set;");
@@ -659,6 +692,9 @@ void clear_jni_refs_cache(JNIEnv *env) {
     if (_cls_list != NULL) {
         (*env)->DeleteGlobalRef(env, _cls_list);
     }
+    if (_cls_array_list != NULL) {
+        (*env)->DeleteGlobalRef(env, _cls_array_list);
+    }
     if (_cls_map != NULL) {
         (*env)->DeleteGlobalRef(env, _cls_map);
     }
@@ -707,6 +743,7 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _cls_set = NULL;
     _cls_iterator = NULL;
     _cls_list = NULL;
+    _cls_array_list = NULL;
     _cls_map = NULL;
     _cls_map_entry = NULL;
     _cls_hash_set = NULL;
@@ -743,6 +780,9 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _method_iterator_next = NULL;
     _method_list_size = NULL;
     _method_list_get = NULL;
+    _method_list_add = NULL;
+    _method_array_list_init = NULL;
+    _method_array_list_init_with_capacity = NULL;
     _method_map_entry_set = NULL;
     _method_map_entry_get_key = NULL;
     _method_map_entry_get_value = NULL;
