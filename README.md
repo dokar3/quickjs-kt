@@ -298,7 +298,7 @@ data class FetchParams(val url: String, val method: String)
 
 // interface JsObjectConverter<T : Any?> : TypeConverter<JsObject, T>
 object FetchParamsConverter : JsObjectConverter<FetchParams> {
-    override val targetType: KClass<*> = FetchParams::class
+    override val targetType: KType = typeOf<FetchParams>()
 
     override fun convertToTarget(value: JsObject): FetchParams = FetchParams(
         url = value["url"] as String,
