@@ -44,7 +44,7 @@ class FlowToAsyncIteratorTest {
                 }
             }
 
-            val result = evaluate<Array<Any?>>(
+            val result = evaluate<List<Any?>>(
                 """
                 async function* numbers() {
                     while (true) {
@@ -64,7 +64,7 @@ class FlowToAsyncIteratorTest {
                 array;
                 """.trimIndent()
             )
-            assertContentEquals(Array(5) { it.toLong() }, result)
+            assertContentEquals(List(5) { it.toLong() }, result)
         }
     }
 }

@@ -36,7 +36,7 @@ class TypeMappingTest {
             assertEquals(1.0, evaluate("""1.0"""))
             assertEquals(1.1, evaluate("""1.1"""))
             // Array
-            assertContentEquals(arrayOf<Any?>(0L, 1L, null), evaluate("[0, 1, null]"))
+            assertContentEquals(listOf<Any?>(0L, 1L, null), evaluate("[0, 1, null]"))
             // Set
             assertEquals(linkedSetOf(0L, 1L), evaluate("new Set([0, 1])"))
             // Map
@@ -78,9 +78,9 @@ class TypeMappingTest {
             assertEquals(1.2f, evaluate("returnsFloat()"))
             assertEquals(1.2, evaluate("returnsDouble()"))
             assertEquals("hello", evaluate("returnsString()"))
-            assertContentEquals(arrayOf<Any?>("hello"), evaluate("returnsArray()"))
+            assertContentEquals(listOf<Any?>("hello"), evaluate("returnsArray()"))
             assertFails { evaluate("returnsUnsupportedArray()") }
-            assertContentEquals(arrayOf<Any?>("hello"), evaluate("returnsList()"))
+            assertContentEquals(listOf<Any?>("hello"), evaluate("returnsList()"))
             assertEquals(setOf("hello"), evaluate("returnsSet()"))
             assertEquals(mapOf("hello" to "world"), evaluate("returnsMap()"))
             assertEquals("world", evaluate("returnsJsObject().hello"))
@@ -131,13 +131,13 @@ class TypeMappingTest {
         quickJs {
             function("arrays") {
                 val arr = it[0]
-                assertTrue(arr is Array<*>)
+                assertTrue(arr is List<*>)
                 assertTrue(arr[0] is Long)
                 assertTrue(arr[1] is Double)
                 assertTrue(arr[2] is Boolean)
                 assertTrue(arr[3] is String)
-                assertTrue(arr[4] is Array<*>)
-                assertTrue((arr[4] as Array<*>).size == 2)
+                assertTrue(arr[4] is List<*>)
+                assertTrue((arr[4] as List<*>).size == 2)
                 assertTrue(arr[5] == null)
                 assertTrue(arr[6] == null)
             }
@@ -369,16 +369,16 @@ class TypeMappingTest {
 
             assertFailsWith<QuickJsException> { evaluate<String>("greet()") }.also {
                 val message = "Function 'greet' requires 1 parameter but none was passed."
-                assertTrue(it.message!!.startsWith(message))
+                assertContains(it.message!!, message)
             }
             assertFailsWith<QuickJsException> { evaluate<String>("greet(1, 2)") }.also {
                 val message = "Function 'greet' requires 1 parameter but 2 were passed."
-                assertTrue(it.message!!.startsWith(message))
+                assertContains(it.message!!, message)
             }
             assertFailsWith<QuickJsException> { evaluate<String>("greet(null)") }.also {
                 val message =
                     "Function 'greet' requires 1 non-null parameter but null was passed."
-                assertTrue(it.message!!.startsWith(message))
+                assertContains(it.message!!, message)
             }
             assertEquals("Hello, null!", evaluate<String>("""nullableGreet(null)"""))
             assertEquals("Hello, Jack!", evaluate<String>("""greet("Jack")"""))
