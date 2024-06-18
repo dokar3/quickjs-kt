@@ -1,6 +1,10 @@
 package com.dokar.quickjs.binding
 
 import com.dokar.quickjs.QuickJs
+import com.dokar.quickjs.converter.TypeConverters
+import com.dokar.quickjs.converter.canConvertReturnInternally
+import com.dokar.quickjs.converter.typeOfInstance
+import kotlin.reflect.typeOf
 
 /**
  * Define an object and attach to 'globalThis'.
@@ -17,15 +21,55 @@ fun QuickJs.define(
 /**
  * Define a function and attach to 'globalThis'.
  */
-fun <R> QuickJs.function(name: String, block: FunctionBinding<R>) {
-    defineBinding(name = name, binding = block)
+inline fun <R : Any?> QuickJs.function(
+    name: String,
+    crossinline block: (args: Array<Any?>) -> R
+) {
+    defineBinding(name = name,
+        binding = FunctionBinding {
+            adaptedCall(
+                typeConverters = typeConverters,
+                block = { block(it) },
+            )
+        }
+    )
 }
 
 /**
  * Define an `async` function and attach to 'globalThis'.
  */
-fun <R> QuickJs.asyncFunction(name: String, block: AsyncFunctionBinding<R>) {
-    defineBinding(name = name, binding = block)
+inline fun <R> QuickJs.asyncFunction(
+    name: String,
+    crossinline block: suspend (args: Array<Any?>) -> R
+) {
+    defineBinding(
+        name = name,
+        binding = AsyncFunctionBinding {
+            adaptedCall(
+                typeConverters = typeConverters,
+                block = { block(it) },
+            )
+        }
+    )
+}
+
+@PublishedApi
+internal inline fun <R : Any?> adaptedCall(
+    typeConverters: TypeConverters,
+    block: () -> R
+): Any? {
+    val result = block()
+
+    if (canConvertReturnInternally(result)) {
+        return result
+    }
+
+    // Convert result to JsObject
+    return typeConverters.convert<R, JsObject>(
+        source = result,
+        sourceType = typeOfInstance(typeConverters, result),
+        targetType = typeOf<JsObject>()
+    )
 }
 
 /**

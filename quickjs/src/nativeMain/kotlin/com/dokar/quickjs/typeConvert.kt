@@ -1,19 +1,21 @@
 package com.dokar.quickjs
 
 import kotlin.reflect.KClass
+import kotlin.reflect.KType
 
 @Suppress("unchecked_cast")
 @PublishedApi
 internal fun <T : Any?> typeConvertOr(
     value: Any?,
-    expectedType: KClass<*>,
+    expectedType: KType,
     fallback: (value: Any) -> T
 ): T {
     val nonNull = value ?: return null as T
-    if (expectedType.isInstance(nonNull)) {
+    val expectedClass = expectedType.classifier as KClass<*>
+    if (expectedClass.isInstance(value)) {
         return nonNull as T
     }
-    when (expectedType) {
+    when (expectedClass) {
         Int::class -> {
             when (value) {
                 is Long -> {

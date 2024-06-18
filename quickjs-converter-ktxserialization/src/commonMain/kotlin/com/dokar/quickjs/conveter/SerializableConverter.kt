@@ -7,7 +7,8 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.properties.Properties
 import kotlinx.serialization.properties.decodeFromMap
 import kotlinx.serialization.properties.encodeToMap
-import kotlin.reflect.KClass
+import kotlin.reflect.KType
+import kotlin.reflect.typeOf
 
 /**
  * Returns a [JsObjectConverter] for class [T].
@@ -16,11 +17,11 @@ import kotlin.reflect.KClass
  */
 @OptIn(ExperimentalSerializationApi::class)
 @Suppress("FunctionName")
-inline fun <reified T : Any> SerializableConverter(
+inline fun <reified T : Any?> SerializableConverter(
     properties: Properties = Properties
 ): JsObjectConverter<T> {
     return object : JsObjectConverter<T> {
-        override val targetType: KClass<*> = T::class
+        override val targetType: KType = typeOf<T>()
 
         override fun convertToTarget(value: JsObject): T {
             val map = value.filterValues { it != null }.mapValues { it.value!! }

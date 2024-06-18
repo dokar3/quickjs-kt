@@ -1,17 +1,21 @@
 package com.dokar.quickjs
 
+import kotlin.reflect.KClass
+import kotlin.reflect.KType
+
 @Suppress("unchecked_cast")
 @PublishedApi
 internal fun <T : Any?> typeConvertOr(
     value: Any?,
-    expectedType: Class<*>,
+    expectedType: KType,
     fallback: (value: Any) -> T
 ): T {
     val nonNull = value ?: return null as T
-    if (expectedType.isInstance(nonNull)) {
+    val expectedCls = expectedType.classifier as KClass<*>
+    if ((expectedCls).isInstance(value)) {
         return nonNull as T
     }
-    when (expectedType) {
+    when (expectedCls.java) {
         Boolean::class.java -> {
             if (value is Boolean) {
                 // Boolean -> boolean

@@ -18,6 +18,7 @@ import com.dokar.quickjs.bridge.objectHandleToStableRef
 import com.dokar.quickjs.bridge.setPromiseRejectionHandler
 import com.dokar.quickjs.converter.TypeConverter
 import com.dokar.quickjs.converter.TypeConverters
+import com.dokar.quickjs.converter.typeOfInstance
 import com.dokar.quickjs.util.withLockSync
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CValue
@@ -47,6 +48,7 @@ import quickjs.JS_SetMemoryLimit
 import quickjs.JS_UpdateStackTop
 import quickjs.quickjs_version
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.reflect.typeOf
 
 @OptIn(ExperimentalForeignApi::class)
 actual class QuickJs private constructor(
@@ -198,8 +200,12 @@ actual class QuickJs private constructor(
 
     @Throws(QuickJsException::class, CancellationException::class)
     actual suspend inline fun <reified T> evaluate(bytecode: ByteArray): T {
-        return typeConvertOr(evalInternal(bytecode = bytecode), T::class) {
-            typeConverters.convert(source = it, sourceType = it::class, targetType = T::class)
+        return typeConvertOr(evalInternal(bytecode = bytecode), typeOf<T>()) {
+            typeConverters.convert(
+                source = it,
+                sourceType = typeOfInstance(typeConverters, it),
+                targetType = typeOf<T>()
+            )
         }
     }
 
@@ -211,9 +217,13 @@ actual class QuickJs private constructor(
     ): T {
         return typeConvertOr(
             evalInternal(code = code, filename = filename, asModule = asModule),
-            T::class
+            typeOf<T>()
         ) {
-            typeConverters.convert(source = it, sourceType = it::class, targetType = T::class)
+            typeConverters.convert(
+                source = it,
+                sourceType = typeOfInstance(typeConverters, it),
+                targetType = typeOf<T>()
+            )
         }
     }
 

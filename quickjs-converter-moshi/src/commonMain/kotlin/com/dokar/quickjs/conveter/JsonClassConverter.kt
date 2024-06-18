@@ -3,10 +3,13 @@ package com.dokar.quickjs.conveter
 import com.dokar.quickjs.binding.JsObject
 import com.dokar.quickjs.binding.toJsObject
 import com.dokar.quickjs.converter.JsObjectConverter
+import com.squareup.moshi.JsonAdapter
 import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.adapter
-import kotlin.reflect.KClass
+import java.lang.reflect.Type
+import kotlin.reflect.KType
+import kotlin.reflect.typeOf
 
 /**
  * Returns a [JsObjectConverter] for class [T].
@@ -14,13 +17,31 @@ import kotlin.reflect.KClass
  * Required [T] to be annotated with moshi's @[JsonClass].
  */
 @OptIn(ExperimentalStdlibApi::class)
-@Suppress("FunctionName", "UNCHECKED_CAST")
-inline fun <reified T : Any> JsonClassConverter(
+@Suppress("FunctionName")
+inline fun <reified T : Any?> JsonClassConverter(
     moshi: Moshi = Moshi.Builder().build()
 ): JsObjectConverter<T> {
-    val adapter = moshi.adapter<T>()
+    return newConverter(adapter = moshi.adapter())
+}
+
+/**
+ * Returns a [JsObjectConverter] for class [T].
+ *
+ * Required [T] to be annotated with moshi's @[JsonClass].
+ */
+@Suppress("FunctionName")
+inline fun <reified T : Any?> JsonClassConverter(
+    type: Type,
+    moshi: Moshi = Moshi.Builder().build()
+): JsObjectConverter<T> {
+    return newConverter(adapter = moshi.adapter(type))
+}
+
+@Suppress("UNCHECKED_CAST")
+@PublishedApi
+internal inline fun <reified T : Any?> newConverter(adapter: JsonAdapter<T>): JsObjectConverter<T> {
     return object : JsObjectConverter<T> {
-        override val targetType: KClass<*> = T::class
+        override val targetType: KType = typeOf<T>()
 
         override fun convertToTarget(value: JsObject): T {
             return adapter.fromJsonValue(value)
