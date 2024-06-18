@@ -4,10 +4,12 @@ import com.dokar.quickjs.binding.asyncFunction
 import com.dokar.quickjs.conveter.SerializableConverter
 import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
+@OptIn(ExperimentalSerializationApi::class)
 class SerializableConverterTest {
     @Test
     fun convertSerializableClasses() = runTest {
@@ -31,7 +33,30 @@ class SerializableConverterTest {
             assertEquals(expected, result)
         }
     }
+
+    @Test
+    fun convertGenericSerializableClasses() = runTest {
+        quickJs {
+            addTypeConverters(
+                SerializableConverter<Wrapper<FetchResponse>>(),
+            )
+
+            val expected = Wrapper(data = FetchResponse(ok = true, body = "Hello"))
+
+            asyncFunction("load") { expected }
+
+            asyncFunction<Wrapper<FetchResponse>?>("loadNullable") { expected }
+
+            assertEquals(expected, evaluate<Wrapper<FetchResponse>>("await load()"))
+            assertEquals(expected, evaluate<Wrapper<FetchResponse>?>("await loadNullable()"))
+        }
+    }
 }
+
+@Serializable
+data class Wrapper<T>(
+    val data: T,
+)
 
 @Serializable
 private data class FetchParams(

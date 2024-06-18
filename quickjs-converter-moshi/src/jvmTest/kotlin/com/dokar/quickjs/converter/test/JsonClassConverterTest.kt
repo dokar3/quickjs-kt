@@ -10,8 +10,7 @@ import kotlin.test.assertEquals
 
 class JsonClassConverterTest {
     @Test
-    fun convertSerializableClasses() = runTest {
-
+    fun convertJsonClassClasses() = runTest {
         quickJs {
             addTypeConverters(
                 JsonClassConverter<FetchParams>(),
@@ -32,7 +31,30 @@ class JsonClassConverterTest {
             assertEquals(expected, result)
         }
     }
+
+    @Test
+    fun convertGenericJsonClassClasses() = runTest {
+        quickJs {
+            addTypeConverters(
+                JsonClassConverter<Wrapper<FetchResponse>>(),
+            )
+
+            val expected = Wrapper(data = FetchResponse(ok = true, body = "Hello"))
+
+            asyncFunction("load") { expected }
+
+            asyncFunction<Wrapper<FetchResponse>?>("loadNullable") { expected }
+
+            assertEquals(expected, evaluate<Wrapper<FetchResponse>>("await load()"))
+            assertEquals(expected, evaluate<Wrapper<FetchResponse>?>("await loadNullable()"))
+        }
+    }
 }
+
+@JsonClass(generateAdapter = true)
+data class Wrapper<T>(
+    val data: T,
+)
 
 @JsonClass(generateAdapter = true)
 internal data class FetchParams(
