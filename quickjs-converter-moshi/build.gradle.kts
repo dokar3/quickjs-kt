@@ -23,7 +23,7 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 implementation(project(":quickjs"))
-                implementation(libs.moshi.kotlin)
+                implementation(libs.moshi)
             }
         }
 
