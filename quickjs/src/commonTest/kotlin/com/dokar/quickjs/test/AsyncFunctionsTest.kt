@@ -4,12 +4,15 @@ import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.binding.asyncFunction
 import com.dokar.quickjs.binding.function
 import com.dokar.quickjs.quickJs
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
@@ -111,6 +114,26 @@ class AsyncFunctionsTest {
             advanceTimeBy(1501)
             assertEquals("OK", result)
             evalJob.join()
+        }
+    }
+
+    @Test
+    fun runConcurrentJobs() = runTest {
+        quickJs(Dispatchers.Default) {
+            var value = 0
+            val mutex = Mutex()
+
+            asyncFunction("runJob") { mutex.withLock { value++ } }
+
+            evaluate<Any?>(
+                """
+                for (let i = 0; i < 1000; i++) {
+                    runJob();
+                }
+                """.trimIndent()
+            )
+
+            assertEquals(1000, value)
         }
     }
 

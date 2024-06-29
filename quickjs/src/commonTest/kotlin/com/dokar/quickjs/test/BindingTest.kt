@@ -19,6 +19,17 @@ class BindingTest {
     }
 
     @Test
+    fun bindFunctionsWithSameName() = runTest {
+        val result = quickJs {
+            function("hello") { 0 }
+            function("hello") { 1 }
+            function("hello") { 2 }
+            evaluate<Int>("hello()")
+        }
+        assertEquals(2, result)
+    }
+
+    @Test
     fun bindObject() = runTest {
         val result = quickJs {
             define("console") {}
