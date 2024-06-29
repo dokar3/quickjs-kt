@@ -155,6 +155,11 @@ actual class QuickJs private constructor(
      */
     private val jsMutex = Mutex()
 
+    /**
+     * Prevent the result promise from been cleared.
+     */
+    private val jsResultMutex = Mutex()
+
     private val jobsMutex = Mutex()
     private val asyncJobs = mutableListOf<Job>()
 
@@ -308,9 +313,11 @@ actual class QuickJs private constructor(
         ensureNotClosed()
         evalException = null
         loadModules()
-        jsMutex.withLock { evalBlock() }
-        awaitAsyncJobs()
-        val result = jsMutex.withLock { getEvaluateResult(context, globals) }
+        val result = jsResultMutex.withLock {
+            jsMutex.withLock { evalBlock() }
+            awaitAsyncJobs()
+            jsMutex.withLock { getEvaluateResult(context, globals) }
+        }
         handleException()
         return result
     }
