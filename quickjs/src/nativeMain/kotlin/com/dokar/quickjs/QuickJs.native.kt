@@ -292,15 +292,18 @@ actual class QuickJs private constructor(
                 }
             }
             jsMutex.withLock {
-                while (executePendingJob(runtime) == ExecuteJobResult.Success) {
-                    // The job is completed, see what we can do next
-                }
+                // The job is completed, see what we can do next:
+                // - Execute subsequent Promises
+                // - Cancel all jobs and fail, if rejected and JS didn't handle it
+                do {
+                    val result = executePendingJob(runtime)
+                } while (result == ExecuteJobResult.Success)
             }
         }
+        jobsMutex.withLockSync { asyncJobs += job }
         job.invokeOnCompletion {
             jobsMutex.withLockSync { asyncJobs -= job }
         }
-        jobsMutex.withLockSync { asyncJobs += job }
     }
 
     private suspend inline fun evalAndAwait(
@@ -324,15 +327,17 @@ actual class QuickJs private constructor(
     }
 
     private suspend fun awaitAsyncJobs() {
+        jsMutex.withLock {
+            do {
+                // Execute JS Promises, putting this in while(true) is unnecessary
+                // since we have the same loop after every asyncFunction call
+                val execResult = executePendingJob(runtime)
+                if (execResult is ExecuteJobResult.Failure) {
+                    throw execResult.error
+                }
+            } while (execResult == ExecuteJobResult.Success)
+        }
         while (true) {
-            jsMutex.withLock {
-                do {
-                    val execResult = executePendingJob(runtime)
-                    if (execResult is ExecuteJobResult.Failure) {
-                        throw execResult.error
-                    }
-                } while (execResult == ExecuteJobResult.Success)
-            }
             val jobs = jobsMutex.withLock { asyncJobs.filter { it.isActive } }
             if (jobs.isEmpty()) {
                 // No jobs to run

@@ -352,15 +352,14 @@ actual class QuickJs private constructor(
     }
 
     private suspend fun awaitAsyncJobs() {
-        /**
-         * This is our simple 'event loop'.
-         */
+        jsMutex.withLock {
+            do {
+                // Execute JS Promises, putting this in while(true) is unnecessary
+                // since we have the same loop after every asyncFunction call
+                val executed = executePendingJob(context, globals)
+            } while (executed)
+        }
         while (true) {
-            jsMutex.withLock {
-                do {
-                    val executed = executePendingJob(context, globals)
-                } while (executed)
-            }
             val jobs = jobsMutex.withLock { asyncJobs.filter { it.isActive } }
             if (jobs.isEmpty()) {
                 // No jobs to run
@@ -415,15 +414,18 @@ actual class QuickJs private constructor(
                 }
             }
             jsMutex.withLock {
-                while (executePendingJob(context, globals)) {
-                    // The job is completed, see what we can do next
-                }
+                // The job is completed, see what we can do next:
+                // - Execute subsequent Promises
+                // - Cancel all jobs and fail, if rejected and JS didn't handle it
+                do {
+                    val executed = executePendingJob(context, globals)
+                } while (executed)
             }
         }
+        jobsMutex.withLockSync { asyncJobs += job }
         job.invokeOnCompletion {
             jobsMutex.withLockSync { asyncJobs -= job }
         }
-        jobsMutex.withLockSync { asyncJobs += job }
     }
 
     private fun promiseHandlesFromArgs(args: Array<Any?>): Pair<Long, Long> {
