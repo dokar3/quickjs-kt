@@ -388,4 +388,27 @@ class TypeMappingTest {
             assertEquals("OK", evaluate<String>("""await http.fetch("something")"""))
         }
     }
+
+    @Test
+    fun typeParametersWithAutoCasting() = runTest {
+        quickJs {
+            // Long to Int
+            function<Int, Unit>("numberToInt") {}
+            // Long to Short
+            function<Short, Unit>("numberToShort") {}
+            // Long to Short
+            function<Byte, Unit>("numberToByte") {}
+            // Double to Float
+            function<Float, Unit>("numberToFloat") {}
+
+            evaluate(
+                """
+                numberToInt(10)
+                numberToShort(10)
+                numberToByte(10)
+                numberToFloat(1.5)
+                """.trimIndent()
+            )
+        }
+    }
 }
