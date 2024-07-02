@@ -157,7 +157,7 @@ private fun ScreenContent(
                 // fetch()
                 cleanups += defineFetch(CoroutineScope(Dispatchers.IO + exceptionHandler))
 
-                // setTimeout() / cleanTimeout()
+                // setTimeout() / clearTimeout()
                 cleanups += defineSetTimeout()
 
                 addModule(
