@@ -54,11 +54,6 @@ internal actual fun <T : Any?> castValueOr(
                     // Int -> int
                     return value as T
                 }
-
-                is Double -> {
-                    // Double -> int
-                    return value.toInt() as T
-                }
             }
         }
 

@@ -34,11 +34,6 @@ internal actual fun <T : Any?> castValueOr(
                     // Long -> int
                     return safeCastToIntOrThrow(value) as T
                 }
-
-                is Double -> {
-                    // Double -> int
-                    return value.toInt() as T
-                }
             }
         }
 
