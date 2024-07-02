@@ -64,7 +64,7 @@ expect class QuickJs {
     var memoryLimit: Long
 
     /**
-     * Set stack size for the js runtime. Defaults to 512 Kb.
+     * Set stack size for the js runtime. Defaults to 256 Kb.
      */
     var maxStackSize: Long
 
