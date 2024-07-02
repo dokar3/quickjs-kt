@@ -9,6 +9,7 @@ import com.dokar.quickjs.binding.JsProperty
 import com.dokar.quickjs.binding.ObjectBinding
 import com.dokar.quickjs.converter.TypeConverter
 import com.dokar.quickjs.converter.TypeConverters
+import com.dokar.quickjs.converter.castValueOr
 import com.dokar.quickjs.converter.typeOfClass
 import com.dokar.quickjs.converter.typeOfInstance
 import com.dokar.quickjs.util.withLockSync
@@ -38,7 +39,7 @@ suspend fun <T> QuickJs.evaluate(
     bytecode: ByteArray,
     type: KType
 ): T {
-    return typeConvertOr(evaluateInternal(bytecode), type) {
+    return castValueOr(evaluateInternal(bytecode), type) {
         typeConverters.convert(
             source = it,
             sourceType = typeOfInstance(typeConverters, it),
@@ -65,7 +66,7 @@ suspend fun <T> QuickJs.evaluate(
     type: Class<T>
 ): T {
     val kType = typeOfClass(typeConverters, (type as Class<*>).kotlin)
-    return typeConvertOr(evaluateInternal(bytecode), kType) {
+    return castValueOr(evaluateInternal(bytecode), kType) {
         typeConverters.convert(
             source = it,
             sourceType = typeOfInstance(typeConverters, it),
@@ -89,7 +90,7 @@ suspend fun <T> QuickJs.evaluate(
     filename: String = "main.js",
     asModule: Boolean = false
 ): T {
-    return typeConvertOr(evaluateInternal(code, filename, asModule), type) {
+    return castValueOr(evaluateInternal(code, filename, asModule), type) {
         typeConverters.convert(
             source = it,
             sourceType = typeOfInstance(typeConverters, it),
@@ -118,7 +119,7 @@ suspend fun <T> QuickJs.evaluate(
     asModule: Boolean = false
 ): T {
     val kType = typeOfClass(typeConverters, (type as Class<*>).kotlin)
-    return typeConvertOr(evaluateInternal(code, filename, asModule), kType) {
+    return castValueOr(evaluateInternal(code, filename, asModule), kType) {
         typeConverters.convert(
             source = it,
             sourceType = typeOfInstance(typeConverters, it),
@@ -271,7 +272,7 @@ actual class QuickJs private constructor(
 
     @Throws(QuickJsException::class, CancellationException::class)
     actual suspend inline fun <reified T> evaluate(bytecode: ByteArray): T {
-        return typeConvertOr(evaluateInternal(bytecode), typeOf<T>()) {
+        return castValueOr(evaluateInternal(bytecode), typeOf<T>()) {
             typeConverters.convert(
                 source = it,
                 sourceType = typeOfInstance(typeConverters, it),
@@ -286,7 +287,7 @@ actual class QuickJs private constructor(
         filename: String,
         asModule: Boolean
     ): T {
-        return typeConvertOr(evaluateInternal(code, filename, asModule), typeOf<T>()) {
+        return castValueOr(evaluateInternal(code, filename, asModule), typeOf<T>()) {
             typeConverters.convert(
                 source = it,
                 sourceType = typeOfInstance(typeConverters, it),

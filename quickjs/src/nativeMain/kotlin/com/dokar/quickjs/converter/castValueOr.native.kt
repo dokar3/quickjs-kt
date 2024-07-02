@@ -1,11 +1,11 @@
-package com.dokar.quickjs
+package com.dokar.quickjs.converter
 
 import kotlin.reflect.KClass
 import kotlin.reflect.KType
 
 @Suppress("unchecked_cast")
 @PublishedApi
-internal fun <T : Any?> typeConvertOr(
+internal actual fun <T : Any?> castValueOr(
     value: Any?,
     expectedType: KType,
     fallback: (value: Any) -> T
@@ -16,11 +16,23 @@ internal fun <T : Any?> typeConvertOr(
         return nonNull as T
     }
     when (expectedClass) {
+        Byte::class -> {
+            if (value is Long) {
+                return safeCastToByteOrThrow(value) as T
+            }
+        }
+
+        Short::class -> {
+            if (value is Long) {
+                return safeCastToShortOrThrow(value) as T
+            }
+        }
+
         Int::class -> {
             when (value) {
                 is Long -> {
                     // Long -> int
-                    return value.toInt() as T
+                    return safeCastToIntOrThrow(value) as T
                 }
 
                 is Double -> {
@@ -34,7 +46,7 @@ internal fun <T : Any?> typeConvertOr(
             when (value) {
                 is Double -> {
                     // Double -> float
-                    return value.toFloat() as T
+                    return safeCastToFloatOrThrow(value) as T
                 }
 
                 is Long -> {

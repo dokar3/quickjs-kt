@@ -18,6 +18,7 @@ import com.dokar.quickjs.bridge.objectHandleToStableRef
 import com.dokar.quickjs.bridge.setPromiseRejectionHandler
 import com.dokar.quickjs.converter.TypeConverter
 import com.dokar.quickjs.converter.TypeConverters
+import com.dokar.quickjs.converter.castValueOr
 import com.dokar.quickjs.converter.typeOfInstance
 import com.dokar.quickjs.util.withLockSync
 import kotlinx.cinterop.CPointer
@@ -200,7 +201,7 @@ actual class QuickJs private constructor(
 
     @Throws(QuickJsException::class, CancellationException::class)
     actual suspend inline fun <reified T> evaluate(bytecode: ByteArray): T {
-        return typeConvertOr(evalInternal(bytecode = bytecode), typeOf<T>()) {
+        return castValueOr(evalInternal(bytecode = bytecode), typeOf<T>()) {
             typeConverters.convert(
                 source = it,
                 sourceType = typeOfInstance(typeConverters, it),
@@ -215,7 +216,7 @@ actual class QuickJs private constructor(
         filename: String,
         asModule: Boolean
     ): T {
-        return typeConvertOr(
+        return castValueOr(
             evalInternal(code = code, filename = filename, asModule = asModule),
             typeOf<T>()
         ) {

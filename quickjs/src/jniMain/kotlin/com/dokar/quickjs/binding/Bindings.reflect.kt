@@ -2,10 +2,10 @@ package com.dokar.quickjs.binding
 
 import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.QuickJsException
+import com.dokar.quickjs.converter.castValueOr
 import com.dokar.quickjs.converter.typeOfClass
 import com.dokar.quickjs.converter.typeOfInstance
 import com.dokar.quickjs.qjsError
-import com.dokar.quickjs.typeConvertOr
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.lang.reflect.Field
 import java.lang.reflect.InvocationTargetException
@@ -95,7 +95,7 @@ fun <T> QuickJs.define(
             val parameters = args
                 .mapIndexed { index, param ->
                     val targetType = typeOfClass(typeConverters, parameterTypes[index].kotlin)
-                    typeConvertOr<Any?>(param, targetType) {
+                    castValueOr<Any?>(param, targetType) {
                         typeConverters.convert(
                             source = it,
                             sourceType = typeOfInstance(typeConverters, it),
@@ -130,7 +130,7 @@ fun <T> QuickJs.define(
             val parameters = funcArgs
                 .mapIndexed { index, param ->
                     val targetType = typeOfClass(typeConverters, parameterTypes[index].kotlin)
-                    typeConvertOr<Any?>(param, targetType) {
+                    castValueOr<Any?>(param, targetType) {
                         typeConverters.convert(
                             source = it,
                             sourceType = typeOfInstance(typeConverters, it),
