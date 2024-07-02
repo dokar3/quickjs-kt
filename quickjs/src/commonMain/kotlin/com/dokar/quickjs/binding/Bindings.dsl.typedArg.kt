@@ -3,6 +3,7 @@ package com.dokar.quickjs.binding
 import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.converter.TypeConverters
 import com.dokar.quickjs.converter.canConvertReturnInternally
+import com.dokar.quickjs.converter.castValueOr
 import com.dokar.quickjs.converter.typeOfInstance
 import com.dokar.quickjs.qjsError
 import kotlin.reflect.KType
@@ -151,10 +152,16 @@ private inline fun <T : Any?, R : Any?> callWithTypedArg(
 
     val typedArg = args.first()?.let {
         // Get the typed argument
-        typeConverters.convert<Any?, T>(
-            source = it,
-            sourceType = typeOfInstance(typeConverters, it),
-            targetType = argType,
+        castValueOr(
+            value = it,
+            expectedType = argType,
+            fallback = { value ->
+                typeConverters.convert<Any?, T>(
+                    source = value,
+                    sourceType = typeOfInstance(typeConverters, it),
+                    targetType = argType,
+                )
+            },
         )
     }
 
