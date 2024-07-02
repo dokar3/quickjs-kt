@@ -221,28 +221,40 @@ class AsyncFunctionsTest {
 
             function("delayed") { delayedCount++ }
 
-            function("cancelDelay") { delays[it.first()]?.cancel() }
+            function<Long, Unit>("cancelDelay") { delays[it]?.cancel() }
 
             asyncFunction("delay") {
                 coroutineScope {
-                    val job = async { delay(it.first() as Long) }
-                    delays[it[1] as Long] = job
-                    job.await()
+                    val millis = it[0] as Long
+                    val id = it[1] as Long
+                    val job = async { delay(millis) }
+                    delays[id] = job
+                    try {
+                        job.await()
+                    } finally {
+                        delays.remove(id)
+                    }
                 }
             }
 
             evaluate<Any?>(
                 """
-                    function setTimeout(callback, millis, id) {
-                        delay(millis, id).then(() => callback()).catch(() => {});
+                    let _timeoutId = 0;
+                    
+                    function setTimeout(callback, millis) {
+                        _timeoutId++;
+                        delay(millis, _timeoutId)
+                            .then(() => callback())
+                            .catch(() => {}); // Delay has canceled
+                        return _timeoutId;
                     }
                     
                     function clearTimeout(id) {
                         cancelDelay(id)
                     }
                     
-                    setTimeout(() => delayed(), 2000, 1);
-                    setTimeout(() => { delayed(); clearTimeout(1); }, 1000, 2);
+                    const id = setTimeout(() => delayed(), 2000);
+                    setTimeout(() => { delayed(); clearTimeout(id); }, 1000);
                 """.trimIndent()
             )
             assertEquals(1, delayedCount)
