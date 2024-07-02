@@ -1,8 +1,8 @@
 # Benchmark Results
 
-Generated on 6/29/2024, 8:22:30 AM
+Generated on 7/2/2024, 1:39:51 PM
 
-Version: 1.0.0-alpha11
+Version: 1.0.0-alpha12
 
 ### Test environment
 
@@ -16,17 +16,17 @@ Memory: 15.6 GB
 
 | Name | Iterations | Score | Unit |
 | --- | --- | --- | --- |
-| defineDslBindings | 5 | 2211.65 | ops/s |
-| defineReflectionBindings | 5 | 2230.20 | ops/s |
-| invokeDslBindings | 5 | 38399.53 | ops/s |
-| invokeReflectionBindings | 5 | 41724.12 | ops/s |
+| defineDslBindings | 5 | 2211.57 | ops/s |
+| defineReflectionBindings | 5 | 2211.81 | ops/s |
+| invokeDslBindings | 5 | 37959.13 | ops/s |
+| invokeReflectionBindings | 5 | 41269.80 | ops/s |
 
 ### Kotlin/Native Results
 
 | Name | Iterations | Score | Unit |
 | --- | --- | --- | --- |
-| defineDslBindings | 5 | 2169.57 | ops/sec |
-| invokeDslBindings | 5 | 23980.27 | ops/sec |
+| defineDslBindings | 5 | 2147.95 | ops/sec |
+| invokeDslBindings | 5 | 23507.90 | ops/sec |
 
 ### Notes
 
