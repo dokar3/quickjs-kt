@@ -459,11 +459,21 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject visited_set
         } else {
             result = JS_FALSE;
         }
-    } else if ((*env)->IsInstanceOf(env, value, cls_integer(env))) {
+    } else if ((*env)->IsInstanceOf(env, value, cls_byte(env))) {
+        // Byte
+        jmethodID method = method_byte_byte_value(env);
+        jbyte unboxed = (*env)->CallByteMethod(env, value, method);
+        result = JS_NewInt32(context, unboxed);
+    } else if ((*env)->IsInstanceOf(env, value, cls_short(env))) {
+        // Short
+        jmethodID method = method_short_short_value(env);
+        jshort unboxed = (*env)->CallShortMethod(env, value, method);
+        result = JS_NewInt32(context, unboxed);
+    }  else if ((*env)->IsInstanceOf(env, value, cls_integer(env))) {
         // Integer
         jmethodID method = method_integer_int_value(env);
         jint unboxed = (*env)->CallIntMethod(env, value, method);
-        result = JS_NewFloat64(context, unboxed);
+        result = JS_NewInt32(context, unboxed);
     } else if ((*env)->IsInstanceOf(env, value, cls_long(env))) {
         // Long
         jmethodID method = method_long_long_value(env);

@@ -3,6 +3,8 @@
 
 // Cached classes
 static jclass _cls_ubyte_array = NULL;
+static jclass _cls_short = NULL;
+static jclass _cls_byte = NULL;
 static jclass _cls_integer = NULL;
 static jclass _cls_long = NULL;
 static jclass _cls_float = NULL;
@@ -31,6 +33,8 @@ static jclass _cls_js_object = NULL;
 
 // Cached methods
 static jmethodID _method_ubyte_array_init = NULL;
+static jmethodID _method_short_short_value = NULL;
+static jmethodID _method_byte_byte_value = NULL;
 static jmethodID _method_integer_value_of = NULL;
 static jmethodID _method_integer_int_value = NULL;
 static jmethodID _method_long_value_of = NULL;
@@ -90,6 +94,22 @@ jclass cls_ubyte_array(JNIEnv *env) {
         _cls_ubyte_array = (*env)->NewGlobalRef(env, cls);
     }
     return _cls_ubyte_array;
+}
+
+jclass cls_short(JNIEnv *env) {
+    if (_cls_short == NULL) {
+        jclass cls = (*env)->FindClass(env, "java/lang/Short");
+        _cls_short = (*env)->NewGlobalRef(env, cls);
+    }
+    return _cls_short;
+}
+
+jclass cls_byte(JNIEnv *env) {
+    if (_cls_byte == NULL) {
+        jclass cls = (*env)->FindClass(env, "java/lang/Byte");
+        _cls_byte = (*env)->NewGlobalRef(env, cls);
+    }
+    return _cls_byte;
 }
 
 jclass cls_integer(JNIEnv *env) {
@@ -297,6 +317,20 @@ jmethodID method_ubyte_array_init(JNIEnv *env) {
         _method_ubyte_array_init = (*env)->GetMethodID(env, cls_ubyte_array(env), "<init>", "([B)V");
     }
     return _method_ubyte_array_init;
+}
+
+jmethodID method_short_short_value(JNIEnv *env) {
+    if (_method_short_short_value == NULL) {
+        _method_short_short_value = (*env)->GetMethodID(env, cls_short(env), "shortValue", "()S");
+    }
+    return _method_short_short_value;
+}
+
+jmethodID method_byte_byte_value(JNIEnv *env) {
+    if (_method_byte_byte_value == NULL) {
+        _method_byte_byte_value = (*env)->GetMethodID(env, cls_byte(env), "byteValue", "()B");
+    }
+    return _method_byte_byte_value;
 }
 
 jmethodID method_integer_value_of(JNIEnv *env) {
@@ -653,6 +687,12 @@ void clear_jni_refs_cache(JNIEnv *env) {
     if (_cls_ubyte_array != NULL) {
         (*env)->DeleteGlobalRef(env, _cls_ubyte_array);
     }
+    if (_cls_short != NULL) {
+        (*env)->DeleteGlobalRef(env, _cls_short);
+    }
+    if (_cls_byte != NULL) {
+        (*env)->DeleteGlobalRef(env, _cls_byte);
+    }
     if (_cls_integer != NULL) {
         (*env)->DeleteGlobalRef(env, _cls_integer);
     }
@@ -730,6 +770,8 @@ void clear_jni_refs_cache(JNIEnv *env) {
     }
 
     _cls_ubyte_array = NULL;
+    _cls_short = NULL;
+    _cls_byte = NULL;
     _cls_integer = NULL;
     _cls_long = NULL;
     _cls_float = NULL;
@@ -757,6 +799,8 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _cls_js_object = NULL;
 
     _method_ubyte_array_init = NULL;
+    _method_short_short_value = NULL;
+    _method_byte_byte_value = NULL;
     _method_integer_value_of = NULL;
     _method_integer_int_value = NULL;
     _method_long_value_of = NULL;

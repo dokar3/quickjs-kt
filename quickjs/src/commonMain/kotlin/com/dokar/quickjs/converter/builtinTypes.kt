@@ -58,6 +58,8 @@ internal fun typeOfInstance(typeConverters: TypeConverters, instance: Any): KTyp
 private fun typeOfInstance(instance: Any): KType? {
     return when (instance) {
         Unit -> typeOf<Unit>()
+        is Byte -> typeOf<Byte>()
+        is Short -> typeOf<Short>()
         is Int -> typeOf<Int>()
         is Long -> typeOf<Long>()
         is Float -> typeOf<Float>()
