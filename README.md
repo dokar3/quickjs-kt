@@ -269,24 +269,24 @@ Use the DSL aliases then!
 Some built-in types are mapped automatically between C and Kotlin, this table shows how they are
 mapped.
 
-| JavaScript type | Kotlin type     |
-|-----------------|-----------------|
-| null            | null            |
-| undefined       | null (1)        |
-| boolean         | Boolean         |
-| Number          | Long/Double (2) |
-| string          | String          |
-| Array           | List<Any?>      |
-| Set             | Set<Any?>       |
-| Map             | Map<Any?, Any?> |
-| Error           | Error           |
-| object          | JsObject        |
-| Int8Array       | ByteArray       |
-| UInt8Array      | UByteArray      |
+| JavaScript type | Kotlin type                           |
+|-----------------|---------------------------------------|
+| null            | null                                  |
+| undefined       | null (1)                              |
+| boolean         | Boolean                               |
+| Number          | Long/Int/Short/Byte, Double/Float (2) |
+| string          | String                                |
+| Array           | List<Any?>                            |
+| Set             | Set<Any?>                             |
+| Map             | Map<Any?, Any?>                       |
+| Error           | Error                                 |
+| object          | JsObject                              |
+| Int8Array       | ByteArray                             |
+| UInt8Array      | UByteArray                            |
 
 (1) A Kotlin `Unit` will be mapped to a JavaScript `undefined`, conversely, JavaScript `undefined` won't be mapped to Kotlin `Unit`. 
 
-(2) A `Number` in JavaScript can be cast to an `Int` or a `Float` to match the Kotlin type.
+(2) When converting a JavaScript `Number` to Kotlin `Int`, `Short`, `Byte` or `Float` and the value is out of range, it will throw
 
 ### Custom types
 
