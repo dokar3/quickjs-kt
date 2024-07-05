@@ -6,6 +6,10 @@
 
 jclass cls_ubyte_array(JNIEnv *env);
 
+jclass cls_short(JNIEnv *env);
+
+jclass cls_byte(JNIEnv *env);
+
 jclass cls_integer(JNIEnv *env);
 
 jclass cls_long(JNIEnv *env);
@@ -57,6 +61,10 @@ jclass cls_js_function(JNIEnv *env);
 jclass cls_js_object(JNIEnv *env);
 
 jmethodID method_ubyte_array_init(JNIEnv *env);
+
+jmethodID method_short_short_value(JNIEnv *env);
+
+jmethodID method_byte_byte_value(JNIEnv *env);
 
 jmethodID method_integer_value_of(JNIEnv *env);
 

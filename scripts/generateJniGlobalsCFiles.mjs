@@ -15,6 +15,18 @@ const JNI_REFS = [
     fields: [{ name: "storage", type: "[B" }],
   },
   {
+    className: "java/lang/Short",
+    methods: [
+      { name: "shortValue", sign: "()S" },
+    ],
+  },
+  {
+    className: "java/lang/Byte",
+    methods: [
+      { name: "byteValue", sign: "()B" },
+    ],
+  },
+  {
     className: "java/lang/Integer",
     methods: [
       { name: "valueOf", sign: "(I)Ljava/lang/Integer;", isStatic: true },

@@ -52,6 +52,8 @@ internal fun <T : Any?> T.toJsValue(
     return when (value) {
         Unit -> JsUndefined()
         is Boolean -> JS_NewBool(context, if (value) 1 else 0)
+        is Byte -> JS_NewInt32(context, value.toInt())
+        is Short -> JS_NewInt32(context, value.toInt())
         is Int -> JS_NewInt32(context, value)
         is Long -> JS_NewInt64(context, value)
         is Float -> JS_NewFloat64(context, value.toDouble())

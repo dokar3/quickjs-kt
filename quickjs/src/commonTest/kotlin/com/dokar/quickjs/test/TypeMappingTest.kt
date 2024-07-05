@@ -59,6 +59,8 @@ class TypeMappingTest {
     fun ktReturns() = runTest {
         quickJs {
             function("returnsBoolean") { false }
+            function("returnsByte") { 1.toByte() }
+            function("returnsShort") { 1.toShort() }
             function("returnsInt") { 1 }
             function("returnsLong") { 1L }
             function("returnsFloat") { 1.2f }
@@ -73,6 +75,8 @@ class TypeMappingTest {
             function("returnsAny") { Any() }
 
             assertEquals(false, evaluate("returnsBoolean()"))
+            assertEquals(1, evaluate("returnsByte()"))
+            assertEquals(1, evaluate("returnsShort()"))
             assertEquals(1, evaluate("returnsInt()"))
             assertEquals(1L, evaluate("returnsLong()"))
             assertEquals(1.2f, evaluate("returnsFloat()"))
