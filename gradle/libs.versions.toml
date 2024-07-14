@@ -51,4 +51,4 @@ kotlinAllOpen = { id = "org.jetbrains.kotlin.plugin.allopen", version.ref = "kot
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 mavenPublish = { id = "com.vanniktech.maven.publish", version = "0.29.0" }
-ksp = { id ="com.google.devtools.ksp", version = "2.0.0-1.0.22" }
+ksp = { id ="com.google.devtools.ksp", version = "2.0.0-1.0.23" }
