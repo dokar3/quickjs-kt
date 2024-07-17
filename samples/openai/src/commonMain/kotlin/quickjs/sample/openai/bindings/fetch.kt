@@ -169,15 +169,12 @@ private suspend fun readStreamBody(
         }
     } else {
         while (true) {
-            val readCount = channel.read(
-                desiredSize = 512,
-            ) { source, start, endExclusive ->
-                val count = (endExclusive - start).toInt()
+            val readCount = channel.read { source, start, endExclusive ->
+                val count = endExclusive - start
                 if (count == 0) {
                     externalChannel.send(null)
                 } else {
-                    val bytes = ByteArray(count)
-                    source.get(bytes, start.toInt(), count)
+                    val bytes = source.sliceArray(start..endExclusive)
                     externalChannel.send(bytes)
                 }
                 count
