@@ -520,6 +520,14 @@ actual class QuickJs private constructor(
         jobsMutex.withLockSync { asyncJobs.forEach { it.cancel() } }
     }
 
+    /**
+     * Called from JNI when a previously unhandled promise rejection is handled.
+     */
+    private fun clearHandledPromiseRejection() {
+        ensureNotClosed()
+        this.evalException = null
+    }
+
     private fun ensureNotClosed() = check(runtime != 0L) { "Already closed." }
 
     private external fun newRuntime(): Long

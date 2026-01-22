@@ -16,5 +16,8 @@ void promise_rejection_handler(JSContext *ctx, JSValue promise,
         (*env)->CallVoidMethod(env, host,
                                method_quick_js_set_unhandled_promise_rejection(env),
                                js_value_to_jobject(env, ctx, reason));
+    } else {
+        (*env)->CallVoidMethod(env, host,
+                               method_quick_js_clear_handled_promise_rejection(env));
     }
 }

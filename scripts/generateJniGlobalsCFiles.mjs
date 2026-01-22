@@ -112,7 +112,7 @@ const JNI_REFS = [
     methods: [
       { name: "size", sign: "()I" },
       { name: "get", sign: "(I)Ljava/lang/Object;" },
-      { name: "add", sign: "(Ljava/lang/Object;)Z"}
+      { name: "add", sign: "(Ljava/lang/Object;)Z" }
     ],
   },
   {
@@ -183,6 +183,10 @@ const JNI_REFS = [
       {
         name: "setUnhandledPromiseRejection",
         sign: "(Ljava/lang/Object;)V",
+      },
+      {
+        name: "clearHandledPromiseRejection",
+        sign: "()V",
       },
     ],
   },
@@ -452,16 +456,16 @@ void clear_jni_refs_cache(JNIEnv *env) {
 ${classClearStatements.map((item) => "    " + item).join("\n")}
 
 ${classDeclarations
-  .map((item) => item.replace("static jclass ", "    "))
-  .join("\n")}
+      .map((item) => item.replace("static jclass ", "    "))
+      .join("\n")}
 
 ${methodDeclarations
-  .map((item) => item.replace("static jmethodID ", "    "))
-  .join("\n")}
+      .map((item) => item.replace("static jmethodID ", "    "))
+      .join("\n")}
 
 ${fieldDeclarations
-  .map((item) => item.replace("static jfieldID ", "    "))
-  .join("\n")}
+      .map((item) => item.replace("static jfieldID ", "    "))
+      .join("\n")}
 }
 `;
 

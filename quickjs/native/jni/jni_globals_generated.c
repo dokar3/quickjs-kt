@@ -75,6 +75,7 @@ static jmethodID _method_quick_js_on_call_setter = NULL;
 static jmethodID _method_quick_js_on_call_function = NULL;
 static jmethodID _method_quick_js_set_eval_exception = NULL;
 static jmethodID _method_quick_js_set_unhandled_promise_rejection = NULL;
+static jmethodID _method_quick_js_clear_handled_promise_rejection = NULL;
 static jmethodID _method_memory_usage_init = NULL;
 static jmethodID _method_js_object_init = NULL;
 
@@ -613,6 +614,13 @@ jmethodID method_quick_js_set_unhandled_promise_rejection(JNIEnv *env) {
     return _method_quick_js_set_unhandled_promise_rejection;
 }
 
+jmethodID method_quick_js_clear_handled_promise_rejection(JNIEnv *env) {
+    if (_method_quick_js_clear_handled_promise_rejection == NULL) {
+        _method_quick_js_clear_handled_promise_rejection = (*env)->GetMethodID(env, cls_quick_js(env), "clearHandledPromiseRejection", "()V");
+    }
+    return _method_quick_js_clear_handled_promise_rejection;
+}
+
 jmethodID method_memory_usage_init(JNIEnv *env) {
     if (_method_memory_usage_init == NULL) {
         _method_memory_usage_init = (*env)->GetMethodID(env, cls_memory_usage(env), "<init>", "(JJJJJJJJJJJJJJJJJJJJJJJJJJ)V");
@@ -841,6 +849,7 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _method_quick_js_on_call_function = NULL;
     _method_quick_js_set_eval_exception = NULL;
     _method_quick_js_set_unhandled_promise_rejection = NULL;
+    _method_quick_js_clear_handled_promise_rejection = NULL;
     _method_memory_usage_init = NULL;
     _method_js_object_init = NULL;
 
