@@ -184,7 +184,7 @@ private fun ScreenContent(
                 @Suppress("unchecked_cast")
                 function("passArray") {
                     require(it.isNotEmpty())
-                    println((it[0] as Array<Any?>).contentToString())
+                    println(it[0] as List<Any?>)
                 }
 
                 function("passSet") {
