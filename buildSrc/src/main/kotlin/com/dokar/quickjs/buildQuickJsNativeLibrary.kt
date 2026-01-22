@@ -17,6 +17,17 @@ internal fun Project.buildQuickJsNativeLibrary(
 
     println("Building $libType native library for target '$platform'...")
 
+    // Ensure scripts in native/cmake are executable
+    val cmakeScriptsDir = File(cmakeFile.parentFile, "cmake")
+    if (cmakeScriptsDir.exists()) {
+        cmakeScriptsDir.listFiles { _, name -> name.endsWith(".sh") }?.forEach {
+            if (it.exists() && !it.canExecute()) {
+                println("Setting execute permission for ${it.name}")
+                it.setExecutable(true)
+            }
+        }
+    }
+
     val buildType = if (release) "MinSizeRel" else "Debug"
     val commonArgs = arrayOf(
         "-B",
@@ -70,12 +81,73 @@ internal fun Project.buildQuickJsNativeLibrary(
         else -> arrayOf(commonArgs[1])
     }
 
+    fun findCmakeExecutable(): String {
+        val fromProp = envVarOrLocalPropOf("CMAKE_PATH")
+        if (fromProp != null) return fromProp
+
+        // Try 'cmake' in PATH first
+        try {
+            val result = project.providers.exec {
+                commandLine("which", "cmake")
+            }.standardOutput.asText.get().trim()
+            if (result.isNotEmpty() && File(result).exists()) {
+                return result
+            }
+        } catch (ignored: Throwable) {
+        }
+
+        // Try common locations on macOS/Linux if not in PATH
+        val commonPaths = listOf(
+            "/usr/local/bin/cmake",
+            "/opt/homebrew/bin/cmake",
+            "/usr/bin/cmake",
+            "/bin/cmake"
+        )
+        for (path in commonPaths) {
+            if (File(path).exists()) {
+                return path
+            }
+        }
+        return "cmake"
+    }
+
+    val cmakeExecutable = findCmakeExecutable()
+
     fun runCommand(vararg args: Any) {
-        exec {
-            workingDir = cmakeFile.parentFile
-            standardOutput = System.out
-            errorOutput = System.err
-            commandLine(*args)
+        val cmd = args[0].toString()
+        val actualArgs = if (cmd == "cmake") {
+            val list = args.toMutableList()
+            list[0] = cmakeExecutable
+            list.toTypedArray()
+        } else {
+            args
+        }
+        try {
+            exec {
+                workingDir = cmakeFile.parentFile
+                standardOutput = System.out
+                errorOutput = System.err
+                commandLine(*actualArgs)
+            }
+        } catch (e: Throwable) {
+            val isCmake = args.isNotEmpty() && args[0].toString() == "cmake"
+            if (isCmake) {
+                val errorText = e.toString() + " " + (e.cause?.toString() ?: "")
+                if (errorText.contains("No such file", ignoreCase = true) ||
+                    errorText.contains("error=2") ||
+                    errorText.contains("not found", ignoreCase = true) ||
+                    errorText.contains("Could not start", ignoreCase = true)
+                ) {
+                    val pathEnv = System.getenv("PATH")
+                    throw IllegalStateException(
+                        "CMake is not found. Tried: '$cmakeExecutable'. " +
+                                "Please install CMake or set 'CMAKE_PATH' in local.properties. " +
+                                "Current PATH: $pathEnv",
+                        e
+                    )
+                }
+            }
+            throw e
         }
     }
 
