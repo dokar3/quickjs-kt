@@ -22,9 +22,11 @@ private fun promiseRejectionHandler(
     isHandled: Int,
     opaque: COpaquePointer?,
 ) {
+    val quickJs = opaque!!.asStableRef<QuickJs>()
     if (isHandled != 1) {
-        val quickJs = opaque!!.asStableRef<QuickJs>()
         quickJs.get().setUnhandledPromiseRejection(reason.toKtValue(context!!))
+    } else {
+        quickJs.get().clearHandledPromiseRejection()
     }
 }
 

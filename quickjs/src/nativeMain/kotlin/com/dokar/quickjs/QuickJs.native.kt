@@ -413,6 +413,11 @@ actual class QuickJs private constructor(
         jobsMutex.withLockSync { asyncJobs.forEach { it.cancel() } }
     }
 
+    internal fun clearHandledPromiseRejection() {
+        ensureNotClosed()
+        evalException = null
+    }
+
     actual companion object {
         @Throws(QuickJsException::class)
         actual fun create(jobDispatcher: CoroutineDispatcher): QuickJs {
