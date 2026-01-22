@@ -107,6 +107,7 @@ endif ()
 # QuickJS sources
 file(GLOB_RECURSE quickjs_sources
         "quickjs/cutils.c"
+        "quickjs/dtoa.c"
         "quickjs/libbf.c"
         "quickjs/libregexp.c"
         "quickjs/libunicode.c"
