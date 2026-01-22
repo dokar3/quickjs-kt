@@ -36,7 +36,20 @@ internal class DslObjectBinding(
         val func = functionsDef[name]
             ?: qjsError("Function '$name' not found on object '${scope.name}'")
         val result = when (val call = func.call) {
-            is AsyncFunctionBinding<*> -> quickJs.invokeAsyncFunction(args) { call.invoke(it) }
+            is AsyncFunctionBinding<*> -> quickJs.invokeAsyncFunction(args) {
+                val rawResult = call.invoke(it)
+                // Convert result to JsObject if needed (for custom types with type converters)
+                if (canConvertReturnInternally(rawResult)) {
+                    rawResult
+                } else {
+                    val typeConverters = quickJs.typeConverters
+                    typeConverters.convert<Any?, JsObject>(
+                        source = rawResult,
+                        sourceType = typeOfInstance(typeConverters, rawResult),
+                        targetType = typeOf<JsObject>(),
+                    )
+                }
+            }
             is FunctionBinding<*> -> call.invoke(args)
             is ObjectBinding -> qjsError("Object cannot be invoked!")
         }
