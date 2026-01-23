@@ -16,23 +16,31 @@ import quickjs.JSPromiseStateEnum
 import quickjs.JSRuntime
 import quickjs.JSValue
 import quickjs.JS_ExecutePendingJob
+import quickjs.JS_FreeAtom
 import quickjs.JS_FreeValue
 import quickjs.JS_GetException
 import quickjs.JS_GetPropertyStr
+import quickjs.JS_HasProperty
 import quickjs.JS_IsError
 import quickjs.JS_IsException
-import quickjs.JS_IsNull
+import quickjs.JS_NewAtom
 import quickjs.JS_PromiseResult
 import quickjs.JS_PromiseState
+import quickjs.JS_TAG_NULL
+import quickjs.JS_TAG_OBJECT
+import quickjs.JS_TAG_UNINITIALIZED
 import quickjs.JS_UpdateStackTop
+import quickjs.JsValueGetNormTag
 
+@PublishedApi
 @OptIn(ExperimentalForeignApi::class)
 internal value class JsPromise(
     private val value: CValue<JSValue>
 ) {
     fun result(context: CPointer<JSContext>): Any? {
         val ctxException = JS_GetException(context)
-        if (JS_IsNull(ctxException) != 1) {
+        val ctxExTag = JsValueGetNormTag(ctxException)
+        if (ctxExTag != JS_TAG_NULL && ctxExTag != JS_TAG_UNINITIALIZED) {
             ctxException.use(context) {
                 if (JS_IsError(context, this) == 1) {
                     throw jsErrorToKtError(context, this)
@@ -40,37 +48,34 @@ internal value class JsPromise(
                     throw QuickJsException(toKtString(context))
                 }
             }
+        } else {
+            JS_FreeValue(context, ctxException)
         }
 
         return when (val state = JS_PromiseState(context, value)) {
             JSPromiseStateEnum.JS_PROMISE_FULFILLED -> {
-                JS_PromiseResult(context, value).use(context) {
-                    val result = JS_GetPropertyStr(context, this, "value")
-                    if (result.isPromise(context)) {
-                        val stateText = when (val retState = JS_PromiseState(context, result)) {
-                            JSPromiseStateEnum.JS_PROMISE_PENDING -> STATE_PENDING
-                            JSPromiseStateEnum.JS_PROMISE_FULFILLED -> STATE_FULFILLED
-                            JSPromiseStateEnum.JS_PROMISE_REJECTED -> STATE_REJECTED
-                            else -> qjsError("Unknown promise state: $retState")
-                        }
-                        JS_FreeValue(context, result)
-                        stateText
-                    } else if (JS_IsException(result) != 1) {
-                        result.use(context) { toKtValue(context) }
-                    } else {
-                        // Is it safe to ignore the exception?
-                        // This happens when executing a compiled module.
-                        null
+                val realValue = JS_PromiseResult(context, value).unwrapIfWrapped(context)
+                if (realValue.isPromise(context)) {
+                    val stateText = when (val retState = JS_PromiseState(context, realValue)) {
+                        JSPromiseStateEnum.JS_PROMISE_PENDING -> STATE_PENDING
+                        JSPromiseStateEnum.JS_PROMISE_FULFILLED -> STATE_FULFILLED
+                        JSPromiseStateEnum.JS_PROMISE_REJECTED -> STATE_REJECTED
+                        else -> qjsError("Unknown promise state: $retState")
                     }
+                    JS_FreeValue(context, realValue)
+                    stateText
+                } else {
+                    realValue.use(context) { toKtValue(context) }
                 }
             }
 
             JSPromiseStateEnum.JS_PROMISE_REJECTED -> {
-                val result = JS_PromiseResult(context, value).use(context) { toKtValue(context) }
-                if (result is Throwable) {
-                    throw result
-                } else {
-                    throw QuickJsException(result?.toString())
+                JS_PromiseResult(context, value).unwrapIfWrapped(context).use(context) {
+                    if (JS_IsError(context, this) == 1) {
+                        throw jsErrorToKtError(context, this)
+                    } else {
+                        throw QuickJsException(toKtString(context))
+                    }
                 }
             }
 
@@ -95,6 +100,27 @@ internal sealed interface ExecuteJobResult {
     data object Success : ExecuteJobResult
     data object NoJobs : ExecuteJobResult
     class Failure(val error: Throwable) : ExecuteJobResult
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun CValue<JSValue>.unwrapIfWrapped(context: CPointer<JSContext>): CValue<JSValue> {
+    if (JsValueGetNormTag(this) != JS_TAG_OBJECT || this.isPromise(context)) {
+        return this
+    }
+    // The evaluation result is wrapped in {value: ...} if it's not a module eval.
+    val atom = JS_NewAtom(context, "value")
+    val hasProperty = JS_HasProperty(context, this, atom)
+    JS_FreeAtom(context, atom)
+    if (hasProperty == 1) {
+        val valueProp = JS_GetPropertyStr(context, this, "value")
+        if (JS_IsException(valueProp) != 1) {
+            JS_FreeValue(context, this)
+            return valueProp
+        } else {
+            JS_FreeValue(context, JS_GetException(context))
+        }
+    }
+    return this
 }
 
 @OptIn(ExperimentalForeignApi::class)

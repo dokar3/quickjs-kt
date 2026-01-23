@@ -49,8 +49,9 @@ jthrowable try_catch_java_exceptions(JNIEnv *env) {
 
 int check_js_context_exception(JNIEnv *env, JSContext *context) {
     JSValue exception = JS_GetException(context);
+    int tag = JS_VALUE_GET_TAG(exception);
     // Check exception
-    if (!JS_IsNull(exception)) {
+    if (tag != JS_TAG_NULL && tag != JS_TAG_UNINITIALIZED) {
         char *message = NULL;
         js_error_to_string(context, exception, &message);
         // Free values
@@ -59,6 +60,7 @@ int check_js_context_exception(JNIEnv *env, JSContext *context) {
         jni_throw_qjs_exception(env, message);
         return 1;
     } else {
+        JS_FreeValue(context, exception);
         return 0;
     }
 }

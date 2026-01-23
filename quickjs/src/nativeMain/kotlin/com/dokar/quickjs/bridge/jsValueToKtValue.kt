@@ -48,19 +48,19 @@ import quickjs.JS_IsArray
 import quickjs.JS_IsError
 import quickjs.JS_IsException
 import quickjs.JS_IsFunction
-import quickjs.JS_IsNull
 import quickjs.JS_IsString
 import quickjs.JS_IsUndefined
 import quickjs.JS_JSONStringify
 import quickjs.JS_TAG_BOOL
+import quickjs.JS_TAG_EXCEPTION
 import quickjs.JS_TAG_FLOAT64
 import quickjs.JS_TAG_FUNCTION_BYTECODE
 import quickjs.JS_TAG_INT
 import quickjs.JS_TAG_MODULE
 import quickjs.JS_TAG_NULL
 import quickjs.JS_TAG_OBJECT
-import quickjs.JS_TAG_STRING
 import quickjs.JS_TAG_UNDEFINED
+import quickjs.JS_TAG_UNINITIALIZED
 import quickjs.JS_ToBool
 import quickjs.JS_ToCString
 import quickjs.JS_ToFloat64
@@ -78,64 +78,85 @@ import quickjs.js_free
 @OptIn(ExperimentalForeignApi::class)
 internal fun CValue<JSValue>.toKtValue(context: CPointer<JSContext>): Any? {
     val tag = JsValueGetNormTag(this)
-    if (tag == JS_TAG_NULL || tag == JS_TAG_UNDEFINED) {
-        return null
-    } else if (tag == JS_TAG_BOOL) {
-        return JS_ToBool(context, this) == 1
-    } else if (tag == JS_TAG_INT) {
-        memScoped {
+    return when {
+        tag == JS_TAG_NULL || tag == JS_TAG_UNDEFINED || tag == JS_TAG_UNINITIALIZED -> null
+
+        tag == JS_TAG_EXCEPTION -> {
+            throw JS_GetException(context).use(context) { jsErrorToKtError(context, this) }
+        }
+
+        tag == JS_TAG_BOOL -> {
+            JS_ToBool(context, this) == 1
+        }
+
+        tag == JS_TAG_INT -> memScoped {
             val out = alloc<int64_tVar>()
             JS_ToInt64(context, out.ptr, this@toKtValue)
-            return out.value
+            out.value
         }
-    } else if (tag == JS_TAG_FLOAT64) {
-        if (JS_VALUE_IS_NAN(this) == 1) {
-            return Double.NaN
-        }
-        memScoped {
-            val out = alloc<double_tVar>()
-            JS_ToFloat64(context, out.ptr, this@toKtValue)
-            return out.value
-        }
-    } else if (tag == JS_TAG_STRING) {
-        val buffer = JS_ToCString(context, this) ?: return null
-        val string = buffer.toKStringFromUtf8()
-        JS_FreeCString(context, buffer)
-        return string
-    } else if (tag == JS_TAG_FUNCTION_BYTECODE || tag == JS_TAG_MODULE) {
-        return memScoped {
-            val flags = JS_WRITE_OBJ_BYTECODE or JS_WRITE_OBJ_REFERENCE
-            val length = alloc<size_tVar>()
-            val bufferPtr = JS_WriteObject(
-                ctx = context,
-                psize = length.ptr,
-                obj = this@toKtValue,
-                flags = flags
-            ) ?: qjsError("Cannot write bytecode from the result.")
-            val buffer = bufferPtr.readBytes(length.value.toInt())
-            js_free(ctx = context, ptr = bufferPtr)
-            buffer
-        }
-    } else if (JS_IsArray(context, this) == 1) {
-        return jsArrayToKtList(context, this)
-    } else if (JS_IsError(context, this) == 1) {
-        return jsErrorToKtError(context, this)
-    } else if (tag == JS_TAG_OBJECT) {
-        val globalThis = JS_GetGlobalObject(context)
-        try {
-            return when {
-                isPromise(context, globalThis) -> JsPromise(value = this)
-                isUint8Array(context, globalThis) -> jsUint8ArrayToKtUByteArray(context, this)
-                isInt8Array(context, globalThis) -> jsInt8ArrayToKtByteArray(context, this)
-                isSet(context, globalThis) -> jsSetToKtSet(context, this)
-                isMap(context, globalThis) -> jsMapToKtMap(context, this)
-                else -> jsObjectToKtJsObject(context, this)
+
+        tag == JS_TAG_FLOAT64 -> {
+            if (JS_VALUE_IS_NAN(this) == 1) {
+                Double.NaN
+            } else {
+                memScoped {
+                    val out = alloc<double_tVar>()
+                    JS_ToFloat64(context, out.ptr, this@toKtValue)
+                    out.value
+                }
             }
-        } finally {
-            JS_FreeValue(context, globalThis)
         }
-    } else {
-        qjsError("Cannot convert js type to kotlin type. JS value tag: $tag")
+
+        JS_IsString(this) == 1 -> {
+            val buffer = JS_ToCString(context, this) ?: return null
+            val string = buffer.toKStringFromUtf8()
+            JS_FreeCString(context, buffer)
+            string
+        }
+
+        tag == JS_TAG_FUNCTION_BYTECODE || tag == JS_TAG_MODULE -> {
+            memScoped {
+                val flags = JS_WRITE_OBJ_BYTECODE or JS_WRITE_OBJ_REFERENCE
+                val length = alloc<size_tVar>()
+                val bufferPtr = JS_WriteObject(
+                    ctx = context,
+                    psize = length.ptr,
+                    obj = this@toKtValue,
+                    flags = flags
+                ) ?: qjsError("Cannot write bytecode from the result.")
+                val buffer = bufferPtr.readBytes(length.value.toInt())
+                js_free(ctx = context, ptr = bufferPtr)
+                buffer
+            }
+        }
+
+        JS_IsArray(context, this) == 1 -> {
+            jsArrayToKtList(context, this)
+        }
+
+        JS_IsError(context, this) == 1 -> {
+            jsErrorToKtError(context, this)
+        }
+
+        tag == JS_TAG_OBJECT -> {
+            val globalThis = JS_GetGlobalObject(context)
+            try {
+                when {
+                    isPromise(context, globalThis) -> JsPromise(value = this)
+                    isUint8Array(context, globalThis) -> jsUint8ArrayToKtUByteArray(context, this)
+                    isInt8Array(context, globalThis) -> jsInt8ArrayToKtByteArray(context, this)
+                    isSet(context, globalThis) -> jsSetToKtSet(context, this)
+                    isMap(context, globalThis) -> jsMapToKtMap(context, this)
+                    else -> jsObjectToKtJsObject(context, this)
+                }
+            } finally {
+                JS_FreeValue(context, globalThis)
+            }
+        }
+
+        else -> {
+            qjsError("Cannot convert js type to kotlin type. JS value tag: $tag")
+        }
     }
 }
 
@@ -343,7 +364,12 @@ private fun jsObjectToKtJsObject(
     val json = JS_JSONStringify(context, jsObject, JsUndefined(), JsUndefined())
     if (JS_IsException(json) == 1) {
         val jsError = JS_GetException(context)
-        val error = if (JS_IsNull(jsError) != 1) jsErrorToKtError(context, jsError) else null
+        val jsErrorTag = JsValueGetNormTag(jsError)
+        val error = if (jsErrorTag != JS_TAG_NULL && jsErrorTag != JS_TAG_UNINITIALIZED) {
+            jsErrorToKtError(context, jsError)
+        } else {
+            null
+        }
         freeJsValues(context, jsError, json)
         if (error != null) {
             throw error
