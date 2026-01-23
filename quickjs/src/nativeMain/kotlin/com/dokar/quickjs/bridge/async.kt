@@ -111,13 +111,17 @@ private fun CValue<JSValue>.unwrapIfWrapped(context: CPointer<JSContext>): CValu
     val atom = JS_NewAtom(context, "value")
     val hasProperty = JS_HasProperty(context, this, atom)
     JS_FreeAtom(context, atom)
+    if (hasProperty < 0) {
+        return JS_GetException(context)
+    }
     if (hasProperty == 1) {
         val valueProp = JS_GetPropertyStr(context, this, "value")
         if (JS_IsException(valueProp) != 1) {
             JS_FreeValue(context, this)
             return valueProp
         } else {
-            JS_FreeValue(context, JS_GetException(context))
+            JS_FreeValue(context, this)
+            return valueProp
         }
     }
     return this
