@@ -706,7 +706,8 @@ Java_com_dokar_quickjs_QuickJs_getEvaluateResult(JNIEnv *env,
         result = js_value_to_jobject(env, context, js_result);
 
         // Avoid resetting jni exception to null
-        if (!JS_IsNull(js_result)) {
+        int res_tag = JS_VALUE_GET_TAG(js_result);
+        if (res_tag != JS_TAG_NULL && res_tag != JS_TAG_UNINITIALIZED) {
             jthrowable error;
             if ((*env)->IsInstanceOf(env, result, cls_throwable(env))) {
                 error = (jthrowable) result;

@@ -20,11 +20,12 @@ import quickjs.JS_EvalFunction
 import quickjs.JS_FreeValue
 import quickjs.JS_GetException
 import quickjs.JS_GetRuntime
-import quickjs.JS_IsNull
 import quickjs.JS_READ_OBJ_BYTECODE
 import quickjs.JS_ReadObject
 import quickjs.JS_TAG_FUNCTION_BYTECODE
 import quickjs.JS_TAG_MODULE
+import quickjs.JS_TAG_NULL
+import quickjs.JS_TAG_UNINITIALIZED
 import quickjs.JS_UpdateStackTop
 import quickjs.JsValueGetNormTag
 
@@ -127,7 +128,8 @@ private fun handleEvalResult(
 @OptIn(ExperimentalForeignApi::class)
 private fun checkContextException(context: CPointer<JSContext>) {
     JS_GetException(context).use(context) {
-        if (JS_IsNull(this) != 1) {
+        val tag = JsValueGetNormTag(this)
+        if (tag != JS_TAG_NULL && tag != JS_TAG_UNINITIALIZED) {
             throw jsErrorToKtError(context, this)
         }
     }

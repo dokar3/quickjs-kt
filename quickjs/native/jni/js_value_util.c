@@ -207,7 +207,27 @@ int js_is_map(JSContext *context, JSValue global_this, JSValue value) {
 
 JSValue js_promise_get_fulfilled_value(JSContext *context, JSValue promise) {
     JSValue result = JS_PromiseResult(context, promise);
-    JSValue value = JS_GetPropertyStr(context, result, "value");
-    JS_FreeValue(context, result);
-    return value;
+    if (JS_IsException(result)) {
+        return result;
+    }
+    if (JS_VALUE_GET_TAG(result) != JS_TAG_OBJECT || js_is_promise(context, result)) {
+        return result;
+    }
+    JSAtom atom = JS_NewAtom(context, "value");
+    int has_property = JS_HasProperty(context, result, atom);
+    JS_FreeAtom(context, atom);
+    if (has_property < 0) {
+        JS_FreeValue(context, result);
+        return JS_EXCEPTION;
+    }
+    if (has_property == 1) {
+        JSValue value = JS_GetPropertyStr(context, result, "value");
+        if (JS_IsException(value)) {
+            JS_FreeValue(context, result);
+            return JS_EXCEPTION;
+        }
+        JS_FreeValue(context, result);
+        return value;
+    }
+    return result;
 }

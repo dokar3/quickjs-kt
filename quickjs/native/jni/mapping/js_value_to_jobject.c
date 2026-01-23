@@ -343,40 +343,49 @@ jobject try_handle_promise_result(JNIEnv *env, JSContext *context, JSValue promi
 }
 
 jobject js_value_to_jobject(JNIEnv *env, JSContext *context, JSValue value) {
-    int tag = JS_VALUE_GET_TAG(value);
-    if (JS_IsNull(value) || JS_IsUndefined(value)) {
+    int tag = JS_VALUE_GET_NORM_TAG(value);
+
+    if (tag == JS_TAG_NULL || tag == JS_TAG_UNDEFINED || tag == JS_TAG_UNINITIALIZED) {
         return NULL;
-    } else if (JS_IsBool(value)) {
-        // Boolean
+    }
+
+    if (tag == JS_TAG_EXCEPTION) {
+        JSValue exception = JS_GetException(context);
+        jobject java_error = js_error_to_java_error(env, context, exception);
+        JS_FreeValue(context, exception);
+        (*env)->Throw(env, java_error);
+        return NULL;
+    }
+
+    if (tag == JS_TAG_BOOL) {
         int val = JS_ToBool(context, value);
         return java_boxed_boolean(env, val == 1 ? JNI_TRUE : JNI_FALSE);
-    } else if (JS_VALUE_IS_NAN(value)) {
-        // NaN
+    }
+
+    if (JS_VALUE_IS_NAN(value)) {
         return java_boxed_nan_double(env);
-    } else if (tag == JS_TAG_INT) {
-        // Long
+    }
+
+    if (tag == JS_TAG_INT) {
         int64_t i64;
         JS_ToInt64(context, &i64, value);
         return java_boxed_long(env, i64);
-    } else if (tag == JS_TAG_FLOAT64) {
-        // Double
+    }
+
+    if (tag == JS_TAG_FLOAT64) {
         double f64;
         JS_ToFloat64(context, &f64, value);
         return java_boxed_double(env, f64);
-    } else if (JS_IsString(value)) {
-        // String
+    }
+
+    if (JS_IsString(value)) {
         const char *str = JS_ToCString(context, value);
         jobject result = to_java_string(env, str);
         JS_FreeCString(context, str);
         return result;
-    } else if (JS_IsError(context, value)) {
-        // Error
-        return js_error_to_java_error(env, context, value);
-    } else if (JS_IsArray(context, value)) {
-        // Array
-        return to_java_list(env, context, value);
-    } else if (tag == JS_TAG_FUNCTION_BYTECODE || tag == JS_TAG_MODULE) {
-        // Bytecode
+    }
+
+    if (tag == JS_TAG_FUNCTION_BYTECODE || tag == JS_TAG_MODULE) {
         size_t length;
         uint8_t *buffer = JS_WriteObject(context, &length, value,
                                          JS_WRITE_OBJ_BYTECODE | JS_WRITE_OBJ_REFERENCE);
@@ -391,7 +400,17 @@ jobject js_value_to_jobject(JNIEnv *env, JSContext *context, JSValue value) {
         js_free(context, buffer);
 
         return java_buffer;
-    } else if (JS_IsObject(value)) {
+    }
+
+    if (JS_IsArray(context, value)) {
+        return to_java_list(env, context, value);
+    }
+
+    if (JS_IsError(context, value)) {
+        return js_error_to_java_error(env, context, value);
+    }
+
+    if (tag == JS_TAG_OBJECT) {
         JSValue global_this = JS_GetGlobalObject(context);
         jobject result;
 
@@ -412,10 +431,10 @@ jobject js_value_to_jobject(JNIEnv *env, JSContext *context, JSValue value) {
         JS_FreeValue(context, global_this);
 
         return result;
-    } else {
-        const char *string = JS_ToCString(context, value);
-        jni_throw_qjs_exception(env, "Unsupported js value type: %s, tag: %d", string, tag);
-        JS_FreeCString(context, string);
-        return NULL;
     }
+
+    const char *string = JS_ToCString(context, value);
+    jni_throw_qjs_exception(env, "Unsupported js value type: %s, tag: %d", string, tag);
+    JS_FreeCString(context, string);
+    return NULL;
 }

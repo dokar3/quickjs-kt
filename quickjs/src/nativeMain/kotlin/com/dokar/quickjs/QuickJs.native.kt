@@ -222,7 +222,7 @@ actual class QuickJs private constructor(
         ) {
             typeConverters.convert(
                 source = it,
-                sourceType = typeOfInstance(typeConverters, it),
+                sourceType = if (it is JsPromise) typeOf<JsPromise>() else typeOfInstance(typeConverters, it),
                 targetType = typeOf<T>()
             )
         }
