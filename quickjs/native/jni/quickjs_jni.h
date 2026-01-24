@@ -29,7 +29,7 @@ typedef struct {
     /**
      * Result promises of eval calls.
      */
-    JSValue *evaluate_result_promise;
+    JSValue evaluate_result_promise;
     /**
      * The mutex which is used to protect the JS stack in a multi-threaded environment.
      * Scopes with a JS_UpdateStackTop() call are required to be locked.

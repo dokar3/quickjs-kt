@@ -81,6 +81,7 @@ actual class QuickJs private constructor(
 
     private val jobsMutex = Mutex()
     private val asyncJobs = mutableListOf<Job>()
+    private val activePromises = mutableListOf<JsPromise>()
 
     /**
      * Avoid concurrent executions.
@@ -247,6 +248,7 @@ actual class QuickJs private constructor(
     actual fun gc() {
         ensureNotClosed()
         jsMutex.withLockSync {
+            if (isClosed) return@withLockSync
             JS_UpdateStackTop(runtime)
             JS_RunGC(runtime)
         }
@@ -254,22 +256,28 @@ actual class QuickJs private constructor(
 
     actual fun close() {
         if (isClosed) return
-        isClosed = true
-        evalException = null
-        jobsMutex.withLockSync {
+        val promisesToFree = jobsMutex.withLockSync {
+            if (isClosed) return@withLockSync emptyList()
+            isClosed = true
+            evalException = null
             asyncJobs.forEach { it.cancel() }
             asyncJobs.clear()
+            val promises = activePromises.toList()
+            activePromises.clear()
+            promises
         }
-        jsMutex.withLockSync {}
+        jsMutex.withLockSync {
+            promisesToFree.forEach { it.free(context) }
+            managedJsValues.forEach { JS_FreeValue(context, it) }
+            managedJsValues.clear()
+            // Dispose stable refs
+            objectBindings.keys.forEach { objectHandleToStableRef(it)?.dispose() }
+            objectBindings.clear()
+            globalFunctions.clear()
+            JS_FreeContext(context)
+            JS_FreeRuntime(runtime)
+        }
         modules.clear()
-        managedJsValues.forEach { JS_FreeValue(context, it) }
-        managedJsValues.clear()
-        // Dispose stable refs
-        objectBindings.keys.forEach { objectHandleToStableRef(it)?.dispose() }
-        objectBindings.clear()
-        globalFunctions.clear()
-        JS_FreeContext(context)
-        JS_FreeRuntime(runtime)
         ref.dispose()
     }
 
@@ -278,21 +286,24 @@ actual class QuickJs private constructor(
         args: Array<Any?>,
         block: suspend (bindingArgs: Array<Any?>) -> Any?
     ) {
-        ensureNotClosed()
+        if (isClosed) return
         val resolveFunc = args[0] as CValue<JSValue>
         val rejectFunc = args[1] as CValue<JSValue>
         val job = coroutineScope.launch {
             try {
                 val result = block(args.sliceArray(2..<args.size))
                 jsMutex.withLock {
+                    if (isClosed) return@withLock
                     context.invokeJsFunction(resolveFunc, arrayOf(result))
                 }
             } catch (e: Throwable) {
                 jsMutex.withLock {
+                    if (isClosed) return@withLock
                     context.invokeJsFunction(rejectFunc, arrayOf(e))
                 }
             }
             jsMutex.withLock {
+                if (isClosed) return@withLock
                 // The job is completed, see what we can do next:
                 // - Execute subsequent Promises
                 // - Cancel all jobs and fail, if rejected and JS didn't handle it
@@ -315,20 +326,40 @@ actual class QuickJs private constructor(
         loadModules()
         var resultPromise: JsPromise? = null
         try {
-            resultPromise = jsMutex.withLock { block() }
+            resultPromise = jsMutex.withLock {
+                ensureNotClosed()
+                val promise = block()
+                jobsMutex.withLock {
+                    if (isClosed) {
+                        promise.free(context)
+                        throw QuickJsException("Already closed.")
+                    }
+                    activePromises.add(promise)
+                }
+                promise
+            }
             awaitAsyncJobs()
             checkException()
             jsMutex.withLock {
+                ensureNotClosed()
                 JS_UpdateStackTop(JS_GetRuntime(context))
                 return resultPromise.result(context)
             }
         } finally {
-            jsMutex.withLock { resultPromise?.free(context) }
+            if (resultPromise != null) {
+                val removed = jobsMutex.withLock { activePromises.remove(resultPromise) }
+                if (removed) {
+                    jsMutex.withLock {
+                        resultPromise.free(context)
+                    }
+                }
+            }
         }
     }
 
     private suspend fun awaitAsyncJobs() {
         jsMutex.withLock {
+            if (isClosed) return@withLock
             do {
                 // Execute JS Promises, putting this in while(true) is unnecessary
                 // since we have the same loop after every asyncFunction call
@@ -349,6 +380,7 @@ actual class QuickJs private constructor(
     }
 
     private suspend fun loadModules() = jsMutex.withLock {
+        ensureNotClosed()
         for (module in modules) {
             context.evaluate(module).free(context)
         }
@@ -406,7 +438,7 @@ actual class QuickJs private constructor(
     }
 
     internal fun setUnhandledPromiseRejection(reason: Any?) {
-        ensureNotClosed()
+        if (isClosed) return
         if (evalException == null) {
             evalException = reason as? Throwable ?: QuickJsException(reason.toString())
         }
@@ -414,7 +446,7 @@ actual class QuickJs private constructor(
     }
 
     internal fun clearHandledPromiseRejection() {
-        ensureNotClosed()
+        if (isClosed) return
         evalException = null
     }
 
