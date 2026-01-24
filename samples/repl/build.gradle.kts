@@ -18,6 +18,11 @@ kotlin {
             executable()
         }
     }
+    macosArm64 {
+        binaries {
+            executable()
+        }
+    }
 
     applyDefaultHierarchyTemplate()
 
