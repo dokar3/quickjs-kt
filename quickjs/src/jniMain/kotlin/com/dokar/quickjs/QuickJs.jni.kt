@@ -59,7 +59,7 @@ suspend fun <T> QuickJs.evaluate(
 @Throws(QuickJsException::class)
 @Deprecated(
     message = "Use evaluate(ByteArray, KType) instead.",
-    replaceWith = ReplaceWith("evaluate<T>(bytecode, typeOf<T>()"),
+    replaceWith = ReplaceWith("evaluate<T>(bytecode, typeOf<T>())"),
 )
 suspend fun <T> QuickJs.evaluate(
     bytecode: ByteArray,
@@ -317,7 +317,10 @@ actual class QuickJs private constructor(
         val result = jsResultMutex.withLock {
             jsMutex.withLock { evalBlock() }
             awaitAsyncJobs()
-            jsMutex.withLock { getEvaluateResult(context, globals) }
+            jsMutex.withLock {
+                if (isClosed) throw CancellationException("Already closed.")
+                getEvaluateResult(context, globals)
+            }
         }
         handleException()
         return result
@@ -329,31 +332,34 @@ actual class QuickJs private constructor(
     }
 
     actual override fun close() {
+        if (isClosed) return
         isClosed = true
         jobsMutex.withLockSync {
             asyncJobs.forEach { it.cancel() }
             asyncJobs.clear()
         }
-        jsMutex.withLockSync {}
-        objectBindings.clear()
-        globalFunctions.clear()
-        modules.clear()
-        if (globals != 0L) {
-            releaseGlobals(context, globals)
-            globals = 0
-        }
-        if (context != 0L) {
-            releaseContext(context)
-            context = 0
-        }
-        if (runtime != 0L) {
-            releaseRuntime(runtime)
-            runtime = 0
+        jsMutex.withLockSync {
+            objectBindings.clear()
+            globalFunctions.clear()
+            modules.clear()
+            if (globals != 0L) {
+                releaseGlobals(context, globals)
+                globals = 0
+            }
+            if (context != 0L) {
+                releaseContext(context)
+                context = 0
+            }
+            if (runtime != 0L) {
+                releaseRuntime(runtime)
+                runtime = 0
+            }
         }
     }
 
     private suspend fun awaitAsyncJobs() {
         jsMutex.withLock {
+            if (isClosed) return@withLock
             do {
                 // Execute JS Promises, putting this in while(true) is unnecessary
                 // since we have the same loop after every asyncFunction call
@@ -389,12 +395,13 @@ actual class QuickJs private constructor(
         args: Array<Any?>,
         block: suspend (bindingArgs: Array<Any?>) -> Any?,
     ) {
-        ensureNotClosed()
+        if (isClosed) return
         val (resolveHandle, rejectHandle) = promiseHandlesFromArgs(args)
         val job = coroutineScope.launch {
             try {
                 val result = block(args.sliceArray(2..<args.size))
                 jsMutex.withLock {
+                    if (isClosed) return@withLock
                     // Call resolve() on JNI side
                     invokeJsFunction(
                         context = context,
@@ -405,6 +412,7 @@ actual class QuickJs private constructor(
                 }
             } catch (e: Throwable) {
                 jsMutex.withLock {
+                    if (isClosed) return@withLock
                     // Call reject() on JNI side
                     invokeJsFunction(
                         context = context,
@@ -415,6 +423,7 @@ actual class QuickJs private constructor(
                 }
             }
             jsMutex.withLock {
+                if (isClosed) return@withLock
                 // The job is completed, see what we can do next:
                 // - Execute subsequent Promises
                 // - Cancel all jobs and fail, if rejected and JS didn't handle it
@@ -513,7 +522,7 @@ actual class QuickJs private constructor(
      * Called from JNI.
      */
     private fun setUnhandledPromiseRejection(reason: Any?) {
-        ensureNotClosed()
+        if (isClosed) return
         if (evalException == null) {
             evalException = reason as? Throwable ?: QuickJsException(reason.toString())
         }
@@ -524,11 +533,13 @@ actual class QuickJs private constructor(
      * Called from JNI when a previously unhandled promise rejection is handled.
      */
     private fun clearHandledPromiseRejection() {
-        ensureNotClosed()
+        if (isClosed) return
         this.evalException = null
     }
 
-    private fun ensureNotClosed() = check(runtime != 0L) { "Already closed." }
+    private fun ensureNotClosed() {
+        if (runtime == 0L) qjsError("Already closed.")
+    }
 
     private external fun newRuntime(): Long
 

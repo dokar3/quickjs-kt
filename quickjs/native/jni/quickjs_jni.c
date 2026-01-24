@@ -53,7 +53,7 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
     globals->defined_js_objects = NULL;
     globals->global_object_refs = NULL;
     globals->created_js_functions = NULL;
-    globals->evaluate_result_promise = NULL;
+    globals->evaluate_result_promise = JS_UNDEFINED;
 
     pthread_mutex_init(&globals->js_mutex, NULL);
 
@@ -147,11 +147,10 @@ Java_com_dokar_quickjs_QuickJs_releaseGlobals(JNIEnv *env, jobject this, jlong c
         cvector_free(global_object_refs);
     }
 
-    if (globals->evaluate_result_promise != NULL) {
-        // Free the result promise even if someone hasn't used it
-        JS_FreeValue(context, *(globals->evaluate_result_promise));
-        globals->evaluate_result_promise = NULL;
-    }
+    // Free the result promise even if someone hasn't used it
+    JS_FreeValue(context, globals->evaluate_result_promise);
+
+    globals->evaluate_result_promise = JS_UNDEFINED;
 
     // Destroy js mutex
     pthread_mutex_destroy(&globals->js_mutex);
@@ -375,15 +374,11 @@ jobject handle_eval_result(JNIEnv *env,
             return NULL;
         }
 
-        if (globals->evaluate_result_promise != NULL) {
-            // Free the unused result, if any
-            JS_FreeValue(context, *globals->evaluate_result_promise);
-        }
+        // Free the unused result, if any
+        JS_FreeValue(context, globals->evaluate_result_promise);
 
         // Save it to the globals
-        // Suppress the warning, we know that value will live long enough
-        globals->evaluate_result_promise = malloc(sizeof(JSValue));
-        *globals->evaluate_result_promise = value;
+        globals->evaluate_result_promise = value;
 
         // This result should not be used
         return NULL;
@@ -669,7 +664,7 @@ Java_com_dokar_quickjs_QuickJs_getEvaluateResult(JNIEnv *env,
     if (globals == NULL) {
         return NULL;
     }
-    if (globals->evaluate_result_promise == NULL) {
+    if (JS_IsUndefined(globals->evaluate_result_promise)) {
         jni_throw_qjs_exception(env, "Result promise not found. Have you evaluated a script?");
         return NULL;
     }
@@ -680,10 +675,10 @@ Java_com_dokar_quickjs_QuickJs_getEvaluateResult(JNIEnv *env,
 
     JS_UpdateStackTop(runtime);
 
-    JSValue result_promise = *globals->evaluate_result_promise;
+    JSValue result_promise = globals->evaluate_result_promise;
     if (!js_is_promise(context, result_promise)) {
         JS_FreeValue(context, result_promise);
-        globals->evaluate_result_promise = NULL;
+        globals->evaluate_result_promise = JS_UNDEFINED;
         jni_throw_qjs_exception(env, "Invalid result promise object.");
 
         pthread_mutex_unlock(&globals->js_mutex);
@@ -729,7 +724,7 @@ Java_com_dokar_quickjs_QuickJs_getEvaluateResult(JNIEnv *env,
     }
     // Clear the promise
     JS_FreeValue(context, result_promise);
-    globals->evaluate_result_promise = NULL;
+    globals->evaluate_result_promise = JS_UNDEFINED;
 
     pthread_mutex_unlock(&globals->js_mutex);
 
