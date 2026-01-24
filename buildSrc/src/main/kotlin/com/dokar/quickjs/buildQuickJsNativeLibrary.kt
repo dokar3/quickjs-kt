@@ -177,7 +177,7 @@ internal fun Project.buildQuickJsNativeLibrary(
 
                 Platform.ios_x64 -> "$buildType-iphonesimulator/" to "a"
 
-                Platform.ios_simulator_aarch64 -> "$buildType/" to "a"
+                Platform.ios_simulator_aarch64 -> "$buildType-iphonesimulator/" to "a"
 
                 else -> "" to "a"
             }
