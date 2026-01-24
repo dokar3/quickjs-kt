@@ -29,7 +29,8 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
         outputs.dir(jniLibOutDir)
 
         doLast {
-            val isPublishing = gradle.startParameter.taskNames.contains("publish")
+            val taskNames = gradle.startParameter.taskNames
+            val isPublishing = taskNames.any { it.contains("publish", ignoreCase = true) }
             if (isPublishing) {
                 for (platform in jniLibraryPlatforms) {
                     buildQuickJsNativeLibrary(
@@ -170,29 +171,27 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
 private fun Project.findBuildPlatformsFromStartTaskNames(): List<Platform> {
     val taskNames = gradle.startParameter.taskNames
 
-    if (taskNames.contains("publish")) {
+    val isPublishing = taskNames.any { it.contains("publish", ignoreCase = true) }
+    if (isPublishing) {
         return Platform.values().toList()
     }
 
-    if (taskNames.contains("build")) {
+    val isBuild = taskNames.any { it.contains("build", ignoreCase = true) }
+    val isAssemble = taskNames.any { it.contains("assemble", ignoreCase = true) }
+    val isCheck = taskNames.any { it.contains("check", ignoreCase = true) }
+
+    if (isBuild || isAssemble || isCheck) {
         when (currentPlatform) {
             Platform.linux_x64 -> {
                 return listOf(Platform.linux_x64)
             }
 
-            Platform.macos_x64 -> {
+            Platform.macos_x64,
+            Platform.macos_aarch64 -> {
                 return listOf(
                     Platform.macos_x64,
                     Platform.macos_aarch64,
                     Platform.ios_x64,
-                    Platform.ios_aarch64,
-                    Platform.ios_simulator_aarch64,
-                )
-            }
-
-            Platform.macos_aarch64 -> {
-                return listOf(
-                    Platform.macos_aarch64,
                     Platform.ios_aarch64,
                     Platform.ios_simulator_aarch64,
                 )
