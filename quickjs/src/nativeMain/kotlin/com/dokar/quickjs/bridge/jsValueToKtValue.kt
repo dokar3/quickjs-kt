@@ -227,7 +227,7 @@ private fun newKtError(name: String, message: String?, stack: Array<String?>?): 
         IllegalStateException::class.qualifiedName -> IllegalStateException(m)
         UnsupportedOperationException::class.qualifiedName -> UnsupportedOperationException(m)
         IndexOutOfBoundsException::class.qualifiedName -> IndexOutOfBoundsException(m)
-        ArrayIndexOutOfBoundsException::class.qualifiedName -> ArrayIndexOutOfBoundsException(m)
+        IndexOutOfBoundsException::class.qualifiedName -> IndexOutOfBoundsException(m)
         ClassCastException::class.qualifiedName -> ClassCastException(m)
         ArithmeticException::class.qualifiedName -> ArithmeticException(m)
         AssertionError::class.qualifiedName -> AssertionError(m)

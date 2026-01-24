@@ -41,6 +41,10 @@ kotlin {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
         }
+
+        val jvmTest by getting {
+            // dependsOn is now automatic with hierarchy template
+        }
     }
 }
 
@@ -61,10 +65,10 @@ disableUnsupportedPlatformTasks()
 
 afterEvaluate {
     // Disable Android tests
-    tasks.named("testDebugUnitTest").configure {
+    tasks.matching { it.name == "testDebugUnitTest" }.configureEach {
         enabled = false
     }
-    tasks.named("testReleaseUnitTest").configure {
+    tasks.matching { it.name == "testReleaseUnitTest" }.configureEach {
         enabled = false
     }
 }

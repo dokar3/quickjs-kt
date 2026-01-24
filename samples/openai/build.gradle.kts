@@ -13,10 +13,8 @@ kotlin {
     }
 
     androidTarget {
-        compilations.all {
-            kotlinOptions {
-                jvmTarget = "11"
-            }
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
         }
     }
 
@@ -35,6 +33,7 @@ kotlin {
             implementation(compose.material3)
             implementation(compose.ui)
             implementation(projects.quickjs)
+            @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
             implementation(compose.components.resources)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.cio)

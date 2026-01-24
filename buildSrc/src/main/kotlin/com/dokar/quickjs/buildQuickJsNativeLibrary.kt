@@ -1,6 +1,8 @@
 package com.dokar.quickjs
 
 import org.gradle.api.Project
+import org.gradle.kotlin.dsl.support.serviceOf
+import org.gradle.process.ExecOperations
 import java.io.File
 import java.util.Properties
 
@@ -130,10 +132,11 @@ internal fun Project.buildQuickJsNativeLibrary(
             args
         }
         try {
-            exec {
-                workingDir = cmakeFile.parentFile
-                standardOutput = System.out
-                errorOutput = System.err
+            val execOps = project.serviceOf<ExecOperations>()
+            execOps.exec {
+                workingDir(cmakeFile.parentFile)
+                this.standardOutput = System.out
+                this.errorOutput = System.err
                 commandLine(*actualArgs)
             }
         } catch (e: Throwable) {
