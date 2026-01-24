@@ -4,6 +4,8 @@ import com.dokar.quickjs.binding.define
 import com.dokar.quickjs.quickJs
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.terminal
+import com.github.ajalt.mordant.terminal.danger
+import com.github.ajalt.mordant.terminal.prompt
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
 
