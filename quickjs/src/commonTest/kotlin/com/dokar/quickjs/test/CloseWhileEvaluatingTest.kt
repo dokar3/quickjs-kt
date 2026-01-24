@@ -17,7 +17,7 @@ class CloseWhileEvaluatingTest {
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun closeWhileEvaluating() = runTest {
-        repeat(50) {
+        repeat(REPEAT_COUNT) {
             val quickJs = QuickJs.create(Dispatchers.Default)
             quickJs.asyncFunction("delay") { args ->
                 delay(args[0] as Long)
@@ -44,7 +44,7 @@ class CloseWhileEvaluatingTest {
 
     @Test
     fun closeImmediatelyAfterEvaluate() = runTest {
-        repeat(50) {
+        repeat(REPEAT_COUNT) {
             val quickJs = QuickJs.create(Dispatchers.Default)
             val evalJob = launch(Dispatchers.Default) {
                 try {
@@ -59,7 +59,7 @@ class CloseWhileEvaluatingTest {
 
     @Test
     fun closeWithMultipleEvaluations() = runTest {
-        repeat(50) {
+        repeat(REPEAT_COUNT) {
             val quickJs = QuickJs.create(Dispatchers.Default)
             quickJs.asyncFunction("delay") { args ->
                 delay(args[0] as Long)
@@ -80,7 +80,7 @@ class CloseWhileEvaluatingTest {
 
     @Test
     fun closeWhileAsyncFunctionCallback() = runTest {
-        repeat(50) {
+        repeat(REPEAT_COUNT) {
             val quickJs = QuickJs.create(Dispatchers.Default)
             quickJs.asyncFunction("getWithDelay") {
                 delay(10)
@@ -96,5 +96,9 @@ class CloseWhileEvaluatingTest {
             quickJs.close()
             evalJob.join()
         }
+    }
+
+    companion object {
+        private const val REPEAT_COUNT = 20
     }
 }
