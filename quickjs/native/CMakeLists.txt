@@ -59,7 +59,7 @@ elseif (TARGET_PLATFORM STREQUAL "ios_x64")
 elseif (TARGET_PLATFORM STREQUAL "ios_aarch64")
     set(CMAKE_SYSTEM_NAME "iOS")
     set(CMAKE_OSX_ARCHITECTURES "arm64")
-elseif (TARGET_PLATFORM STREQUAL "ios_aarch64_simulator")
+elseif (TARGET_PLATFORM STREQUAL "ios_simulator_aarch64")
     set(CMAKE_SYSTEM_NAME "iOS")
     set(CMAKE_OSX_ARCHITECTURES "arm64")
 elseif (TARGET_PLATFORM STREQUAL "windows_x64")
@@ -105,10 +105,9 @@ if (BUILD_WITH_JNI)
 endif ()
 
 # QuickJS sources
-file(GLOB_RECURSE quickjs_sources
+set(quickjs_sources
         "quickjs/cutils.c"
         "quickjs/dtoa.c"
-        "quickjs/libbf.c"
         "quickjs/libregexp.c"
         "quickjs/libunicode.c"
         "quickjs/quickjs.c"

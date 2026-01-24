@@ -144,6 +144,16 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
     for (suffix in cinteropTaskSuffixes) {
         tasks.named("cinteropQuickjs$suffix") {
             dependsOn(buildQuickJsNativeLibsTask.name)
+            inputs.dir(nativeStaticLibOutDir)
+        }
+    }
+
+    tasks.configureEach {
+        if (name.startsWith("link") &&
+            (name.contains("Test") || name.contains("Executable"))
+        ) {
+            dependsOn(buildQuickJsNativeLibsTask.name)
+            inputs.dir(nativeStaticLibOutDir)
         }
     }
 
