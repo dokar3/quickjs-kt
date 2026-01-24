@@ -340,7 +340,6 @@ actual class QuickJs private constructor(
             }
             awaitAsyncJobs()
             checkException()
-            checkException()
             jsMutex.withLock {
                 ensureNotClosed()
                 JS_UpdateStackTop(JS_GetRuntime(context))
