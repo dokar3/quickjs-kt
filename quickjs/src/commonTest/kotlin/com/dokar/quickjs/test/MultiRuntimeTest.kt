@@ -2,6 +2,8 @@ package com.dokar.quickjs.test
 
 import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.binding.define
+import com.dokar.quickjs.binding.function
+import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -42,6 +44,25 @@ class MultiRuntimeTest {
         }
 
         runtimes.forEach { it.close() }
+    }
+
+    // https://github.com/dokar3/quickjs-kt/issues/136
+    @Test
+    fun nestedQuickJsBlocks() = runTest {
+        // Shared global states should be reference-counted to support nested DSL blocks.
+        val result = quickJs {
+            @OptIn(com.dokar.quickjs.ExperimentalQuickJsApi::class)
+            function("foo") {
+                2
+            }
+            quickJs {
+                // The inner instance is closed here, but the outer one should remain functional.
+            }
+            // Verify that closing one instance doesn't affect another by clearing
+            // the global JavaVM cache or other shared native states.
+            evaluate<Int>("foo()")
+        }
+        assertEquals(2, result)
     }
 
     private fun initRuntime(
