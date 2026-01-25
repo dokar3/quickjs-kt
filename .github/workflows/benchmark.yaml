@@ -46,7 +46,7 @@ jobs:
           printf "Exports:\n$(cat ~/java-home-vars-github.sh)"
           source ~/java-home-vars-github.sh
 
-      - uses: gradle/actions/setup-gradle@v3
+      - uses: gradle/actions/setup-gradle@v5
 
       - name: Grant execute permission for scripts
         run: |
