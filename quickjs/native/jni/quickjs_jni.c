@@ -157,7 +157,9 @@ Java_com_dokar_quickjs_QuickJs_releaseGlobals(JNIEnv *env, jobject this, jlong c
 
     // Clear Env, class, methodId, fieldId
     clear_java_vm_cache();
-    clear_jni_refs_cache(env);
+    if (get_qjs_instance_count() <= 0) {
+        clear_jni_refs_cache(env);
+    }
 
     // Free the globals struct
     free(globals);

@@ -2,9 +2,13 @@
 #include "log_util.h"
 
 static JavaVM *vm = NULL;
+static int instance_count = 0;
 
 void cache_java_vm(JNIEnv *env) {
-    (*env)->GetJavaVM(env, &vm);
+    if (instance_count == 0) {
+        (*env)->GetJavaVM(env, &vm);
+    }
+    instance_count++;
 }
 
 JNIEnv *get_jni_env() {
@@ -38,5 +42,13 @@ JNIEnv *get_jni_env() {
 
 
 void clear_java_vm_cache() {
-    vm = NULL;
+    instance_count--;
+    if (instance_count <= 0) {
+        vm = NULL;
+        instance_count = 0;
+    }
+}
+
+int get_qjs_instance_count() {
+    return instance_count;
 }
