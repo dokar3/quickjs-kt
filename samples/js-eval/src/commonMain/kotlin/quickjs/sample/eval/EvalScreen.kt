@@ -15,9 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -55,7 +52,10 @@ import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.ExperimentalResourceApi
+import org.jetbrains.compose.resources.painterResource
 import quickjs_kt.samples.js_eval.generated.resources.Res
+import quickjs_kt.samples.js_eval.generated.resources.ic_keyboard_arrow_down
+import quickjs_kt.samples.js_eval.generated.resources.ic_play_arrow
 
 @Composable
 fun EvalScreen(modifier: Modifier = Modifier) {
@@ -240,7 +240,7 @@ private fun ScreenContent(
                 Text(text = codeSnippet.title)
 
                 Icon(
-                    imageVector = Icons.Default.KeyboardArrowDown,
+                    painter = painterResource(Res.drawable.ic_keyboard_arrow_down),
                     contentDescription = "Code snippets",
                 )
 
@@ -273,7 +273,7 @@ private fun ScreenContent(
                     enabled = !isRepeating && !isExecuting
                 ) {
                     Icon(
-                        imageVector = Icons.Default.PlayArrow,
+                        painter = painterResource(Res.drawable.ic_play_arrow),
                         contentDescription = "Run code",
                     )
                 }

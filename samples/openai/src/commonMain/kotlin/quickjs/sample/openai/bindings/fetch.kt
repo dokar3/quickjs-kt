@@ -5,20 +5,20 @@ import com.dokar.quickjs.binding.asyncFunction
 import com.dokar.quickjs.binding.function
 import com.dokar.quickjs.binding.toJsObject
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.request.header
 import io.ktor.client.request.prepareRequest
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.request
 import io.ktor.http.HttpMethod
+import io.ktor.http.contentType
 import io.ktor.util.toMap
 import io.ktor.utils.io.ByteReadChannel
-import io.ktor.utils.io.read
-import io.ktor.utils.io.readUntilDelimiter
-import io.ktor.utils.io.skipDelimiter
+import io.ktor.utils.io.readAvailable
+import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -27,11 +27,8 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import quickjs_kt.samples.openai.generated.resources.Res
-import java.nio.ByteBuffer
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
-
-private val sseDelimiter = ByteBuffer.wrap("\n\n".encodeToByteArray())
 
 @OptIn(ExperimentalResourceApi::class)
 internal suspend fun QuickJs.defineFetch(coroutineScope: CoroutineScope): Cleanup {
@@ -66,8 +63,13 @@ internal suspend fun QuickJs.defineFetch(coroutineScope: CoroutineScope): Cleanu
         val request = requestFromInit(init)
         val statement = client.prepareRequest {
             url(url)
-            method = HttpMethod.Post
+            method = try {
+                HttpMethod.parse(request.method.uppercase())
+            } catch (e: Exception) {
+                HttpMethod.Get
+            }
             for (header in request.headers) {
+                if (header.key.equals("host", ignoreCase = true)) continue
                 header(header.key, header.value)
             }
             if (request.body != null) {
@@ -78,12 +80,21 @@ internal suspend fun QuickJs.defineFetch(coroutineScope: CoroutineScope): Cleanu
         val responseDeferred = CompletableDeferred<HttpResponse>()
         val channelDeferred = CompletableDeferred<Channel<ByteArray?>>()
         val job = coroutineScope.launch {
-            statement.execute { res ->
-                responseDeferred.complete(res)
-                val channel = res.body<ByteReadChannel>()
-                val externalChannel = Channel<ByteArray?>(capacity = 100)
-                channelDeferred.complete(externalChannel)
-                readStreamBody(res, channel, externalChannel)
+            try {
+                statement.execute { res ->
+                    responseDeferred.complete(res)
+                    val channel = res.bodyAsChannel()
+                    val externalChannel = Channel<ByteArray?>(capacity = 100)
+                    channelDeferred.complete(externalChannel)
+                    readStreamBody(res, channel, externalChannel)
+                }
+            } catch (e: Exception) {
+                if (!responseDeferred.isCompleted) {
+                    responseDeferred.completeExceptionally(e)
+                }
+                if (!channelDeferred.isCompleted) {
+                    channelDeferred.completeExceptionally(e)
+                }
             }
         }
 
@@ -132,59 +143,31 @@ private suspend fun readStreamBody(
     channel: ByteReadChannel,
     externalChannel: Channel<ByteArray?>,
 ) {
-    val contentType = response.headers["Content-Type"]
-    if (contentType == "text/event-stream") {
-        val buffer = ByteBuffer.allocate(4096)
-        while (true) {
-            buffer.clear()
-            val readCount = channel.readUntilDelimiter(sseDelimiter, buffer)
-            if (readCount < 0) {
-                externalChannel.send(null)
-                break
-            } else if (readCount > 0) {
-                var hasDelimiter = false
-                try {
-                    channel.skipDelimiter(sseDelimiter)
-                    hasDelimiter = true
-                } catch (e: Throwable) {
-                    // No delimiter to skip
+    val contentType = response.contentType()?.toString()?.lowercase() ?: ""
+    val isSse = contentType.contains("text/event-stream")
+    try {
+        if (isSse) {
+            // Read line by line for SSE to avoid splitting UTF-8 characters
+            while (!channel.isClosedForRead) {
+                val line = channel.readUTF8Line() ?: break
+                externalChannel.send((line + "\n").encodeToByteArray())
+            }
+        } else {
+            // General streaming
+            val buffer = ByteArray(8192)
+            while (!channel.isClosedForRead) {
+                val readCount = channel.readAvailable(buffer)
+                if (readCount == -1) break
+                if (readCount > 0) {
+                    externalChannel.send(buffer.copyOfRange(0, readCount))
                 }
-                val sseDelimiterArray = sseDelimiter.array()
-                val extraSize = if (hasDelimiter) sseDelimiterArray.size else 0
-                val bytes = ByteArray(readCount + extraSize)
-                buffer.position(0)
-                buffer.get(bytes, 0, readCount)
-                if (hasDelimiter) {
-                    System.arraycopy(
-                        sseDelimiterArray, 0, // src
-                        bytes, readCount, // dst
-                        sseDelimiterArray.size // count
-                    )
-                }
-                externalChannel.send(bytes)
-            } else {
-                externalChannel.send(null)
-                break
             }
         }
-    } else {
-        while (true) {
-            val readCount = channel.read { source, start, endExclusive ->
-                val count = endExclusive - start
-                if (count == 0) {
-                    externalChannel.send(null)
-                } else {
-                    val bytes = source.sliceArray(start..endExclusive)
-                    externalChannel.send(bytes)
-                }
-                count
-            }
-            if (readCount <= 0) {
-                break
-            }
-        }
+    } catch (e: Exception) {
+        // e.printStackTrace()
+    } finally {
+        externalChannel.send(null)
     }
-    externalChannel.close()
 }
 
 private data class Request(
@@ -197,7 +180,7 @@ private data class Request(
 private fun requestFromInit(init: Map<String, Any?>?): Request {
     init ?: return Request()
     val method = init["method"] as String? ?: "GET"
-    val headers = init["headers"] as Map<String, String>? ?: emptyMap()
+    val headers = (init["headers"] as Map<String, Any?>?)?.mapValues { it.value.toString() } ?: emptyMap()
     val body = init["body"] as String?
     return Request(
         method = method,

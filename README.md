@@ -5,14 +5,13 @@
 <img src="./media/async-eval-demo.gif" alt="The async eval demo">
 </div>
 
-
 This is a [QuickJS](https://bellard.org/quickjs/) binding for idiomatic Kotlin, inspired by Cash App's [Zipline](https://github.com/cashapp/zipline) (previously Duktape Android) but with more flexibility.
 
 ### Another QuickJS wrapper?
 
 There are a few QuickJS wrappers for Android already. Some written in Java are not Kotlin Multiplatform friendly, and some lack updates.
 
-Zipline is great and KMP-friendly, but it focuses on running Kotlin/JS modules. Its API is limited to running arbitrary JavaScript code with platform bindings. 
+Zipline is great and KMP-friendly, but it focuses on running Kotlin/JS modules. Its API is limited to running arbitrary JavaScript code with platform bindings.
 
 That's why I created this library, with some good features:
 
@@ -171,7 +170,7 @@ const responses = await Promise.all([
 
 ### Modules
 
-[ES Modules](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules) are supported when `evaluate()` or `compile()` has the parameter `asModule = true`. 
+[ES Modules](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules) are supported when `evaluate()` or `compile()` has the parameter `asModule = true`.
 
 ```kotlin
 quickJs {
@@ -284,7 +283,7 @@ mapped.
 | Int8Array       | ByteArray                             |
 | UInt8Array      | UByteArray                            |
 
-(1) A Kotlin `Unit` will be mapped to a JavaScript `undefined`, conversely, JavaScript `undefined` won't be mapped to Kotlin `Unit`. 
+(1) A Kotlin `Unit` will be mapped to a JavaScript `undefined`, conversely, JavaScript `undefined` won't be mapped to Kotlin `Unit`.
 
 (2) When converting a JavaScript `Number` to Kotlin `Int`, `Short`, `Byte` or `Float` and the value is out of range, it will throw
 
@@ -328,6 +327,7 @@ You can also use the converter from `quickjs-kt-converter-ktxserialization`
 and `quickjs-kt-convereter-moshi` (JVM only).
 
 1. Add the dependency
+
     ```kotlin
     implementation("io.github.dokar3:quickjs-kt-converter-ktxserialization:<VERSION>")
     // Or use the moshi converter
@@ -335,6 +335,7 @@ and `quickjs-kt-convereter-moshi` (JVM only).
     ```
 
 2. Add the type converters of your classes
+
     ```kotlin
     import com.dokar.quickjs.conveter.SerializableConverter
     // For moshi
@@ -381,7 +382,9 @@ If you find other suspicious errors, please feel free to open an issue to report
 # Samples
 
 - **[js-eval](./samples/js-eval)**: A GUI Compose Multiplatform app to evaluate JS, some minimal JS snippets are builtin
+- **[js-eval-android](./samples/js-eval-android)**: The Android version of the `js-eval` sample
 - **[openai](./samples/openai)**: Like `js-eval` but it has some Web API polyfills to run the bundled [openai-node](https://github.com/openai/openai-node)
+- **[openai-android](./samples/openai-android)**: The Android version of the `openai` sample
 - **[repl](./samples/repl)**: Simple Multiplatform REPL command line tool using [clikt](https://github.com/ajalt/clikt)
 
 # Development
@@ -411,4 +414,3 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ```
-
