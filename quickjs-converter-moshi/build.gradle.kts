@@ -55,10 +55,10 @@ disableUnsupportedPlatformTasks()
 
 afterEvaluate {
     // Disable Android tests
-    tasks.named("testDebugUnitTest").configure {
+    tasks.matching { it.name == "testDebugUnitTest" }.configureEach {
         enabled = false
     }
-    tasks.named("testReleaseUnitTest").configure {
+    tasks.matching { it.name == "testReleaseUnitTest" }.configureEach {
         enabled = false
     }
 }

@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
@@ -51,10 +49,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.ExperimentalResourceApi
+import org.jetbrains.compose.resources.painterResource
 import quickjs.sample.openai.bindings.Cleanup
 import quickjs.sample.openai.bindings.defineFetch
 import quickjs.sample.openai.bindings.defineSetTimeout
 import quickjs_kt.samples.openai.generated.resources.Res
+import quickjs_kt.samples.openai.generated.resources.ic_play_arrow
 
 @Composable
 fun OpenAISampleScreen(modifier: Modifier = Modifier) {
@@ -106,17 +106,22 @@ private fun ScreenContent(
                 });
 
                 async function main() {
-                  const stream = await openai.chat.completions.create({
+                  const result = await openai.chat.completions.create({
                     messages: [{ role: 'user', content: 'Say this is a test' }],
                     model: 'gpt-3.5-turbo',
                     stream: true,
                   });
-                  for await (const chunk of stream) {
-                    if (chunk.choices == null) {
-                      console.error(JSON.stringify(chunk));
-                    } else {
-                      console.warn(chunk.choices[0]?.delta?.content || '');
+
+                  if (result[Symbol.asyncIterator]) {
+                    for await (const chunk of result) {
+                      if (chunk.choices == null) {
+                        console.error(JSON.stringify(chunk));
+                      } else {
+                        console.warn(chunk.choices[0]?.delta?.content || '');
+                      }
                     }
+                  } else {
+                    console.log(result.choices[0].message.content);
                   }
                 }
 
@@ -237,7 +242,7 @@ private fun ScreenContent(
                     enabled = !isExecuting
                 ) {
                     Icon(
-                        imageVector = Icons.Default.PlayArrow,
+                        painter = painterResource(Res.drawable.ic_play_arrow),
                         contentDescription = "Run code",
                     )
                 }
