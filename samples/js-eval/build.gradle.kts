@@ -24,7 +24,7 @@ kotlin {
             jvmTarget.set(JvmTarget.JVM_11)
         }
 
-        experimentalProperties["android.experimental.kmp.enableAndroidResources"] = true
+        androidResources.enable = true
     }
 
     sourceSets {
