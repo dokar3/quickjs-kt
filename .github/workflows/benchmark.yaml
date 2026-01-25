@@ -58,7 +58,7 @@ jobs:
         run: bun scripts/createBenchmarkResult.ts
 
       - name: Commit results
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: Update benchmark results
           file_pattern: 'benchmark/README.md'
