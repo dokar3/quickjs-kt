@@ -92,16 +92,18 @@ static jfieldID _field_js_function_is_async = NULL;
 
 jclass cls_unit(JNIEnv *env) {
     if (_cls_unit == NULL) {
-        jclass cls = (*env)->FindClass(env, "kotlin/Unit");
-        _cls_unit = (*env)->NewGlobalRef(env, cls);
+        jclass cls = (*env)->FindClass(env, "java/lang/IllegalStateException");
+        (*env)->ThrowNew(env, cls, "Global class reference for 'kotlin/Unit' is not initialized. Ensure set_cls_unit is called.");
+        return NULL;
     }
     return _cls_unit;
 }
 
 jclass cls_ubyte_array(JNIEnv *env) {
     if (_cls_ubyte_array == NULL) {
-        jclass cls = (*env)->FindClass(env, "kotlin/UByteArray");
-        _cls_ubyte_array = (*env)->NewGlobalRef(env, cls);
+        jclass cls = (*env)->FindClass(env, "java/lang/IllegalStateException");
+        (*env)->ThrowNew(env, cls, "Global class reference for 'kotlin/UByteArray' is not initialized. Ensure set_cls_ubyte_array is called.");
+        return NULL;
     }
     return _cls_ubyte_array;
 }
