@@ -10,9 +10,15 @@ const FILE_BASE_NAME = "jni_globals_generated";
 
 const JNI_REFS = [
   {
+    className: "kotlin/Unit",
+    methods: [],
+    generateSetter: true,
+  },
+  {
     className: "kotlin/UByteArray",
     methods: [{ name: "<init>", sign: "([B)V" }],
     fields: [{ name: "storage", type: "[B" }],
+    generateSetter: true,
   },
   {
     className: "java/lang/Short",
@@ -283,9 +289,13 @@ function srcFieldName(jniClassName, jniName) {
  */
 function generateHeader() {
   const classDefinitions = JNI_REFS.reduce((acc, item) => {
-    const { className } = item;
+    const { className, generateSetter } = item;
     const name = srcClassName(className);
-    return acc.concat([`jclass ${name}(JNIEnv *env);`]);
+    const defs = [`jclass ${name}(JNIEnv *env);`];
+    if (generateSetter === true) {
+      defs.push(`void set_${name}(JNIEnv *env, jclass cls);`);
+    }
+    return acc.concat(defs);
   }, []);
 
   const methodDefinitions = JNI_REFS.reduce((acc, item) => {
@@ -401,6 +411,22 @@ function generateSource() {
     );
   }, []);
 
+  const classSetters = JNI_REFS.reduce((acc, item) => {
+    const { className, generateSetter } = item;
+    if (generateSetter !== true) {
+      return acc;
+    }
+    const name = srcClassName(className);
+    return acc.concat([
+      `void set_${name}(JNIEnv *env, jclass cls) {
+    if (_${name} != NULL) {
+        (*env)->DeleteGlobalRef(env, _${name});
+    }
+    _${name} = (*env)->NewGlobalRef(env, cls);
+}`,
+    ]);
+  }, []);
+
   const fieldDeclarations = JNI_REFS.reduce((acc, item) => {
     const { className, fields } = item;
     if (fields == null) {
@@ -447,6 +473,8 @@ ${methodDeclarations.join("\n")}
 ${fieldDeclarations.join("\n")}
 
 ${classBodies.join("\n\n")}
+
+${classSetters.join("\n\n")}
 
 ${methodBodies.join("\n\n")}
 

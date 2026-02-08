@@ -2,6 +2,7 @@
 #include "jni_globals_generated.h"
 
 // Cached classes
+static jclass _cls_unit = NULL;
 static jclass _cls_ubyte_array = NULL;
 static jclass _cls_short = NULL;
 static jclass _cls_byte = NULL;
@@ -88,6 +89,14 @@ static jfieldID _field_js_property_writable = NULL;
 static jfieldID _field_js_property_enumerable = NULL;
 static jfieldID _field_js_function_name = NULL;
 static jfieldID _field_js_function_is_async = NULL;
+
+jclass cls_unit(JNIEnv *env) {
+    if (_cls_unit == NULL) {
+        jclass cls = (*env)->FindClass(env, "kotlin/Unit");
+        _cls_unit = (*env)->NewGlobalRef(env, cls);
+    }
+    return _cls_unit;
+}
 
 jclass cls_ubyte_array(JNIEnv *env) {
     if (_cls_ubyte_array == NULL) {
@@ -311,6 +320,20 @@ jclass cls_js_object(JNIEnv *env) {
         _cls_js_object = (*env)->NewGlobalRef(env, cls);
     }
     return _cls_js_object;
+}
+
+void set_cls_unit(JNIEnv *env, jclass cls) {
+    if (_cls_unit != NULL) {
+        (*env)->DeleteGlobalRef(env, _cls_unit);
+    }
+    _cls_unit = (*env)->NewGlobalRef(env, cls);
+}
+
+void set_cls_ubyte_array(JNIEnv *env, jclass cls) {
+    if (_cls_ubyte_array != NULL) {
+        (*env)->DeleteGlobalRef(env, _cls_ubyte_array);
+    }
+    _cls_ubyte_array = (*env)->NewGlobalRef(env, cls);
 }
 
 jmethodID method_ubyte_array_init(JNIEnv *env) {
@@ -692,6 +715,9 @@ jfieldID field_js_function_is_async(JNIEnv *env) {
 }
 
 void clear_jni_refs_cache(JNIEnv *env) {
+    if (_cls_unit != NULL) {
+        (*env)->DeleteGlobalRef(env, _cls_unit);
+    }
     if (_cls_ubyte_array != NULL) {
         (*env)->DeleteGlobalRef(env, _cls_ubyte_array);
     }
@@ -777,6 +803,7 @@ void clear_jni_refs_cache(JNIEnv *env) {
         (*env)->DeleteGlobalRef(env, _cls_js_object);
     }
 
+    _cls_unit = NULL;
     _cls_ubyte_array = NULL;
     _cls_short = NULL;
     _cls_byte = NULL;

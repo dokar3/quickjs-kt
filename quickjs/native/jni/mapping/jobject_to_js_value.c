@@ -4,6 +4,7 @@
 #include "js_value_util.h"
 #include "exception_util.h"
 #include "log_util.h"
+#include "jni_globals.h"
 #include "jni_globals_generated.h"
 
 void throw_circular_ref_error(JSContext *context) {
@@ -524,7 +525,7 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject visited_set
     const char *cls_name = (*env)->GetStringUTFChars(env, j_cls_name, NULL);
 
     // Try by the class name
-    if (strcmp("kotlin.Unit", cls_name) == 0) {
+    if ((*env)->IsInstanceOf(env, value, cls_unit(env))) {
         result = JS_UNDEFINED;
     } else if (strcmp("[B", cls_name) == 0) {
         result = byte_array_to_js_int8array(env, context, value);

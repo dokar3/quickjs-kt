@@ -128,6 +128,7 @@ suspend fun <T> QuickJs.evaluate(
     }
 }
 
+@OptIn(ExperimentalUnsignedTypes::class)
 actual class QuickJs private constructor(
     private val jobDispatcher: CoroutineDispatcher,
 ) : Closeable {
@@ -196,7 +197,10 @@ actual class QuickJs private constructor(
         try {
             runtime = newRuntime()
             context = newContext(runtime)
-            globals = initGlobals(runtime)
+            globals = initGlobals(
+                runtime,
+                arrayOf(Unit::class.java, UByteArray::class.java)
+            )
         } catch (e: QuickJsException) {
             close()
             throw e
@@ -546,7 +550,7 @@ actual class QuickJs private constructor(
     @Throws(QuickJsException::class)
     private external fun newContext(runtime: Long): Long
 
-    private external fun initGlobals(runtime: Long): Long
+    private external fun initGlobals(runtime: Long, classes: Array<Class<*>>): Long
 
     @Throws(QuickJsException::class)
     private external fun releaseGlobals(context: Long, globals: Long)

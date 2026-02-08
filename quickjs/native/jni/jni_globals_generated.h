@@ -4,7 +4,13 @@
 
 #include <jni.h>
 
+jclass cls_unit(JNIEnv *env);
+
+void set_cls_unit(JNIEnv *env, jclass cls);
+
 jclass cls_ubyte_array(JNIEnv *env);
+
+void set_cls_ubyte_array(JNIEnv *env, jclass cls);
 
 jclass cls_short(JNIEnv *env);
 
