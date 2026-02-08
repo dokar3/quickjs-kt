@@ -42,7 +42,8 @@ Globals *globals_from_ptr(JNIEnv *env, jlong ptr) {
  */
 JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
                                                                    jobject this,
-                                                                   jlong runtime_ptr) {
+                                                                   jlong runtime_ptr,
+                                                                   jobjectArray classes) {
     // Suppress lint: We will free it in releaseGlobals()
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "MemoryLeak"
@@ -58,6 +59,11 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
     pthread_mutex_init(&globals->js_mutex, NULL);
 
     cache_java_vm(env);
+
+    jclass cls_unit = (*env)->GetObjectArrayElement(env, classes, 0);
+    set_cls_unit(env, cls_unit);
+    jclass cls_ubyte_array = (*env)->GetObjectArrayElement(env, classes, 1);
+    set_cls_ubyte_array(env, cls_ubyte_array);
 
     JSRuntime *runtime = runtime_from_ptr(env, runtime_ptr);
     jobject global_host_ref = (*env)->NewGlobalRef(env, this);
