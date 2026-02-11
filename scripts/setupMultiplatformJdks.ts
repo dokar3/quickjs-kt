@@ -74,12 +74,12 @@ async function fileSha256(filepath: string): Promise<string> {
   return hasher.digest("hex");
 }
 
-async function downloadFile(url: string, destPath: string) {
-  const response = await fetch(url, { redirect: "follow" });
-  if (!response.ok) {
-    throw new Error(`Failed to download ${url}: ${response.status}`);
+async function downloadFile(url: string, destDir: string, destPath: string) {
+  if (process.platform === "win32") {
+    await $`curl -fsSL -o ${destPath} ${url}`;
+  } else {
+    await $`wget --quiet -P ${destDir} ${url}`;
   }
-  await Bun.write(destPath, response);
 }
 
 async function downloadAndExtractJdk(jdk: Jdk) {
@@ -101,7 +101,7 @@ async function downloadAndExtractJdk(jdk: Jdk) {
     }
   }
   if (!downloaded) {
-    await downloadFile(jdk.url, filepath);
+    await downloadFile(jdk.url, JDK_ROOT, filepath);
   }
 
   console.log(`Extracting ${jdkFullName}...`);
