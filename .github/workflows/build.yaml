@@ -41,17 +41,12 @@ jobs:
 
       # Run js/ts scripts
       - name: Set Bun.js
-        if: runner.os != 'Windows'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
       - name: Install multiplatform JDKs
-        if: runner.os != 'Windows'
-        run: |
-          bun scripts/setupMultiplatformJdks.ts
-          printf "Exports:\n$(cat ~/java-home-vars-github.sh)"
-          source ~/java-home-vars-github.sh
+        run: bun scripts/setupMultiplatformJdks.ts
 
       - uses: gradle/actions/setup-gradle@v5
 
