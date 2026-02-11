@@ -5,13 +5,14 @@
 
 // Stack guard value for stack-protector support on Windows/MinGW.
 // A static value is used instead of runtime randomization because this code
-// is compiled into a static library linked by Kotlin/Native.
+// is compiled into a static library linked by Kotlin/Native. Using
+// __attribute__((constructor)) to call LoadLibraryA/GetProcAddress for
+// RtlGenRandom caused crashes (exit code 3) since the constructor runs
+// before the Windows runtime is fully initialized in that context.
 uintptr_t __stack_chk_guard = 0x595e9fbd94fda766;
 
 void __stack_chk_fail(void) {
-    // Do nothing/infinite loop to avoid abort() exit code 3 if called.
-    // Ideally should print something but we might not have stdout.
-    // abort(); 
+    abort();
 }
 
 #endif

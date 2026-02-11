@@ -40,6 +40,8 @@ jobs:
       # Cross-compile native libraries
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.12.0
 
       # Run js/ts scripts
       - name: Set Bun.js
