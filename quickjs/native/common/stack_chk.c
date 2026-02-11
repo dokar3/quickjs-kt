@@ -3,13 +3,18 @@
 
 #if defined(_WIN32)
 
-// Stack guard value for stack-protector support on Windows/MinGW.
-// A static value is used instead of runtime randomization because this code
-// is compiled into a static library linked by Kotlin/Native. Using
-// __attribute__((constructor)) to call LoadLibraryA/GetProcAddress for
-// RtlGenRandom caused crashes (exit code 3) since the constructor runs
-// before the Windows runtime is fully initialized in that context.
-uintptr_t __stack_chk_guard = 0x595e9fbd94fda766;
+// Generate a pseudo-random stack canary at compile time.
+// Not cryptographically strong, but varies per build which is better
+// than a fully static value. Runtime randomization via constructor is
+// not viable because it runs before the Windows runtime is initialized
+// in the Kotlin/Native static library context.
+#define STACK_CHK_SEED ((uint64_t)(__LINE__) * 7 + __COUNTER__ * 13)
+#define STACK_CHK_HASH(s) ((s) ^ ((s) >> 16) ^ ((s) << 32))
+uintptr_t __stack_chk_guard = STACK_CHK_HASH(STACK_CHK_SEED + \
+    (uint64_t)(__DATE__[0]) * 31 + \
+    (uint64_t)(__DATE__[2]) * 37 + \
+    (uint64_t)(__TIME__[0]) * 41 + \
+    (uint64_t)(__TIME__[1]) * 43);
 
 void __stack_chk_fail(void) {
     abort();
