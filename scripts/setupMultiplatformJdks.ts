@@ -11,7 +11,10 @@ type Jdk = {
   sha256: string;
 };
 
-const USER_HOME = process.env.HOME || process.env.USERPROFILE!;
+const USER_HOME = process.env.HOME || process.env.USERPROFILE;
+if (!USER_HOME) {
+  throw new Error("Cannot determine home directory: neither HOME nor USERPROFILE is set");
+}
 const JDK_ROOT = path.join(USER_HOME, "jdks");
 
 const JDK_LIST: Jdk[] = [
@@ -74,12 +77,8 @@ async function fileSha256(filepath: string): Promise<string> {
   return hasher.digest("hex");
 }
 
-async function downloadFile(url: string, destDir: string, destPath: string) {
-  if (process.platform === "win32") {
-    await $`curl -fsSL -o ${destPath} ${url}`;
-  } else {
-    await $`wget --quiet -P ${destDir} ${url}`;
-  }
+async function downloadFile(url: string, destPath: string) {
+  await $`curl -fsSL -o ${destPath} ${url}`;
 }
 
 async function downloadAndExtractJdk(jdk: Jdk) {
@@ -101,7 +100,7 @@ async function downloadAndExtractJdk(jdk: Jdk) {
     }
   }
   if (!downloaded) {
-    await downloadFile(jdk.url, JDK_ROOT, filepath);
+    await downloadFile(jdk.url, filepath);
   }
 
   console.log(`Extracting ${jdkFullName}...`);
