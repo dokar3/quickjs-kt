@@ -58,4 +58,6 @@ jobs:
           chmod +x quickjs/native/cmake/zig-ranlib.sh
 
       - name: Build
-        run: ./gradlew build
+        run: |
+          ./gradlew publishToMavenLocal
+          ./gradlew build

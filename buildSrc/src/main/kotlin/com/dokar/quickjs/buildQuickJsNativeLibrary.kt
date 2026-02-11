@@ -15,8 +15,22 @@ internal fun Project.buildQuickJsNativeLibrary(
     outputDir: File? = null,
     withPlatformSuffixIfCopy: Boolean = false,
 ) {
-    val libType = if (sharedLib) "shared" else "static"
+    if (withJni) {
+        val home = when (platform) {
+            Platform.windows_x64 -> windowX64JavaHome()
+            Platform.linux_x64 -> linuxX64JavaHome()
+            Platform.linux_aarch64 -> linuxAarch64JavaHome()
+            Platform.macos_x64 -> macosX64JavaHome()
+            Platform.macos_aarch64 -> macosAarch64JavaHome()
+            else -> error("Unsupported platform: '$platform'")
+        }
+        if (home == null) {
+            println("Skip building JNI library for '$platform' because JDK is not found.")
+            return
+        }
+    }
 
+    val libType = if (sharedLib) "shared" else "static"
     println("Building $libType native library for target '$platform'...")
 
     // Ensure scripts in native/cmake are executable
@@ -50,11 +64,11 @@ internal fun Project.buildQuickJsNativeLibrary(
 
     val generateArgs = if (withJni) {
         when (platform) {
-            Platform.windows_x64 -> commonArgs + ninja + javaHomeArg(windowX64JavaHome())
-            Platform.linux_x64 -> commonArgs + ninja + javaHomeArg(linuxX64JavaHome())
-            Platform.linux_aarch64 -> commonArgs + ninja + javaHomeArg(linuxAarch64JavaHome())
-            Platform.macos_x64 -> commonArgs + ninja + javaHomeArg(macosX64JavaHome())
-            Platform.macos_aarch64 -> commonArgs + ninja + javaHomeArg(macosAarch64JavaHome())
+            Platform.windows_x64 -> commonArgs + ninja + javaHomeArg(windowX64JavaHome()!!)
+            Platform.linux_x64 -> commonArgs + ninja + javaHomeArg(linuxX64JavaHome()!!)
+            Platform.linux_aarch64 -> commonArgs + ninja + javaHomeArg(linuxAarch64JavaHome()!!)
+            Platform.macos_x64 -> commonArgs + ninja + javaHomeArg(macosX64JavaHome()!!)
+            Platform.macos_aarch64 -> commonArgs + ninja + javaHomeArg(macosAarch64JavaHome()!!)
             else -> error("Unsupported platform: '$platform'")
         }
     } else {
@@ -207,29 +221,19 @@ internal fun Project.buildQuickJsNativeLibrary(
 /// Multiplatform JDK locations
 
 private fun Project.windowX64JavaHome() =
-    requireNotNull(envVarOrLocalPropOf("JAVA_HOME_WINDOWS_X64")) {
-        "'JAVA_HOME_WINDOWS_X64' is not found in env vars or local.properties"
-    }
+    envVarOrLocalPropOf("JAVA_HOME_WINDOWS_X64")
 
 private fun Project.linuxX64JavaHome() =
-    requireNotNull(envVarOrLocalPropOf("JAVA_HOME_LINUX_X64")) {
-        "'JAVA_HOME_LINUX_X64' is not found in env vars or local.properties"
-    }
+    envVarOrLocalPropOf("JAVA_HOME_LINUX_X64")
 
 private fun Project.linuxAarch64JavaHome() =
-    requireNotNull(envVarOrLocalPropOf("JAVA_HOME_LINUX_AARCH64")) {
-        "'JAVA_HOME_LINUX_AARCH64' is not found env vars or in local.properties"
-    }
+    envVarOrLocalPropOf("JAVA_HOME_LINUX_AARCH64")
 
 private fun Project.macosX64JavaHome() =
-    requireNotNull(envVarOrLocalPropOf("JAVA_HOME_MACOS_X64")) {
-        "'JAVA_HOME_MACOS_X64' is not found in env vars or local.properties"
-    }
+    envVarOrLocalPropOf("JAVA_HOME_MACOS_X64")
 
 private fun Project.macosAarch64JavaHome() =
-    requireNotNull(envVarOrLocalPropOf("JAVA_HOME_MACOS_AARCH64")) {
-        "'JAVA_HOME_MACOS_AARCH64' is not found in env vars or local.properties"
-    }
+    envVarOrLocalPropOf("JAVA_HOME_MACOS_AARCH64")
 
 private fun Project.envVarOrLocalPropOf(key: String): String? {
     val localProperties = Properties()
