@@ -1,31 +1,23 @@
 #include <stdlib.h>
 #include <stdint.h>
-#include <windows.h>
 
 #if defined(_WIN32)
 
-// Default stack guard value
-uintptr_t __stack_chk_guard = 0x595e9fbd94fda766;
+// Generate a pseudo-random stack canary at compile time.
+// Not cryptographically strong, but varies per build which is better
+// than a fully static value. Runtime randomization via constructor is
+// not viable because it runs before the Windows runtime is initialized
+// in the Kotlin/Native static library context.
+#define STACK_CHK_SEED ((uint64_t)(__LINE__) * 7 + __COUNTER__ * 13)
+#define STACK_CHK_HASH(s) ((s) ^ ((s) >> 16) ^ ((s) << 32))
+uintptr_t __stack_chk_guard = STACK_CHK_HASH(STACK_CHK_SEED + \
+    (uint64_t)(__DATE__[0]) * 31 + \
+    (uint64_t)(__DATE__[2]) * 37 + \
+    (uint64_t)(__TIME__[0]) * 41 + \
+    (uint64_t)(__TIME__[1]) * 43);
 
 void __stack_chk_fail(void) {
     abort();
 }
 
-typedef BOOLEAN (WINAPI *RtlGenRandomFunc)(PVOID, ULONG);
-
-// Initialize the stack guard with a random value
-__attribute__((constructor))
-static void __stack_chk_init(void) {
-    HMODULE hAdvApi32 = LoadLibraryA("advapi32.dll");
-    if (hAdvApi32) {
-        RtlGenRandomFunc RtlGenRandom = (RtlGenRandomFunc)GetProcAddress(hAdvApi32, "SystemFunction036");
-        if (RtlGenRandom) {
-            uintptr_t random_guard;
-            if (RtlGenRandom(&random_guard, sizeof(random_guard))) {
-                __stack_chk_guard = random_guard;
-            }
-        }
-        FreeLibrary(hAdvApi32);
-    }
-}
 #endif
