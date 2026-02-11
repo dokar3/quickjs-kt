@@ -173,7 +173,16 @@ private fun Project.findBuildPlatformsFromStartTaskNames(): List<Platform> {
 
     val isPublishing = taskNames.any { it.contains("publish", ignoreCase = true) }
     if (isPublishing) {
-        return Platform.values().toList()
+        val allPlatforms = Platform.values().toList()
+        return when (currentPlatform) {
+            Platform.linux_x64 -> allPlatforms.filter {
+                it == Platform.linux_x64 || it == Platform.linux_aarch64
+            }
+            Platform.windows_x64 -> allPlatforms.filter { it == Platform.windows_x64 }
+            Platform.macos_x64,
+            Platform.macos_aarch64 -> allPlatforms
+            else -> allPlatforms
+        }
     }
 
     val isBuild = taskNames.any { it.contains("build", ignoreCase = true) }
