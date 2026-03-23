@@ -42,7 +42,7 @@ jobs:
       - name: Install multiplatform JDKs
         run: bun scripts/setupMultiplatformJdks.ts
 
-      - uses: gradle/actions/setup-gradle@v5
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Grant execute permission for scripts
         run: |
