@@ -217,41 +217,47 @@ actual class QuickJs private constructor(
         parent: JsObjectHandle,
     ): JsObjectHandle {
         ensureNotClosed()
-        val nativeHandle = defineObject(
-            globals = globals,
-            context = context,
-            parent = parent.nativeHandle,
-            name = name,
-            properties = binding.properties.toTypedArray(),
-            functions = binding.functions.toTypedArray(),
-        )
-        if (nativeHandle < 0L) {
-            throw QuickJsException("Failed to define object '$name'.")
+        jsMutex.withLockSync {
+            val nativeHandle = defineObject(
+                globals = globals,
+                context = context,
+                parent = parent.nativeHandle,
+                name = name,
+                properties = binding.properties.toTypedArray(),
+                functions = binding.functions.toTypedArray(),
+            )
+            if (nativeHandle < 0L) {
+                throw QuickJsException("Failed to define object '$name'.")
+            }
+            objectBindings[nativeHandle] = binding
+            return JsObjectHandle(nativeHandle)
         }
-        objectBindings[nativeHandle] = binding
-        return JsObjectHandle(nativeHandle)
     }
 
     actual fun <R> defineBinding(name: String, binding: FunctionBinding<R>) {
         ensureNotClosed()
-        globalFunctions[name] = binding
-        defineFunction(
-            globals = globals,
-            context = context,
-            name = name,
-            isAsync = false,
-        )
+        jsMutex.withLockSync {
+            globalFunctions[name] = binding
+            defineFunction(
+                globals = globals,
+                context = context,
+                name = name,
+                isAsync = false,
+            )
+        }
     }
 
     actual fun <R> defineBinding(name: String, binding: AsyncFunctionBinding<R>) {
         ensureNotClosed()
-        globalFunctions[name] = binding
-        defineFunction(
-            globals = globals,
-            context = context,
-            name = name,
-            isAsync = true,
-        )
+        jsMutex.withLockSync {
+            globalFunctions[name] = binding
+            defineFunction(
+                globals = globals,
+                context = context,
+                name = name,
+                isAsync = true,
+            )
+        }
     }
 
     @Throws(QuickJsException::class)

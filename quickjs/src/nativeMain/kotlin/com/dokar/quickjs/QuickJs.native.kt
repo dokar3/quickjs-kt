@@ -137,14 +137,16 @@ actual class QuickJs private constructor(
         parent: JsObjectHandle
     ): JsObjectHandle {
         ensureNotClosed()
-        val handle = context.defineObject(
-            quickJsRef = ref,
-            parentHandle = parent.nativeHandle,
-            name = name,
-            binding = binding,
-        )
-        objectBindings[handle] = binding
-        return JsObjectHandle(handle)
+        jsMutex.withLockSync {
+            val handle = context.defineObject(
+                quickJsRef = ref,
+                parentHandle = parent.nativeHandle,
+                name = name,
+                binding = binding,
+            )
+            objectBindings[handle] = binding
+            return JsObjectHandle(handle)
+        }
     }
 
     actual fun <R> defineBinding(
@@ -152,14 +154,16 @@ actual class QuickJs private constructor(
         binding: FunctionBinding<R>
     ) {
         ensureNotClosed()
-        context.defineFunction(
-            quickJsRef = ref,
-            parent = null,
-            parentHandle = JsObjectHandle.globalThis.nativeHandle,
-            name = name,
-            isAsync = false,
-        )
-        globalFunctions[name] = binding
+        jsMutex.withLockSync {
+            context.defineFunction(
+                quickJsRef = ref,
+                parent = null,
+                parentHandle = JsObjectHandle.globalThis.nativeHandle,
+                name = name,
+                isAsync = false,
+            )
+            globalFunctions[name] = binding
+        }
     }
 
     actual fun <R> defineBinding(
@@ -167,14 +171,16 @@ actual class QuickJs private constructor(
         binding: AsyncFunctionBinding<R>
     ) {
         ensureNotClosed()
-        context.defineFunction(
-            quickJsRef = ref,
-            parent = null,
-            parentHandle = JsObjectHandle.globalThis.nativeHandle,
-            name = name,
-            isAsync = true,
-        )
-        globalFunctions[name] = binding
+        jsMutex.withLockSync {
+            context.defineFunction(
+                quickJsRef = ref,
+                parent = null,
+                parentHandle = JsObjectHandle.globalThis.nativeHandle,
+                name = name,
+                isAsync = true,
+            )
+            globalFunctions[name] = binding
+        }
     }
 
     @Throws(QuickJsException::class)
