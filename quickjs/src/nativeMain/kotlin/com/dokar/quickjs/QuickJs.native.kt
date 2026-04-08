@@ -136,45 +136,51 @@ actual class QuickJs private constructor(
         binding: ObjectBinding,
         parent: JsObjectHandle
     ): JsObjectHandle {
-        ensureNotClosed()
-        val handle = context.defineObject(
-            quickJsRef = ref,
-            parentHandle = parent.nativeHandle,
-            name = name,
-            binding = binding,
-        )
-        objectBindings[handle] = binding
-        return JsObjectHandle(handle)
+        return jsMutex.withLockSync {
+            ensureNotClosed()
+            val handle = context.defineObject(
+                quickJsRef = ref,
+                parentHandle = parent.nativeHandle,
+                name = name,
+                binding = binding,
+            )
+            objectBindings[handle] = binding
+            JsObjectHandle(handle)
+        }
     }
 
     actual fun <R> defineBinding(
         name: String,
         binding: FunctionBinding<R>
     ) {
-        ensureNotClosed()
-        context.defineFunction(
-            quickJsRef = ref,
-            parent = null,
-            parentHandle = JsObjectHandle.globalThis.nativeHandle,
-            name = name,
-            isAsync = false,
-        )
-        globalFunctions[name] = binding
+        jsMutex.withLockSync {
+            ensureNotClosed()
+            context.defineFunction(
+                quickJsRef = ref,
+                parent = null,
+                parentHandle = JsObjectHandle.globalThis.nativeHandle,
+                name = name,
+                isAsync = false,
+            )
+            globalFunctions[name] = binding
+        }
     }
 
     actual fun <R> defineBinding(
         name: String,
         binding: AsyncFunctionBinding<R>
     ) {
-        ensureNotClosed()
-        context.defineFunction(
-            quickJsRef = ref,
-            parent = null,
-            parentHandle = JsObjectHandle.globalThis.nativeHandle,
-            name = name,
-            isAsync = true,
-        )
-        globalFunctions[name] = binding
+        jsMutex.withLockSync {
+            ensureNotClosed()
+            context.defineFunction(
+                quickJsRef = ref,
+                parent = null,
+                parentHandle = JsObjectHandle.globalThis.nativeHandle,
+                name = name,
+                isAsync = true,
+            )
+            globalFunctions[name] = binding
+        }
     }
 
     @Throws(QuickJsException::class)
@@ -406,6 +412,7 @@ actual class QuickJs private constructor(
         parentHandle: Long,
         name: String,
     ): Any? {
+        ensureNotClosed()
         val binding = objectBindings[parentHandle] ?: qjsError("Parent not found.")
         return binding.getter(name)
     }
@@ -415,6 +422,7 @@ actual class QuickJs private constructor(
         name: String,
         value: Any?
     ) {
+        ensureNotClosed()
         val binding = objectBindings[parentHandle] ?: qjsError("Parent not found.")
         binding.setter(name, value)
     }
@@ -424,6 +432,7 @@ actual class QuickJs private constructor(
         name: String,
         args: Array<Any?>,
     ): Any? {
+        ensureNotClosed()
         return if (parentHandle == JsObjectHandle.globalThis.nativeHandle) {
             val binding = globalFunctions[name] ?: qjsError("Global function '$name' not found.")
             when (binding) {

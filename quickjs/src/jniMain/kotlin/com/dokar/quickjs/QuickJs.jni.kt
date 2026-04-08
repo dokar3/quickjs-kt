@@ -216,42 +216,48 @@ actual class QuickJs private constructor(
         binding: ObjectBinding,
         parent: JsObjectHandle,
     ): JsObjectHandle {
-        ensureNotClosed()
-        val nativeHandle = defineObject(
-            globals = globals,
-            context = context,
-            parent = parent.nativeHandle,
-            name = name,
-            properties = binding.properties.toTypedArray(),
-            functions = binding.functions.toTypedArray(),
-        )
-        if (nativeHandle < 0L) {
-            throw QuickJsException("Failed to define object '$name'.")
+        return jsMutex.withLockSync {
+            ensureNotClosed()
+            val nativeHandle = defineObject(
+                globals = globals,
+                context = context,
+                parent = parent.nativeHandle,
+                name = name,
+                properties = binding.properties.toTypedArray(),
+                functions = binding.functions.toTypedArray(),
+            )
+            if (nativeHandle < 0L) {
+                throw QuickJsException("Failed to define object '$name'.")
+            }
+            objectBindings[nativeHandle] = binding
+            JsObjectHandle(nativeHandle)
         }
-        objectBindings[nativeHandle] = binding
-        return JsObjectHandle(nativeHandle)
     }
 
     actual fun <R> defineBinding(name: String, binding: FunctionBinding<R>) {
-        ensureNotClosed()
-        globalFunctions[name] = binding
-        defineFunction(
-            globals = globals,
-            context = context,
-            name = name,
-            isAsync = false,
-        )
+        jsMutex.withLockSync {
+            ensureNotClosed()
+            defineFunction(
+                globals = globals,
+                context = context,
+                name = name,
+                isAsync = false,
+            )
+            globalFunctions[name] = binding
+        }
     }
 
     actual fun <R> defineBinding(name: String, binding: AsyncFunctionBinding<R>) {
-        ensureNotClosed()
-        globalFunctions[name] = binding
-        defineFunction(
-            globals = globals,
-            context = context,
-            name = name,
-            isAsync = true,
-        )
+        jsMutex.withLockSync {
+            ensureNotClosed()
+            defineFunction(
+                globals = globals,
+                context = context,
+                name = name,
+                isAsync = true,
+            )
+            globalFunctions[name] = binding
+        }
     }
 
     @Throws(QuickJsException::class)
@@ -542,7 +548,9 @@ actual class QuickJs private constructor(
     }
 
     private fun ensureNotClosed() {
-        if (runtime == 0L) qjsError("Already closed.")
+        if (isClosed || runtime == 0L || context == 0L || globals == 0L) {
+            qjsError("Already closed.")
+        }
     }
 
     private external fun newRuntime(): Long
