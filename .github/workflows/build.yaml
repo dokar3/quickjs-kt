@@ -22,12 +22,17 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup JDK
-        uses: actions/setup-java@v5
+      - name: Setup GraalVM
+        uses: graalvm/setup-graalvm@v1
         with:
-          java-version: '17'
-          distribution: 'adopt'
-          cache: gradle
+          java-version: '25'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          native-image-job-reports: 'true'
+
+      - name: Export GRAALVM_HOME
+        shell: bash
+        run: echo "GRAALVM_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
 
       # Build system for C
       - name: Setup CMake

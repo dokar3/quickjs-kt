@@ -165,10 +165,10 @@ JSValue
 property_getter(JSContext *context, JSValueConst this_val, int argc, JSValueConst *argv, int magic,
                 JSValue *func_data) {
     int64_t host_address;
-    JS_ToInt64(context, &host_address, func_data[0]);
+    JS_ToInt64Ext(context, &host_address, func_data[0]);
     jobject call_host = (jobject) host_address;
     int64_t object_handle;
-    JS_ToInt64(context, &object_handle, func_data[1]);
+    JS_ToInt64Ext(context, &object_handle, func_data[1]);
     const char *prop_name = JS_ToCString(context, func_data[2]);
 
     JSValue result = jni_invoke_getter(context, call_host, object_handle, prop_name);
@@ -182,10 +182,10 @@ JSValue
 property_setter(JSContext *context, JSValueConst this_val, int argc, JSValueConst *argv, int magic,
                 JSValue *func_data) {
     int64_t host_address;
-    JS_ToInt64(context, &host_address, func_data[0]);
+    JS_ToInt64Ext(context, &host_address, func_data[0]);
     jobject call_host = (jobject) host_address;
     int64_t object_handle;
-    JS_ToInt64(context, &object_handle, func_data[1]);
+    JS_ToInt64Ext(context, &object_handle, func_data[1]);
     const char *prop_name = JS_ToCString(context, func_data[2]);
 
     JSValue result = jni_invoke_setter(context, call_host, object_handle, prop_name, argc, argv);
@@ -199,10 +199,10 @@ JSValue
 function_invoke(JSContext *context, JSValueConst this_val, int argc, JSValueConst *argv, int magic,
                 JSValue *func_data) {
     int64_t host_address;
-    JS_ToInt64(context, &host_address, func_data[0]);
+    JS_ToInt64Ext(context, &host_address, func_data[0]);
     jobject call_host = (jobject) host_address;
     int64_t object_handle;
-    JS_ToInt64(context, &object_handle, func_data[1]);
+    JS_ToInt64Ext(context, &object_handle, func_data[1]);
     const char *func_name = JS_ToCString(context, func_data[2]);
 
     JSValue result = jni_invoke_function(context, call_host, object_handle, func_name, argc, argv);
@@ -222,12 +222,12 @@ JSValue async_function_invoke(JSContext *context, JSValueConst this_val,
 
     // Get the jni host
     int64_t host_address;
-    JS_ToInt64(context, &host_address, func_data[0]);
+    JS_ToInt64Ext(context, &host_address, func_data[0]);
     jobject call_host = (jobject) host_address;
 
     // Get the parent handle
     int64_t object_handle;
-    JS_ToInt64(context, &object_handle, func_data[1]);
+    JS_ToInt64Ext(context, &object_handle, func_data[1]);
 
     // Get the function name
     const char *function_name = JS_ToCString(context, func_data[2]);
@@ -235,8 +235,8 @@ JSValue async_function_invoke(JSContext *context, JSValueConst this_val,
     // Get globals
     int64_t globals_address_low;
     int64_t globals_address_high;
-    JS_ToInt64(context, &globals_address_low, func_data[3]);
-    JS_ToInt64(context, &globals_address_high, func_data[4]);
+    JS_ToInt64Ext(context, &globals_address_low, func_data[3]);
+    JS_ToInt64Ext(context, &globals_address_high, func_data[4]);
     int64_t globals_address = (globals_address_low & 0xFFFFFFFF) | globals_address_high << 32;
     Globals *globals = (Globals *) globals_address;
 
@@ -286,8 +286,8 @@ void define_async_js_function_on(JSContext *context,
     int64_t globals_address = (int64_t) (globals);
     int64_t globals_low = globals_address & 0xFFFFFFFF;
     int64_t globals_high = (globals_address >> 32) & 0xFFFFFFFF;
-    async_func_data[func_data_len] = JS_NewInt64(context, globals_low);
-    async_func_data[func_data_len + 1] = JS_NewInt64(context, globals_high);
+    async_func_data[func_data_len] = JS_NewBigInt64(context, globals_low);
+    async_func_data[func_data_len + 1] = JS_NewBigInt64(context, globals_high);
 
     for (int i = func_data_len; i < async_func_data_len; ++i) {
         // Add to free
@@ -370,8 +370,8 @@ JSValue define_js_object(JNIEnv *env, JSContext *context,
     jsize prop_size = (*env)->GetArrayLength(env, properties);
 
     JSValue common_func_data[COMMON_FUNC_DATA_LEN] = {
-            JS_NewInt64(context, (int64_t) global_host), // host address
-            JS_NewInt64(context, handle), // object handle
+            JS_NewBigInt64(context, (int64_t) global_host), // host address
+            JS_NewBigInt64(context, handle), // object handle
     };
 
     // Free these values before freeing the runtime
@@ -466,8 +466,8 @@ void define_js_function(JNIEnv *env, JSContext *context,
     // Function data
     uint32_t data_len = COMMON_FUNC_DATA_LEN + 1;
     JSValue func_data[3] = {
-            JS_NewInt64(context, (int64_t) global_host), // host address
-            JS_NewInt64(context, GLOBAL_THIS_HANDLE), // parent object handle
+            JS_NewBigInt64(context, (int64_t) global_host), // host address
+            JS_NewBigInt64(context, GLOBAL_THIS_HANDLE), // parent object handle
             JS_NewString(context, func_name), // function name
     };
 

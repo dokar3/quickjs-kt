@@ -25,8 +25,8 @@ import quickjs.JS_FreeAtom
 import quickjs.JS_FreeValue
 import quickjs.JS_GetGlobalObject
 import quickjs.JS_NewAtom
+import quickjs.JS_NewBigInt64
 import quickjs.JS_NewCFunctionData
-import quickjs.JS_NewInt64
 import quickjs.JS_NewObject
 import quickjs.JS_NewString
 import quickjs.JS_PROP_CONFIGURABLE
@@ -96,8 +96,8 @@ internal fun CPointer<JSContext>.defineProperty(
 
     val funcDataArray = arrayOf(
         JS_NewString(context, property.name.cstr),
-        JS_NewInt64(context, qjsPtrAddress),
-        JS_NewInt64(context, handle),
+        JS_NewBigInt64(context, qjsPtrAddress),
+        JS_NewBigInt64(context, handle),
     )
 
     // Free function data when closing

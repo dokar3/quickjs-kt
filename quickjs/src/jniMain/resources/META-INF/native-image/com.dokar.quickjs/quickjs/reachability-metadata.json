@@ -1,0 +1,475 @@
+{
+  "reflection": [
+    {
+      "type": "kotlin.Unit",
+      "jniAccessible": true
+    },
+    {
+      "type": "kotlin.UByteArray",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "byte[]"
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "name": "storage"
+        }
+      ]
+    },
+    {
+      "type": "java.lang.Short",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "shortValue",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "java.lang.Byte",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "byteValue",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "java.lang.Integer",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "valueOf",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "intValue",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "java.lang.Long",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "valueOf",
+          "parameterTypes": [
+            "long"
+          ]
+        },
+        {
+          "name": "longValue",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "java.lang.Float",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "floatValue",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "java.lang.Double",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "valueOf",
+          "parameterTypes": [
+            "double"
+          ]
+        },
+        {
+          "name": "doubleValue",
+          "parameterTypes": []
+        }
+      ],
+      "fields": [
+        {
+          "name": "NaN"
+        }
+      ]
+    },
+    {
+      "type": "java.lang.Boolean",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "valueOf",
+          "parameterTypes": [
+            "boolean"
+          ]
+        },
+        {
+          "name": "booleanValue",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "java.lang.String",
+      "jniAccessible": true
+    },
+    {
+      "type": "java.lang.Object",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "toString",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "java.lang.Object[]"
+    },
+    {
+      "type": "java.lang.System",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "identityHashCode",
+          "parameterTypes": [
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "java.lang.Class",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "getName",
+          "parameterTypes": []
+        },
+        {
+          "name": "isArray",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "java.lang.Throwable",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "getMessage",
+          "parameterTypes": []
+        },
+        {
+          "name": "getStackTrace",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "java.util.Set",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "iterator",
+          "parameterTypes": []
+        },
+        {
+          "name": "add",
+          "parameterTypes": [
+            "java.lang.Object"
+          ]
+        },
+        {
+          "name": "contains",
+          "parameterTypes": [
+            "java.lang.Object"
+          ]
+        },
+        {
+          "name": "isEmpty",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "java.util.Iterator",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "hasNext",
+          "parameterTypes": []
+        },
+        {
+          "name": "next",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "java.util.List",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "size",
+          "parameterTypes": []
+        },
+        {
+          "name": "get",
+          "parameterTypes": [
+            "int"
+          ]
+        },
+        {
+          "name": "add",
+          "parameterTypes": [
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "java.util.ArrayList",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "int"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "java.util.Map",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "entrySet",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "java.util.Map$Entry",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "getKey",
+          "parameterTypes": []
+        },
+        {
+          "name": "getValue",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "java.util.HashMap",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "put",
+          "parameterTypes": [
+            "java.lang.Object",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "java.util.HashSet",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "java.util.LinkedHashMap",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "put",
+          "parameterTypes": [
+            "java.lang.Object",
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "java.util.LinkedHashSet",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        },
+        {
+          "name": "add",
+          "parameterTypes": [
+            "java.lang.Object"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "com.dokar.quickjs.QuickJsException",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "com.dokar.quickjs.QuickJs",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "onCallGetter",
+          "parameterTypes": [
+            "long",
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "onCallSetter",
+          "parameterTypes": [
+            "long",
+            "java.lang.String",
+            "java.lang.Object"
+          ]
+        },
+        {
+          "name": "onCallFunction",
+          "parameterTypes": [
+            "long",
+            "java.lang.String",
+            "java.lang.Object[]"
+          ]
+        },
+        {
+          "name": "setEvalException",
+          "parameterTypes": [
+            "java.lang.Throwable"
+          ]
+        },
+        {
+          "name": "setUnhandledPromiseRejection",
+          "parameterTypes": [
+            "java.lang.Object"
+          ]
+        },
+        {
+          "name": "clearHandledPromiseRejection",
+          "parameterTypes": []
+        }
+      ]
+    },
+    {
+      "type": "com.dokar.quickjs.MemoryUsage",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long",
+            "long"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "com.dokar.quickjs.binding.JsProperty",
+      "jniAccessible": true,
+      "fields": [
+        {
+          "name": "name"
+        },
+        {
+          "name": "configurable"
+        },
+        {
+          "name": "writable"
+        },
+        {
+          "name": "enumerable"
+        }
+      ]
+    },
+    {
+      "type": "com.dokar.quickjs.binding.JsFunction",
+      "jniAccessible": true,
+      "fields": [
+        {
+          "name": "name"
+        },
+        {
+          "name": "isAsync"
+        }
+      ]
+    },
+    {
+      "type": "com.dokar.quickjs.binding.JsObject",
+      "jniAccessible": true,
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": [
+            "java.util.Map"
+          ]
+        }
+      ]
+    }
+  ]
+}
