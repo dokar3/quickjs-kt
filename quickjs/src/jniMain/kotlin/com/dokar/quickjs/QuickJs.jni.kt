@@ -635,7 +635,7 @@ actual class QuickJs private constructor(
 
     actual companion object {
         init {
-            loadNativeLibrary("quickjs")
+            NativeLibraryLoader.loadLibrary("quickjs")
         }
 
         @Throws(QuickJsException::class)
