@@ -216,8 +216,8 @@ actual class QuickJs private constructor(
         binding: ObjectBinding,
         parent: JsObjectHandle,
     ): JsObjectHandle {
-        ensureNotClosed()
-        jsMutex.withLockSync {
+        return jsMutex.withLockSync {
+            ensureNotClosed()
             val nativeHandle = defineObject(
                 globals = globals,
                 context = context,
@@ -230,33 +230,33 @@ actual class QuickJs private constructor(
                 throw QuickJsException("Failed to define object '$name'.")
             }
             objectBindings[nativeHandle] = binding
-            return JsObjectHandle(nativeHandle)
+            JsObjectHandle(nativeHandle)
         }
     }
 
     actual fun <R> defineBinding(name: String, binding: FunctionBinding<R>) {
-        ensureNotClosed()
         jsMutex.withLockSync {
-            globalFunctions[name] = binding
+            ensureNotClosed()
             defineFunction(
                 globals = globals,
                 context = context,
                 name = name,
                 isAsync = false,
             )
+            globalFunctions[name] = binding
         }
     }
 
     actual fun <R> defineBinding(name: String, binding: AsyncFunctionBinding<R>) {
-        ensureNotClosed()
         jsMutex.withLockSync {
-            globalFunctions[name] = binding
+            ensureNotClosed()
             defineFunction(
                 globals = globals,
                 context = context,
                 name = name,
                 isAsync = true,
             )
+            globalFunctions[name] = binding
         }
     }
 
@@ -548,7 +548,9 @@ actual class QuickJs private constructor(
     }
 
     private fun ensureNotClosed() {
-        if (runtime == 0L) qjsError("Already closed.")
+        if (isClosed || runtime == 0L || context == 0L || globals == 0L) {
+            qjsError("Already closed.")
+        }
     }
 
     private external fun newRuntime(): Long

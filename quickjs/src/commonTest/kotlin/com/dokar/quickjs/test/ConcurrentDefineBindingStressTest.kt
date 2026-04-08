@@ -1,7 +1,9 @@
 package com.dokar.quickjs.test
 
 import com.dokar.quickjs.QuickJs
+import com.dokar.quickjs.binding.asyncFunction
 import com.dokar.quickjs.binding.define
+import com.dokar.quickjs.binding.function
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -9,6 +11,7 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 
 class ConcurrentDefineBindingStressTest {
@@ -29,11 +32,19 @@ class ConcurrentDefineBindingStressTest {
                                 }
                                 function("call") { worker + index }
                             }
+                            quickJs.function("fn_${round}_${worker}_$index") {
+                                worker + index
+                            }
+                            quickJs.asyncFunction("async_fn_${round}_${worker}_$index") {
+                                worker + index
+                            }
                         }
                     }
                 }
                 start.complete(Unit)
-                jobs.joinAll()
+                withTimeout(60_000) {
+                    jobs.joinAll()
+                }
             } finally {
                 quickJs.close()
             }
