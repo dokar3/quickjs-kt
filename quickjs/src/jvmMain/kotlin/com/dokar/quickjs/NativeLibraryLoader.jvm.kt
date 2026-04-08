@@ -88,7 +88,8 @@ internal actual object NativeLibraryLoader {
 
     /** Gets the native library file name. */
     private fun getLibraryName(name: String): String {
-        val prefix = if (osPrefix == "windows") "" else "lib"
+        // QuickJS artifacts in this project keep the `lib` prefix on Windows too.
+        val prefix = "lib"
         val extension =
             when (osPrefix) {
                 "linux" -> "so"
