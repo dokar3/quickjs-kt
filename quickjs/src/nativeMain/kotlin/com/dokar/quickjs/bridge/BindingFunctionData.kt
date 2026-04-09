@@ -14,7 +14,7 @@ import kotlinx.cinterop.value
 import platform.posix.int64_tVar
 import quickjs.JSContext
 import quickjs.JSValue
-import quickjs.JS_ToInt64
+import quickjs.JS_ToInt64Ext
 
 internal data class BindingFunctionData(
     val name: String,
@@ -32,14 +32,14 @@ internal data class BindingFunctionData(
 
             // Read the QuickJs instance
             val qjsAddress = alloc<int64_tVar>()
-            JS_ToInt64(ctx, qjsAddress.ptr, data[1].readValue())
+            JS_ToInt64Ext(ctx, qjsAddress.ptr, data[1].readValue())
             val qjsVoidPtr = qjsAddress.value.toCPointer<int64_tVar>()
             val qjsStableRef = qjsVoidPtr!!.asStableRef<QuickJs>()
             val quickJs = qjsStableRef.get()
 
             // Read object handle
             val objectHandle = alloc<int64_tVar>()
-            JS_ToInt64(ctx, objectHandle.ptr, data[2].readValue())
+            JS_ToInt64Ext(ctx, objectHandle.ptr, data[2].readValue())
 
             BindingFunctionData(
                 name = name,
