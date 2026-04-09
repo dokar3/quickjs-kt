@@ -160,7 +160,6 @@ tasks.register("graalVmNativeImage", Exec::class.java) {
     group = "verification"
     description = "Builds a GraalVM native image for the QuickJS integration scenario."
     skipIfGraalVmUnavailable()
-    dependsOn("graalVmAgent")
     dependsOn(jvmMainClasses)
     inputs.files(integrationRuntimeClasspath, graalVmConfigDir.asFile)
     outputs.file(graalVmNativeExecutable)
