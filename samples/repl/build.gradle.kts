@@ -1,4 +1,7 @@
+@file:OptIn(org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeCacheApi::class)
+
 import com.dokar.quickjs.disableUnsupportedPlatformTasks
+import org.jetbrains.kotlin.gradle.plugin.mpp.DisableCacheInKotlinVersion
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -15,7 +18,12 @@ kotlin {
     }
     linuxX64 {
         binaries {
-            executable()
+            executable {
+                disableNativeCache(
+                    version = DisableCacheInKotlinVersion.`2_4_10`,
+                    reason = "Kotlin/Native cache produces duplicate Clikt symbols"
+                )
+            }
         }
     }
     macosArm64 {
