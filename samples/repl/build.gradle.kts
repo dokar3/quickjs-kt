@@ -13,32 +13,22 @@ kotlin {
 
     mingwX64 {
         binaries {
-            executable {
-                disableNativeCache(
-                    version = DisableCacheInKotlinVersion.`2_3_20`,
-                    reason = "Kotlin 2.3.20 native cache regression"
-                )
-            }
+            executable()
         }
     }
     linuxX64 {
         binaries {
             executable {
                 disableNativeCache(
-                    version = DisableCacheInKotlinVersion.`2_3_20`,
-                    reason = "Kotlin 2.3.20 native cache regression"
+                    version = DisableCacheInKotlinVersion.`2_4_10`,
+                    reason = "Kotlin/Native cache produces duplicate Clikt symbols"
                 )
             }
         }
     }
     macosArm64 {
         binaries {
-            executable {
-                disableNativeCache(
-                    version = DisableCacheInKotlinVersion.`2_3_20`,
-                    reason = "Kotlin 2.3.20 native cache regression"
-                )
-            }
+            executable()
         }
     }
 
