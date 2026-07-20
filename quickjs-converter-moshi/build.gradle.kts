@@ -48,7 +48,7 @@ android {
 }
 
 dependencies {
-    ksp(libs.moshi.kotlin.codegen)
+    add("kspJvmTest", libs.moshi.kotlin.codegen)
 }
 
 disableUnsupportedPlatformTasks()

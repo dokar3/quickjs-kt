@@ -2,9 +2,9 @@
 android-compileSdk = "36"
 android-targetSdk = "36"
 android-minSdk = "23"
-agp = "9.1.0"
-kotlin = "2.3.20"
-coreKtx = "1.18.0"
+agp = "9.3.0"
+kotlin = "2.4.10"
+coreKtx = "1.19.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
 espressoCore = "3.6.1"
@@ -17,7 +17,7 @@ compose-plugin = "1.11.1"
 androidx-activityCompose = "1.13.0"
 androidx-appcompat = "1.7.1"
 coroutines = "1.11.0"
-ktor = "3.4.2"
+ktor = "3.5.1"
 moshi = "1.15.2"
 
 [libraries]
@@ -37,7 +37,7 @@ kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotl
 kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
-kotlinx-benchmark-runtime = { module = "org.jetbrains.kotlinx:kotlinx-benchmark-runtime", version = "0.4.16" }
+kotlinx-benchmark-runtime = { module = "org.jetbrains.kotlinx:kotlinx-benchmark-runtime", version = "0.4.17" }
 clikt = { module = "com.github.ajalt.clikt:clikt", version = "5.1.0" }
 kotlinx-serialization-properties = { module = "org.jetbrains.kotlinx:kotlinx-serialization-properties", version.ref = "kotlinxSerializationProperties" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
@@ -52,10 +52,10 @@ jetbrainsCompose = { id = "org.jetbrains.compose", version.ref = "compose-plugin
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 jetbrainsKotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
-kotlinBenchmark = { id = "org.jetbrains.kotlinx.benchmark", version = "0.4.16" }
+kotlinBenchmark = { id = "org.jetbrains.kotlinx.benchmark", version = "0.4.17" }
 kotlinAllOpen = { id = "org.jetbrains.kotlin.plugin.allopen", version.ref = "kotlin" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 androidKotlinMultiplatformLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
-mavenPublish = { id = "com.vanniktech.maven.publish", version = "0.36.0" }
-ksp = { id = "com.google.devtools.ksp", version = "2.3.6" }
+mavenPublish = { id = "com.vanniktech.maven.publish", version = "0.37.0" }
+ksp = { id = "com.google.devtools.ksp", version = "2.3.10" }
