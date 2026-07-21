@@ -634,14 +634,14 @@ jmethodID method_quick_js_set_eval_exception(JNIEnv *env) {
 
 jmethodID method_quick_js_set_unhandled_promise_rejection(JNIEnv *env) {
     if (_method_quick_js_set_unhandled_promise_rejection == NULL) {
-        _method_quick_js_set_unhandled_promise_rejection = (*env)->GetMethodID(env, cls_quick_js(env), "setUnhandledPromiseRejection", "(Ljava/lang/Object;)V");
+        _method_quick_js_set_unhandled_promise_rejection = (*env)->GetMethodID(env, cls_quick_js(env), "setUnhandledPromiseRejection", "(JLjava/lang/Object;)V");
     }
     return _method_quick_js_set_unhandled_promise_rejection;
 }
 
 jmethodID method_quick_js_clear_handled_promise_rejection(JNIEnv *env) {
     if (_method_quick_js_clear_handled_promise_rejection == NULL) {
-        _method_quick_js_clear_handled_promise_rejection = (*env)->GetMethodID(env, cls_quick_js(env), "clearHandledPromiseRejection", "()V");
+        _method_quick_js_clear_handled_promise_rejection = (*env)->GetMethodID(env, cls_quick_js(env), "clearHandledPromiseRejection", "(J)V");
     }
     return _method_quick_js_clear_handled_promise_rejection;
 }

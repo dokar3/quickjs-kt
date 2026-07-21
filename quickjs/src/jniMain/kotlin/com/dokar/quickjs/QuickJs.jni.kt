@@ -17,12 +17,20 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.Closeable
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.coroutineContext
 import kotlin.reflect.KType
 import kotlin.reflect.typeOf
 
@@ -143,6 +151,8 @@ actual class QuickJs private constructor(
     private val modules = mutableListOf<ByteArray>()
 
     private var evalException: Throwable? = null
+    private var currentEvaluationSession: EvaluationSession? = null
+    private var currentEvaluation: EvaluationState? = null
 
     // Coroutines and async jobs related
     private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
@@ -156,14 +166,12 @@ actual class QuickJs private constructor(
      * Avoid concurrent executions.
      */
     private val jsMutex = Mutex()
-
-    /**
-     * Prevent the result promise from been cleared.
-     */
-    private val jsResultMutex = Mutex()
+    private val rootEvaluationMutex = Mutex()
+    private val runtimeProgress = MutableStateFlow(0L)
 
     private val jobsMutex = Mutex()
-    private val asyncJobs = mutableListOf<Job>()
+    private val asyncJobs = mutableListOf<AsyncJob>()
+    private val activeEvaluateResults = mutableSetOf<Long>()
 
     @PublishedApi
     internal actual val typeConverters = TypeConverters()
@@ -320,20 +328,68 @@ actual class QuickJs private constructor(
         evaluate(context, globals, filename, code, asModule)
     }
 
-    private suspend fun evalAndAwait(evalBlock: suspend () -> Any?): Any? {
+    private suspend fun evalAndAwait(evalBlock: suspend () -> Long): Any? {
         ensureNotClosed()
-        evalException = null
-        loadModules()
-        val result = jsResultMutex.withLock {
-            jsMutex.withLock { evalBlock() }
-            awaitAsyncJobs()
-            jsMutex.withLock {
+        val inheritedSession = coroutineContext[EvaluationSession]
+        if (inheritedSession != null) {
+            return evalInSession(inheritedSession, isRoot = false, evalBlock)
+        }
+        return rootEvaluationMutex.withLock {
+            evalException = null
+            evalInSession(EvaluationSession(), isRoot = true, evalBlock)
+        }
+    }
+
+    private suspend fun evalInSession(
+        session: EvaluationSession,
+        isRoot: Boolean,
+        evalBlock: suspend () -> Long,
+    ): Any? {
+        var resultHandle: Long? = null
+        val evaluation = EvaluationState()
+        try {
+            loadModules(session)
+            resultHandle = jsMutex.withLock {
+                val handle = withEvaluation(session, evaluation) { evalBlock() }
+                resultHandle = handle
+                evaluation.handle = handle
+                evaluation.promiseId = getEvaluateResultPromiseId(
+                    context = context,
+                    globals = globals,
+                    handle = handle,
+                )
+                jobsMutex.withLock {
+                    if (isClosed) throw CancellationException("Already closed.")
+                    val rejection = session.unhandledRejections.remove(evaluation.promiseId)
+                    if (evaluation.exception == null) evaluation.exception = rejection
+                    session.evaluations[evaluation.promiseId] = evaluation
+                    activeEvaluateResults += handle
+                }
+                handle
+            }
+            awaitEvaluateResult(session, evaluation, isRoot)
+            val result = jsMutex.withLock {
                 if (isClosed) throw CancellationException("Already closed.")
-                getEvaluateResult(context, globals)
+                withEvaluation(session, evaluation) {
+                    getEvaluateResult(context, globals, resultHandle)
+                }
+            }
+            handleException(session, evaluation, isRoot)
+            return result
+        } finally {
+            val handle = resultHandle
+            if (handle != null) {
+                withContext(NonCancellable) {
+                    jobsMutex.withLock {
+                        session.evaluations.remove(evaluation.promiseId)
+                        activeEvaluateResults.remove(handle)
+                    }
+                    jsMutex.withLock {
+                        if (!isClosed) releaseEvaluateResult(context, globals, handle)
+                    }
+                }
             }
         }
-        handleException()
-        return result
     }
 
     actual fun gc() {
@@ -344,9 +400,11 @@ actual class QuickJs private constructor(
     actual override fun close() {
         if (isClosed) return
         isClosed = true
+        signalRuntimeProgress()
         jobsMutex.withLockSync {
-            asyncJobs.forEach { it.cancel() }
+            asyncJobs.forEach { it.job.cancel() }
             asyncJobs.clear()
+            activeEvaluateResults.clear()
         }
         jsMutex.withLockSync {
             objectBindings.clear()
@@ -367,38 +425,83 @@ actual class QuickJs private constructor(
         }
     }
 
-    private suspend fun awaitAsyncJobs() {
-        jsMutex.withLock {
-            if (isClosed) return@withLock
-            do {
-                // Execute JS Promises, putting this in while(true) is unnecessary
-                // since we have the same loop after every asyncFunction call
-                val executed = executePendingJob(context, globals)
-            } while (executed)
-        }
+    private suspend fun awaitEvaluateResult(
+        session: EvaluationSession,
+        evaluation: EvaluationState,
+        isRoot: Boolean,
+    ) {
         while (true) {
-            val jobs = jobsMutex.withLock { asyncJobs.filter { it.isActive } }
-            if (jobs.isEmpty()) {
-                // No jobs to run
-                break
+            val observedProgress = runtimeProgress.value
+            val (resultPending, executedJobs) = jsMutex.withLock {
+                if (isClosed) throw CancellationException("Already closed.")
+                withEvaluationSession(session) {
+                    var executedAny = false
+                    do {
+                        val executed = executePendingJob(context, globals)
+                        executedAny = executedAny || executed
+                    } while (executed)
+                    isEvaluateResultPending(context, globals, evaluation.handle) to executedAny
+                }
             }
-            jobs.joinAll()
+
+            var hasUnhandledException = false
+            val activeJobs = if (isRoot) {
+                jobsMutex.withLock {
+                    hasUnhandledException = evaluation.exception != null ||
+                            session.unhandledRejections.isNotEmpty()
+                    asyncJobs.filter { it.session === session && it.job.isActive }
+                        .map { it.job }
+                }
+            } else {
+                emptyList()
+            }
+            if (hasUnhandledException) {
+                activeJobs.forEach { it.cancel() }
+                return
+            }
+            val hasActiveJobs = activeJobs.isNotEmpty()
+            val progressUnchanged = runtimeProgress.value == observedProgress
+
+            if (executedJobs) signalRuntimeProgress()
+
+            if (!resultPending && !hasActiveJobs && progressUnchanged) {
+                return
+            }
+
+            if (!resultPending && !hasActiveJobs) continue
+            runtimeProgress.first { it != observedProgress }
         }
     }
 
-    private fun handleException() {
-        val exception = evalException
+    private fun handleException(
+        session: EvaluationSession,
+        evaluation: EvaluationState,
+        isRoot: Boolean,
+    ) {
+        val exception = jobsMutex.withLockSync {
+            evaluation.exception.also { evaluation.exception = null }
+                ?: if (isRoot) {
+                    session.unhandledRejections.entries.firstOrNull()?.let {
+                        session.unhandledRejections.remove(it.key)
+                    }
+                } else {
+                    null
+                }
+                ?: evalException.also { evalException = null }
+        }
         if (exception != null) {
-            evalException = null
             throw exception
         }
     }
 
-    private suspend fun loadModules() = jsMutex.withLock {
-        for (module in modules) {
-            evaluateBytecode(context = context, globals = globals, buffer = module)
+    private suspend fun loadModules(session: EvaluationSession) = jsMutex.withLock {
+        withEvaluationSession(session) {
+            for (module in modules) {
+                val handle = evaluateBytecode(context = context, globals = globals, buffer = module)
+                releaseEvaluateResult(context, globals, handle)
+            }
+            modules.clear()
         }
-        modules.clear()
     }
 
     internal actual fun invokeAsyncFunction(
@@ -406,46 +509,47 @@ actual class QuickJs private constructor(
         block: suspend (bindingArgs: Array<Any?>) -> Any?,
     ) {
         if (isClosed) return
+        val session = currentEvaluationSession
+            ?: qjsError("Async function was invoked outside an evaluation.")
         val (resolveHandle, rejectHandle) = promiseHandlesFromArgs(args)
-        val job = coroutineScope.launch {
+        val job = coroutineScope.launch(context = session, start = CoroutineStart.LAZY) {
             try {
                 val result = block(args.sliceArray(2..<args.size))
                 jsMutex.withLock {
                     if (isClosed) return@withLock
-                    // Call resolve() on JNI side
-                    invokeJsFunction(
-                        context = context,
-                        globals = globals,
-                        handle = resolveHandle,
-                        args = arrayOf(result)
-                    )
+                    withEvaluationSession(session) {
+                        // Call resolve() on JNI side
+                        invokeJsFunction(
+                            context = context,
+                            globals = globals,
+                            handle = resolveHandle,
+                            args = arrayOf(result)
+                        )
+                    }
                 }
+                signalRuntimeProgress()
             } catch (e: Throwable) {
                 jsMutex.withLock {
                     if (isClosed) return@withLock
-                    // Call reject() on JNI side
-                    invokeJsFunction(
-                        context = context,
-                        globals = globals,
-                        handle = rejectHandle,
-                        args = arrayOf(e)
-                    )
+                    withEvaluationSession(session) {
+                        // Call reject() on JNI side
+                        invokeJsFunction(
+                            context = context,
+                            globals = globals,
+                            handle = rejectHandle,
+                            args = arrayOf(e)
+                        )
+                    }
                 }
-            }
-            jsMutex.withLock {
-                if (isClosed) return@withLock
-                // The job is completed, see what we can do next:
-                // - Execute subsequent Promises
-                // - Cancel all jobs and fail, if rejected and JS didn't handle it
-                do {
-                    val executed = executePendingJob(context, globals)
-                } while (executed)
+                signalRuntimeProgress()
             }
         }
-        jobsMutex.withLockSync { asyncJobs += job }
+        jobsMutex.withLockSync { asyncJobs += AsyncJob(job, session) }
         job.invokeOnCompletion {
-            jobsMutex.withLockSync { asyncJobs -= job }
+            jobsMutex.withLockSync { asyncJobs.removeAll { it.job == job } }
+            signalRuntimeProgress()
         }
+        job.start()
     }
 
     private fun promiseHandlesFromArgs(args: Array<Any?>): Pair<Long, Long> {
@@ -525,26 +629,82 @@ actual class QuickJs private constructor(
      */
     private fun setEvalException(exception: Throwable) {
         ensureNotClosed()
-        this.evalException = exception
+        jobsMutex.withLockSync {
+            val evaluation = currentEvaluation
+            if (evaluation != null) {
+                if (evaluation.exception == null) evaluation.exception = exception
+            } else if (evalException == null) {
+                evalException = exception
+            }
+        }
     }
 
     /**
      * Called from JNI.
      */
-    private fun setUnhandledPromiseRejection(reason: Any?) {
+    private fun setUnhandledPromiseRejection(promiseId: Long, reason: Any?) {
         if (isClosed) return
-        if (evalException == null) {
-            evalException = reason as? Throwable ?: QuickJsException(reason.toString())
+        val exception = reason as? Throwable ?: QuickJsException(reason.toString())
+        val session = currentEvaluationSession
+        jobsMutex.withLockSync {
+            if (session == null) {
+                if (evalException == null) evalException = exception
+            } else {
+                val evaluation = session.evaluations[promiseId]
+                if (evaluation != null) {
+                    if (evaluation.exception == null) evaluation.exception = exception
+                } else {
+                    session.unhandledRejections.putIfAbsent(promiseId, exception)
+                }
+            }
         }
-        jobsMutex.withLockSync { asyncJobs.forEach { it.cancel() } }
+        signalRuntimeProgress()
     }
 
     /**
      * Called from JNI when a previously unhandled promise rejection is handled.
      */
-    private fun clearHandledPromiseRejection() {
+    private fun clearHandledPromiseRejection(promiseId: Long) {
         if (isClosed) return
-        this.evalException = null
+        val session = currentEvaluationSession
+        jobsMutex.withLockSync {
+            if (session == null) evalException = null
+            else {
+                session.evaluations[promiseId]?.exception = null
+                session.unhandledRejections.remove(promiseId)
+            }
+        }
+    }
+
+    private inline fun <T> withEvaluation(
+        session: EvaluationSession,
+        evaluation: EvaluationState,
+        block: () -> T,
+    ): T {
+        val previousEvaluation = currentEvaluation
+        currentEvaluation = evaluation
+        return try {
+            withEvaluationSession(session, block)
+        } finally {
+            currentEvaluation = previousEvaluation
+        }
+    }
+
+    private inline fun <T> withEvaluationSession(
+        session: EvaluationSession,
+        block: () -> T,
+    ): T {
+        val previous = currentEvaluationSession
+        currentEvaluationSession = session
+        return try {
+            block()
+        } finally {
+            currentEvaluationSession = previous
+        }
+    }
+
+    private fun signalRuntimeProgress() {
+        runtimeProgress.update { it + 1 }
     }
 
     private fun ensureNotClosed() {
@@ -618,14 +778,14 @@ actual class QuickJs private constructor(
         filename: String,
         code: String,
         asModule: Boolean
-    ): Any?
+    ): Long
 
     @Throws(QuickJsException::class)
     private external fun evaluateBytecode(
         context: Long,
         globals: Long,
         buffer: ByteArray,
-    ): Any?
+    ): Long
 
     @Throws(QuickJsException::class)
     private external fun invokeJsFunction(
@@ -639,7 +799,41 @@ actual class QuickJs private constructor(
     private external fun executePendingJob(context: Long, globals: Long): Boolean
 
     @Throws(QuickJsException::class)
-    private external fun getEvaluateResult(context: Long, globals: Long): Any?
+    private external fun getEvaluateResult(context: Long, globals: Long, handle: Long): Any?
+
+    @Throws(QuickJsException::class)
+    private external fun isEvaluateResultPending(
+        context: Long,
+        globals: Long,
+        handle: Long,
+    ): Boolean
+
+    @Throws(QuickJsException::class)
+    private external fun getEvaluateResultPromiseId(
+        context: Long,
+        globals: Long,
+        handle: Long,
+    ): Long
+
+    private external fun releaseEvaluateResult(context: Long, globals: Long, handle: Long)
+
+    private data class AsyncJob(
+        val job: Job,
+        val session: EvaluationSession,
+    )
+
+    private data class EvaluationState(
+        var handle: Long = -1,
+        var promiseId: Long = 0,
+        var exception: Throwable? = null,
+    )
+
+    private class EvaluationSession : AbstractCoroutineContextElement(Key) {
+        val evaluations = mutableMapOf<Long, EvaluationState>()
+        val unhandledRejections = linkedMapOf<Long, Throwable>()
+
+        companion object Key : CoroutineContext.Key<EvaluationSession>
+    }
 
     actual companion object {
         init {

@@ -46,6 +46,24 @@ private suspend fun exerciseQuickJsDsl() {
             "Async function binding failed.",
         )
 
+        asyncFunction("alwaysFails") {
+            error("Expected integration rejection")
+        }
+        val rejection = runCatching {
+            evaluate<Any?>("globalThis.__integrationRejection = alwaysFails()")
+        }.exceptionOrNull()
+        expect(
+            rejection?.message?.contains("Expected integration rejection") == true,
+            "Unhandled async rejection did not reach Kotlin.",
+        )
+        expectEquals(
+            "caught",
+            evaluate<String>(
+                "await globalThis.__integrationRejection.catch(() => 'caught')"
+            ),
+            "Handled async rejection failed.",
+        )
+
         var appName = "quickjs-kt"
         var launches = 0
         define("app") {

@@ -108,7 +108,8 @@ expect class QuickJs {
      *
      * In JavaScript, the defined function returns a Promise, await can be used to get the result.
      *
-     * In Kotlin, it's a suspend function, so another suspend can be called.
+     * In Kotlin, it's a suspend function, so another suspend can be called, including [evaluate]
+     * on this QuickJS instance.
      *
      * @param name The name in JavaScript code.
      * @param binding The kotlin binding.

@@ -4,6 +4,7 @@ import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.binding.asyncFunction
 import com.dokar.quickjs.binding.function
 import com.dokar.quickjs.quickJs
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -11,11 +12,13 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -31,6 +34,196 @@ class AsyncFunctionsTest {
             asyncFunction("fetch") { "Hello" }
 
             assertEquals("Hello", evaluate("await fetch()"))
+        }
+    }
+
+    @Test
+    fun evaluateInsideAsyncFunction() = runTest {
+        quickJs {
+            asyncFunction("nestedEval") { evaluate<Int>("40 + 2") }
+
+            assertEquals(42, evaluate("await nestedEval()"))
+        }
+    }
+
+    @Test
+    fun evaluateBytecodeInsideAsyncFunction() = runTest {
+        quickJs {
+            val bytecode = compile("21 * 2")
+            asyncFunction("nestedEval") { evaluate<Int>(bytecode) }
+
+            assertEquals(42, evaluate("await nestedEval()"))
+        }
+    }
+
+    @Test
+    fun evaluateAsyncCodeInsideAsyncFunction() = runTest {
+        quickJs {
+            asyncFunction("delay") { delay(it[0] as Long) }
+            asyncFunction("nestedEval") {
+                evaluate<String>("await delay(100); 'nested result'")
+            }
+
+            assertEquals("nested result", evaluate("await nestedEval()"))
+        }
+    }
+
+    @Test
+    fun runConcurrentNestedEvaluations() = runTest {
+        quickJs {
+            asyncFunction("delay") { delay(it[0] as Long) }
+            asyncFunction("nestedEval") {
+                val value = it[0] as Long
+                evaluate<Long>("await delay(100); $value + 10")
+            }
+
+            assertEquals(
+                "11,12",
+                evaluate(
+                    "await Promise.all([nestedEval(1), nestedEval(2)]).then(values => values.join(','))"
+                )
+            )
+        }
+    }
+
+    @Test
+    fun concurrentEvaluationsKeepAsyncJobsWithTheirOwningEvaluation() = runTest {
+        quickJs(Dispatchers.Default) {
+            val firstEvaluationStarted = CompletableDeferred<Unit>()
+            val secondEvaluationAttempting = CompletableDeferred<Unit>()
+
+            function("blockFirstEvaluation") {
+                firstEvaluationStarted.complete(Unit)
+                runBlocking {
+                    secondEvaluationAttempting.await()
+                    // Give the second evaluation time to queue on the runtime mutex.
+                    delay(100)
+                }
+            }
+            asyncFunction("delayAndReturn") {
+                delay(100)
+                it[0]
+            }
+
+            val first = async(Dispatchers.Default) {
+                evaluate<String>(
+                    """
+                    blockFirstEvaluation();
+                    await Promise.resolve().then(() => delayAndReturn('first'));
+                    """.trimIndent()
+                )
+            }
+            firstEvaluationStarted.await()
+
+            val second = async(Dispatchers.Default) {
+                secondEvaluationAttempting.complete(Unit)
+                evaluate<String>(
+                    "await Promise.resolve().then(() => delayAndReturn('second'))"
+                )
+            }
+
+            assertEquals(
+                listOf("first", "second"),
+                coroutineScope {
+                    listOf(first.await(), second.await())
+                }
+            )
+        }
+    }
+
+    @Test
+    fun nestedEvaluationCanAwaitPromiseCreatedByOuterEvaluation() = runTest {
+        quickJs {
+            asyncFunction("delay") { delay(it[0] as Long) }
+            asyncFunction("nestedEval") {
+                evaluate<String>("await globalThis.outerPromise; 'nested result'")
+            }
+
+            assertEquals(
+                "nested result",
+                evaluate(
+                    """
+                    globalThis.outerPromise = delay(100);
+                    await nestedEval();
+                    """.trimIndent()
+                )
+            )
+        }
+    }
+
+    @Test
+    fun nestedEvaluationFailureRejectsBindingPromise() = runTest {
+        quickJs {
+            asyncFunction("nestedEval") {
+                evaluate<Any?>("throw new Error('nested failure')")
+            }
+
+            assertFails {
+                evaluate<Any?>("await nestedEval()")
+            }.also {
+                assertContains(it.message!!, "nested failure")
+            }
+        }
+    }
+
+    @Test
+    fun nestedEvaluationFailureDoesNotCancelSiblingBinding() = runTest {
+        quickJs {
+            asyncFunction("nestedFail") {
+                evaluate<Any?>("throw new Error('nested failure')")
+            }
+            asyncFunction("nestedSlow") {
+                delay(100)
+                "slow result"
+            }
+
+            assertEquals(
+                "rejected,fulfilled:slow result",
+                withTimeout(1_000) {
+                    evaluate<String>(
+                        """
+                        await Promise.allSettled([nestedFail(), nestedSlow()])
+                            .then(results => results
+                                .map(result => result.status +
+                                    (result.status === 'fulfilled' ? ':' + result.value : ''))
+                                .join(','));
+                        """.trimIndent()
+                    )
+                }
+            )
+        }
+    }
+
+    @Test
+    fun concurrentNestedEvaluationFailureStaysWithItsOwner() = runTest {
+        quickJs {
+            asyncFunction("delay") { delay(it[0] as Long) }
+            asyncFunction("nestedSuccess") {
+                evaluate<String>("await globalThis.sharedPromise; 'success'")
+            }
+            asyncFunction("nestedFail") {
+                evaluate<Any?>(
+                    "await globalThis.sharedPromise; throw new Error('nested failure')"
+                )
+            }
+
+            assertEquals(
+                "fulfilled:success,rejected",
+                withTimeout(1_000) {
+                    evaluate<String>(
+                        """
+                        globalThis.sharedPromise = delay(100);
+                        await Promise.allSettled([nestedSuccess(), nestedFail()])
+                            .then(results => results
+                                .map(result => result.status +
+                                    (result.status === 'fulfilled'
+                                        ? ':' + result.value
+                                        : ''))
+                                .join(','));
+                        """.trimIndent()
+                    )
+                }
+            )
         }
     }
 
