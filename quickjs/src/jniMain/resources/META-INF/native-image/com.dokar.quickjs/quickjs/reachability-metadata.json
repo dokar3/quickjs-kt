@@ -383,12 +383,15 @@
         {
           "name": "setUnhandledPromiseRejection",
           "parameterTypes": [
+            "long",
             "java.lang.Object"
           ]
         },
         {
           "name": "clearHandledPromiseRejection",
-          "parameterTypes": []
+          "parameterTypes": [
+            "long"
+          ]
         }
       ]
     },

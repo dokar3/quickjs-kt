@@ -36,7 +36,8 @@ inline fun <R : Any?> QuickJs.function(
 }
 
 /**
- * Define an `async` function and attach to 'globalThis'.
+ * Define an `async` function and attach to 'globalThis'. The function may call suspending APIs,
+ * including [QuickJs.evaluate] on the same instance.
  */
 inline fun <R> QuickJs.asyncFunction(
     name: String,

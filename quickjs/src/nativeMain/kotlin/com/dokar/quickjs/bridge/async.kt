@@ -10,6 +10,7 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
+import kotlinx.cinterop.toLong
 import kotlinx.cinterop.value
 import quickjs.JSContext
 import quickjs.JSPromiseStateEnum
@@ -31,12 +32,20 @@ import quickjs.JS_TAG_OBJECT
 import quickjs.JS_TAG_UNINITIALIZED
 import quickjs.JS_UpdateStackTop
 import quickjs.JsValueGetNormTag
+import quickjs.JsValueGetPtr
 
 @PublishedApi
 @OptIn(ExperimentalForeignApi::class)
 internal value class JsPromise(
     private val value: CValue<JSValue>
 ) {
+    val identity: Long
+        get() = JsValueGetPtr(value)!!.toLong()
+
+    fun isPending(context: CPointer<JSContext>): Boolean {
+        return JS_PromiseState(context, value) == JSPromiseStateEnum.JS_PROMISE_PENDING
+    }
+
     fun result(context: CPointer<JSContext>): Any? {
         val ctxException = JS_GetException(context)
         val ctxExTag = JsValueGetNormTag(ctxException)
@@ -146,4 +155,3 @@ internal fun executePendingJob(runtime: CPointer<JSRuntime>): ExecuteJobResult =
         return ExecuteJobResult.NoJobs
     }
 }
-

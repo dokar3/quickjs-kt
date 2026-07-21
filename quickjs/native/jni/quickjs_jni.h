@@ -27,9 +27,13 @@ typedef struct {
      */
     cvector_vector_type(jobject)global_object_refs;
     /**
-     * Result promises of eval calls.
+     * Result promises of eval calls. The index is exposed to Kotlin as an evaluation handle.
      */
-    JSValue evaluate_result_promise;
+    cvector_vector_type(JSValue)evaluate_result_promises;
+    /**
+     * Whether the corresponding evaluation result slot is reserved by Kotlin.
+     */
+    cvector_vector_type(uint8_t)evaluate_result_active;
     /**
      * The mutex which is used to protect the JS stack in a multi-threaded environment.
      * Scopes with a JS_UpdateStackTop() call are required to be locked.
