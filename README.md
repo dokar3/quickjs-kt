@@ -168,6 +168,30 @@ const responses = await Promise.all([
 ])
 ```
 
+### Interrupting evaluations
+
+Cancelling the calling coroutine interrupts the evaluation, even if it is busy
+running JavaScript like an infinite loop:
+
+```kotlin
+withTimeout(1000) {
+    quickJs.evaluate<Unit>("while(true){}")
+}
+```
+
+A timeout can also be set on the instance, evaluations running past it will
+throw a `QuickJsInterruptedException`:
+
+```kotlin
+quickJs.evaluationTimeoutMillis = 1000
+```
+
+To interrupt manually from anywhere, call `interruptEvaluation()`:
+
+```kotlin
+quickJs.interruptEvaluation()
+```
+
 ### Modules
 
 [ES Modules](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules) are supported when `evaluate()` or `compile()` has the parameter `asModule = true`.

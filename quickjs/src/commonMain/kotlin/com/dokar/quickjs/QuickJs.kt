@@ -74,6 +74,26 @@ expect class QuickJs {
     val memoryUsage: MemoryUsage
 
     /**
+     * Timeout in milliseconds for a single evaluation, disabled when zero or
+     * negative (the default).
+     *
+     * An evaluation running past this throws [QuickJsInterruptedException].
+     * Only time spent executing JavaScript counts; to also bound time awaited
+     * in async function bindings, wrap the call in `withTimeout {}`.
+     */
+    var evaluationTimeoutMillis: Long
+
+    /**
+     * Interrupt the running evaluation, failing it with a
+     * [QuickJsInterruptedException]. Works even on busy JavaScript like an
+     * infinite loop, can be called from any thread, and does nothing when no
+     * evaluation is running.
+     *
+     * Cancelling the coroutine that called [evaluate] has the same effect.
+     */
+    fun interruptEvaluation()
+
+    /**
      * Add type converters to extend the type mapping on function parameters,
      * function returns, and [evaluate] results.
      */

@@ -20,6 +20,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -144,6 +146,7 @@ actual class QuickJs private constructor(
     private var globals: Long = 0
     private var runtime: Long = 0
     private var context: Long = 0
+    private var interruptState: Long = 0
 
     private val objectBindings = mutableMapOf<Long, ObjectBinding>()
     private val globalFunctions = mutableMapOf<String, Binding>()
@@ -201,9 +204,17 @@ actual class QuickJs private constructor(
             return getMemoryUsage(runtime, globals)
         }
 
+    actual var evaluationTimeoutMillis: Long = -1L
+
+    actual fun interruptEvaluation() {
+        ensureNotClosed()
+        requestInterrupt(interruptState)
+    }
+
     init {
         try {
             runtime = newRuntime()
+            interruptState = installInterrupt(runtime)
             context = newContext(runtime)
             globals = initGlobals(
                 runtime,
@@ -336,7 +347,26 @@ actual class QuickJs private constructor(
         }
         return rootEvaluationMutex.withLock {
             evalException = null
-            evalInSession(EvaluationSession(), isRoot = true, evalBlock)
+            resetInterrupt(interruptState, evaluationTimeoutMillis)
+            // Cancellation alone can't stop busy JavaScript, so hook it up
+            // to a native interrupt.
+            val interruptOnCancel = Job(coroutineContext.job)
+            interruptOnCancel.invokeOnCompletion { cause ->
+                if (cause is CancellationException && !isClosed) {
+                    requestInterrupt(interruptState)
+                }
+            }
+            try {
+                evalInSession(EvaluationSession(), isRoot = true, evalBlock)
+            } catch (e: QuickJsException) {
+                // Cancellation wins over the interrupt error
+                coroutineContext.ensureActive()
+                if (wasInterrupted(interruptState)) throw QuickJsInterruptedException(e.message)
+                throw e
+            } finally {
+                interruptOnCancel.complete()
+                resetInterrupt(interruptState, 0L)
+            }
         }
     }
 
@@ -419,6 +449,8 @@ actual class QuickJs private constructor(
                 context = 0
             }
             if (runtime != 0L) {
+                freeInterrupt(runtime, interruptState)
+                interruptState = 0
                 releaseRuntime(runtime)
                 runtime = 0
             }
@@ -758,6 +790,16 @@ actual class QuickJs private constructor(
 
     @Throws(QuickJsException::class)
     private external fun setMaxStackSize(runtime: Long, globals: Long, byteCount: Long)
+
+    private external fun installInterrupt(runtime: Long): Long
+
+    private external fun freeInterrupt(runtime: Long, state: Long)
+
+    private external fun requestInterrupt(state: Long)
+
+    private external fun resetInterrupt(state: Long, timeoutMillis: Long)
+
+    private external fun wasInterrupted(state: Long): Boolean
 
     @Throws(QuickJsException::class)
     private external fun getMemoryUsage(runtime: Long, globals: Long): MemoryUsage

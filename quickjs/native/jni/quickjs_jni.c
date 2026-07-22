@@ -11,6 +11,7 @@
 #include "jobject_to_js_value.h"
 #include "js_value_util.h"
 #include "quickjs_version.h"
+#include "quickjs_interrupt.h"
 #include "promise_rejection_handler.h"
 
 JSRuntime *runtime_from_ptr(JNIEnv *env, jlong ptr) {
@@ -320,6 +321,55 @@ Java_com_dokar_quickjs_QuickJs_setMaxStackSize(JNIEnv *env, jobject this, jlong 
     JS_SetMaxStackSize(runtime, byte_count);
 
     pthread_mutex_unlock(&globals->js_mutex);
+}
+
+/**
+ * Register the interrupt handler, returns the state handle.
+ */
+JNIEXPORT jlong JNICALL
+Java_com_dokar_quickjs_QuickJs_installInterrupt(JNIEnv *env, jobject this, jlong runtime_ptr) {
+    if (runtime_ptr == 0) {
+        return 0;
+    }
+    return (jlong) qjs_interrupt_install((JSRuntime *) runtime_ptr);
+}
+
+/**
+ * Unregister the interrupt handler and free the state.
+ */
+JNIEXPORT void JNICALL
+Java_com_dokar_quickjs_QuickJs_freeInterrupt(JNIEnv *env, jobject this, jlong runtime_ptr,
+                                             jlong state_ptr) {
+    if (runtime_ptr == 0 || state_ptr == 0) {
+        return;
+    }
+    qjs_interrupt_free((JSRuntime *) runtime_ptr, (void *) state_ptr);
+}
+
+/**
+ * Request the running evaluation to be interrupted. No mutex and no throwing
+ * here: called from cancellation handlers while an eval blocks the js thread.
+ */
+JNIEXPORT void JNICALL
+Java_com_dokar_quickjs_QuickJs_requestInterrupt(JNIEnv *env, jobject this, jlong state_ptr) {
+    qjs_interrupt_request((void *) state_ptr);
+}
+
+/**
+ * Reset the interrupt flags and deadline (now + timeout_millis, <= 0 for none).
+ */
+JNIEXPORT void JNICALL
+Java_com_dokar_quickjs_QuickJs_resetInterrupt(JNIEnv *env, jobject this, jlong state_ptr,
+                                              jlong timeout_millis) {
+    qjs_interrupt_reset((void *) state_ptr, timeout_millis);
+}
+
+/**
+ * Whether the interrupt handler aborted an evaluation since the last reset.
+ */
+JNIEXPORT jboolean JNICALL
+Java_com_dokar_quickjs_QuickJs_wasInterrupted(JNIEnv *env, jobject this, jlong state_ptr) {
+    return qjs_interrupt_fired((void *) state_ptr) ? JNI_TRUE : JNI_FALSE;
 }
 
 /**
