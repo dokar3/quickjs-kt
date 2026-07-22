@@ -21,6 +21,7 @@ import com.dokar.quickjs.converter.TypeConverters
 import com.dokar.quickjs.converter.castValueOr
 import com.dokar.quickjs.converter.typeOfInstance
 import com.dokar.quickjs.util.withLockSync
+import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -32,6 +33,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -52,6 +55,11 @@ import quickjs.JS_RunGC
 import quickjs.JS_SetMaxStackSize
 import quickjs.JS_SetMemoryLimit
 import quickjs.JS_UpdateStackTop
+import quickjs.qjs_interrupt_fired
+import quickjs.qjs_interrupt_free
+import quickjs.qjs_interrupt_install
+import quickjs.qjs_interrupt_request
+import quickjs.qjs_interrupt_reset
 import quickjs.quickjs_version
 import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
@@ -70,6 +78,8 @@ actual class QuickJs private constructor(
         ?: qjsError("Failed to create js context.")
 
     private val ref = StableRef.create(this)
+
+    private var interruptState: COpaquePointer? = null
 
     private var evalException: Throwable? = null
     private var currentEvaluationSession: EvaluationSession? = null
@@ -134,7 +144,15 @@ actual class QuickJs private constructor(
             return runtime.ktMemoryUsage()
         }
 
+    actual var evaluationTimeoutMillis: Long = -1L
+
+    actual fun interruptEvaluation() {
+        ensureNotClosed()
+        qjs_interrupt_request(interruptState)
+    }
+
     init {
+        interruptState = qjs_interrupt_install(runtime)
         setPromiseRejectionHandler(ref, runtime)
     }
 
@@ -293,6 +311,8 @@ actual class QuickJs private constructor(
             objectBindings.clear()
             globalFunctions.clear()
             JS_FreeContext(context)
+            qjs_interrupt_free(runtime, interruptState)
+            interruptState = null
             JS_FreeRuntime(runtime)
         }
         modules.clear()
@@ -347,7 +367,28 @@ actual class QuickJs private constructor(
         }
         return rootEvaluationMutex.withLock {
             evalException = null
-            evalInSession(EvaluationSession(), isRoot = true, block)
+            qjs_interrupt_reset(interruptState, evaluationTimeoutMillis)
+            // Cancellation alone can't stop busy JavaScript, so hook it up
+            // to a native interrupt.
+            val interruptOnCancel = Job(coroutineContext.job)
+            interruptOnCancel.invokeOnCompletion { cause ->
+                if (cause is CancellationException && !isClosed) {
+                    qjs_interrupt_request(interruptState)
+                }
+            }
+            try {
+                evalInSession(EvaluationSession(), isRoot = true, block)
+            } catch (e: QuickJsException) {
+                // Cancellation wins over the interrupt error
+                coroutineContext.ensureActive()
+                if (qjs_interrupt_fired(interruptState) != 0) {
+                    throw QuickJsInterruptedException(e.message)
+                }
+                throw e
+            } finally {
+                interruptOnCancel.complete()
+                qjs_interrupt_reset(interruptState, 0L)
+            }
         }
     }
 

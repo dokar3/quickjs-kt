@@ -114,6 +114,7 @@ set(quickjs_sources
         "quickjs/libunicode.c"
         "quickjs/quickjs.c"
         "common/quickjs_version.c"
+        "common/quickjs_interrupt.c"
 )
 list(APPEND all_sources ${quickjs_sources})
 
