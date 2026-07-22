@@ -20,6 +20,8 @@ import com.dokar.quickjs.converter.TypeConverter
 import com.dokar.quickjs.converter.TypeConverters
 import com.dokar.quickjs.converter.castValueOr
 import com.dokar.quickjs.converter.typeOfInstance
+import com.dokar.quickjs.internal.isInBindingCallback
+import com.dokar.quickjs.internal.withBindingCallback
 import com.dokar.quickjs.util.withLockSync
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.CPointer
@@ -67,24 +69,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.coroutineContext
 import kotlin.concurrent.atomics.AtomicBoolean
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
-import kotlin.native.concurrent.ThreadLocal
 import kotlin.reflect.typeOf
-
-@ThreadLocal
-private var bindingCallbackQuickJs: QuickJs? = null
-
-private inline fun <T> withBindingCallback(quickJs: QuickJs, block: () -> T): T {
-    val previous = bindingCallbackQuickJs
-    bindingCallbackQuickJs = quickJs
-    return try {
-        block()
-    } finally {
-        bindingCallbackQuickJs = previous
-    }
-}
-
-private fun isInBindingCallback(quickJs: QuickJs): Boolean =
-    bindingCallbackQuickJs === quickJs
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalAtomicApi::class)
 actual class QuickJs private constructor(

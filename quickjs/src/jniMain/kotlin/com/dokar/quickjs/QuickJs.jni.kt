@@ -12,6 +12,8 @@ import com.dokar.quickjs.converter.TypeConverters
 import com.dokar.quickjs.converter.castValueOr
 import com.dokar.quickjs.converter.typeOfClass
 import com.dokar.quickjs.converter.typeOfInstance
+import com.dokar.quickjs.internal.isInBindingCallback
+import com.dokar.quickjs.internal.withBindingCallback
 import com.dokar.quickjs.util.withLockSync
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -37,21 +39,6 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.coroutineContext
 import kotlin.reflect.KType
 import kotlin.reflect.typeOf
-
-private val bindingCallbackQuickJs = ThreadLocal<QuickJs?>()
-
-private inline fun <T> withBindingCallback(quickJs: QuickJs, block: () -> T): T {
-    val previous = bindingCallbackQuickJs.get()
-    bindingCallbackQuickJs.set(quickJs)
-    return try {
-        block()
-    } finally {
-        bindingCallbackQuickJs.set(previous)
-    }
-}
-
-private fun isInBindingCallback(quickJs: QuickJs): Boolean =
-    bindingCallbackQuickJs.get() === quickJs
 
 /**
  * Evaluate QuickJS-compiled bytecode.
