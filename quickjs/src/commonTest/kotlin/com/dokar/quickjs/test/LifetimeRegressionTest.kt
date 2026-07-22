@@ -13,9 +13,34 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 
 class LifetimeRegressionTest {
+    @Test
+    fun closeFromSynchronousBindingFailsWithoutClosingRuntime() = runTest {
+        val quickJs = QuickJs.create(Dispatchers.Default)
+        try {
+            quickJs.function("closeFromBinding") {
+                quickJs.close()
+            }
+
+            val error = assertFailsWith<QuickJsException> {
+                quickJs.evaluate<Any?>("closeFromBinding()")
+            }
+            assertContains(
+                error.message.orEmpty(),
+                "Cannot close QuickJs from within a binding callback.",
+            )
+            assertFalse(quickJs.isClosed)
+            assertEquals(3L, quickJs.evaluate<Long>("1 + 2"))
+        } finally {
+            quickJs.close()
+        }
+    }
+
     @Test
     fun synchronousBindingCanCallRuntimeApis() = runTest {
         val quickJs = QuickJs.create(Dispatchers.Default)

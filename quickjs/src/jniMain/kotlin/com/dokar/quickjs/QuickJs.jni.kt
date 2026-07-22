@@ -461,6 +461,9 @@ actual class QuickJs private constructor(
     }
 
     actual override fun close() {
+        if (isInBindingCallback(this)) {
+            qjsError("Cannot close QuickJs from within a binding callback.")
+        }
         if (!closed.compareAndSet(expectedValue = false, newValue = true)) return
         signalRuntimeProgress()
         jobsMutex.withLockSync {

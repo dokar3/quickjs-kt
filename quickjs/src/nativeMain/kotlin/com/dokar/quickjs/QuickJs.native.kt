@@ -322,6 +322,9 @@ actual class QuickJs private constructor(
     }
 
     actual fun close() {
+        if (isInBindingCallback(this)) {
+            qjsError("Cannot close QuickJs from within a binding callback.")
+        }
         if (!closed.compareAndSet(expectedValue = false, newValue = true)) return
         val promisesToFree = jobsMutex.withLockSync {
             evalException = null
