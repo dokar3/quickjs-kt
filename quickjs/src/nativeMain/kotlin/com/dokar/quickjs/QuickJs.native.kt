@@ -65,9 +65,28 @@ import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.coroutineContext
+import kotlin.concurrent.atomics.AtomicBoolean
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.native.concurrent.ThreadLocal
 import kotlin.reflect.typeOf
 
-@OptIn(ExperimentalForeignApi::class)
+@ThreadLocal
+private var bindingCallbackQuickJs: QuickJs? = null
+
+private inline fun <T> withBindingCallback(quickJs: QuickJs, block: () -> T): T {
+    val previous = bindingCallbackQuickJs
+    bindingCallbackQuickJs = quickJs
+    return try {
+        block()
+    } finally {
+        bindingCallbackQuickJs = previous
+    }
+}
+
+private fun isInBindingCallback(quickJs: QuickJs): Boolean =
+    bindingCallbackQuickJs === quickJs
+
+@OptIn(ExperimentalForeignApi::class, ExperimentalAtomicApi::class)
 actual class QuickJs private constructor(
     private val jobDispatcher: CoroutineDispatcher
 ) {
@@ -106,14 +125,18 @@ actual class QuickJs private constructor(
      * Avoid concurrent executions.
      */
     private val jsMutex = Mutex()
+    private val interruptMutex = Mutex()
     private val rootEvaluationMutex = Mutex()
     private val runtimeProgress = MutableStateFlow(0L)
 
     @PublishedApi
     internal actual val typeConverters = TypeConverters()
 
-    actual var isClosed: Boolean = false
-        private set
+    private val closed = AtomicBoolean(false)
+
+    actual var isClosed: Boolean
+        get() = closed.load()
+        private set(value) = closed.store(value)
 
     actual val version: String
         get() {
@@ -123,32 +146,38 @@ actual class QuickJs private constructor(
 
     actual var memoryLimit: Long = -1
         set(value) {
-            ensureNotClosed()
-            field = value
-            JS_UpdateStackTop(runtime)
-            JS_SetMemoryLimit(runtime, value.toULong())
+            withJsLockSync {
+                ensureNotClosed()
+                field = value
+                JS_UpdateStackTop(runtime)
+                JS_SetMemoryLimit(runtime, value.toULong())
+            }
         }
 
     actual var maxStackSize: Long = 256 * 1024L
         set(value) {
-            ensureNotClosed()
-            field = value
-            JS_UpdateStackTop(runtime)
-            JS_SetMaxStackSize(runtime, value.toULong())
+            withJsLockSync {
+                ensureNotClosed()
+                field = value
+                JS_UpdateStackTop(runtime)
+                JS_SetMaxStackSize(runtime, value.toULong())
+            }
         }
 
     actual val memoryUsage: MemoryUsage
-        get() {
+        get() = withJsLockSync {
             ensureNotClosed()
             JS_UpdateStackTop(runtime)
-            return runtime.ktMemoryUsage()
+            runtime.ktMemoryUsage()
         }
 
     actual var evaluationTimeoutMillis: Long = -1L
 
     actual fun interruptEvaluation() {
-        ensureNotClosed()
-        qjs_interrupt_request(interruptState)
+        interruptMutex.withLockSync {
+            ensureNotClosed()
+            qjs_interrupt_request(interruptState)
+        }
     }
 
     init {
@@ -165,7 +194,7 @@ actual class QuickJs private constructor(
         binding: ObjectBinding,
         parent: JsObjectHandle
     ): JsObjectHandle {
-        return jsMutex.withLockSync {
+        return withJsLockSync {
             ensureNotClosed()
             val handle = context.defineObject(
                 quickJsRef = ref,
@@ -182,7 +211,7 @@ actual class QuickJs private constructor(
         name: String,
         binding: FunctionBinding<R>
     ) {
-        jsMutex.withLockSync {
+        withJsLockSync {
             ensureNotClosed()
             context.defineFunction(
                 quickJsRef = ref,
@@ -199,7 +228,7 @@ actual class QuickJs private constructor(
         name: String,
         binding: AsyncFunctionBinding<R>
     ) {
-        jsMutex.withLockSync {
+        withJsLockSync {
             ensureNotClosed()
             context.defineFunction(
                 quickJsRef = ref,
@@ -214,13 +243,17 @@ actual class QuickJs private constructor(
 
     @Throws(QuickJsException::class)
     actual fun addModule(name: String, code: String) {
-        ensureNotClosed()
-        modules.add(compile(code = code, filename = name, asModule = true))
+        withJsLockSync {
+            ensureNotClosed()
+            modules.add(context.compile(code = code, filename = name, asModule = true))
+        }
     }
 
     actual fun addModule(bytecode: ByteArray) {
-        ensureNotClosed()
-        modules.add(bytecode)
+        withJsLockSync {
+            ensureNotClosed()
+            modules.add(bytecode)
+        }
     }
 
     @Throws(QuickJsException::class)
@@ -229,8 +262,8 @@ actual class QuickJs private constructor(
         filename: String,
         asModule: Boolean
     ): ByteArray {
-        ensureNotClosed()
-        jsMutex.withLockSync {
+        return withJsLockSync {
+            ensureNotClosed()
             return context.compile(code = code, filename = filename, asModule = asModule)
         }
     }
@@ -281,19 +314,16 @@ actual class QuickJs private constructor(
     }
 
     actual fun gc() {
-        ensureNotClosed()
-        jsMutex.withLockSync {
-            if (isClosed) return@withLockSync
+        withJsLockSync {
+            ensureNotClosed()
             JS_UpdateStackTop(runtime)
             JS_RunGC(runtime)
         }
     }
 
     actual fun close() {
-        if (isClosed) return
+        if (!closed.compareAndSet(expectedValue = false, newValue = true)) return
         val promisesToFree = jobsMutex.withLockSync {
-            if (isClosed) return@withLockSync emptyList()
-            isClosed = true
             evalException = null
             asyncJobs.forEach { it.job.cancel() }
             asyncJobs.clear()
@@ -307,12 +337,19 @@ actual class QuickJs private constructor(
             managedJsValues.forEach { JS_FreeValue(context, it) }
             managedJsValues.clear()
             // Dispose stable refs
-            objectBindings.keys.forEach { objectHandleToStableRef(it)?.dispose() }
+            objectBindings.keys.forEach { handle ->
+                objectHandleToStableRef(handle)?.let {
+                    JS_FreeValue(context, it.get())
+                    it.dispose()
+                }
+            }
             objectBindings.clear()
             globalFunctions.clear()
             JS_FreeContext(context)
-            qjs_interrupt_free(runtime, interruptState)
-            interruptState = null
+            interruptMutex.withLockSync {
+                interruptState?.let { qjs_interrupt_free(runtime, it) }
+                interruptState = null
+            }
             JS_FreeRuntime(runtime)
         }
         modules.clear()
@@ -367,13 +404,13 @@ actual class QuickJs private constructor(
         }
         return rootEvaluationMutex.withLock {
             evalException = null
-            qjs_interrupt_reset(interruptState, evaluationTimeoutMillis)
+            resetInterruptState(evaluationTimeoutMillis)
             // Cancellation alone can't stop busy JavaScript, so hook it up
             // to a native interrupt.
             val interruptOnCancel = Job(coroutineContext.job)
             interruptOnCancel.invokeOnCompletion { cause ->
-                if (cause is CancellationException && !isClosed) {
-                    qjs_interrupt_request(interruptState)
+                if (cause is CancellationException) {
+                    requestInterruptIfOpen()
                 }
             }
             try {
@@ -381,15 +418,36 @@ actual class QuickJs private constructor(
             } catch (e: QuickJsException) {
                 // Cancellation wins over the interrupt error
                 coroutineContext.ensureActive()
-                if (qjs_interrupt_fired(interruptState) != 0) {
+                if (wasInterrupted()) {
                     throw QuickJsInterruptedException(e.message)
                 }
                 throw e
             } finally {
                 interruptOnCancel.complete()
-                qjs_interrupt_reset(interruptState, 0L)
+                resetInterruptState(0L)
             }
         }
+    }
+
+    private fun requestInterruptIfOpen() {
+        interruptMutex.withLockSync {
+            interruptState?.let { qjs_interrupt_request(it) }
+        }
+    }
+
+    private fun resetInterruptState(timeoutMillis: Long) {
+        interruptMutex.withLockSync {
+            interruptState?.let { qjs_interrupt_reset(it, timeoutMillis) }
+        }
+    }
+
+    private fun wasInterrupted(): Boolean = interruptMutex.withLockSync {
+        interruptState?.let { qjs_interrupt_fired(it) != 0 } ?: false
+    }
+
+    private inline fun <T> withJsLockSync(block: () -> T): T {
+        if (isInBindingCallback(this)) return block()
+        return jsMutex.withLockSync(block)
     }
 
     private suspend inline fun evalInSession(
@@ -538,17 +596,17 @@ actual class QuickJs private constructor(
     internal fun onCallBindingGetter(
         parentHandle: Long,
         name: String,
-    ): Any? {
+    ): Any? = withBindingCallback(this) {
         ensureNotClosed()
         val binding = objectBindings[parentHandle] ?: qjsError("Parent not found.")
-        return binding.getter(name)
+        binding.getter(name)
     }
 
     internal fun onCallBindingSetter(
         parentHandle: Long,
         name: String,
         value: Any?
-    ) {
+    ) = withBindingCallback(this) {
         ensureNotClosed()
         val binding = objectBindings[parentHandle] ?: qjsError("Parent not found.")
         binding.setter(name, value)
@@ -558,9 +616,9 @@ actual class QuickJs private constructor(
         parentHandle: Long,
         name: String,
         args: Array<Any?>,
-    ): Any? {
+    ): Any? = withBindingCallback(this) {
         ensureNotClosed()
-        return if (parentHandle == JsObjectHandle.globalThis.nativeHandle) {
+        if (parentHandle == JsObjectHandle.globalThis.nativeHandle) {
             val binding = globalFunctions[name] ?: qjsError("Global function '$name' not found.")
             when (binding) {
                 is AsyncFunctionBinding<*> -> invokeAsyncFunction(args) { binding.invoke(it) }

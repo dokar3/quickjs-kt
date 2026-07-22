@@ -30,11 +30,28 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.Closeable
+import kotlin.concurrent.atomics.AtomicBoolean
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.coroutineContext
 import kotlin.reflect.KType
 import kotlin.reflect.typeOf
+
+private val bindingCallbackQuickJs = ThreadLocal<QuickJs?>()
+
+private inline fun <T> withBindingCallback(quickJs: QuickJs, block: () -> T): T {
+    val previous = bindingCallbackQuickJs.get()
+    bindingCallbackQuickJs.set(quickJs)
+    return try {
+        block()
+    } finally {
+        bindingCallbackQuickJs.set(previous)
+    }
+}
+
+private fun isInBindingCallback(quickJs: QuickJs): Boolean =
+    bindingCallbackQuickJs.get() === quickJs
 
 /**
  * Evaluate QuickJS-compiled bytecode.
@@ -138,7 +155,7 @@ suspend fun <T> QuickJs.evaluate(
     }
 }
 
-@OptIn(ExperimentalUnsignedTypes::class)
+@OptIn(ExperimentalUnsignedTypes::class, ExperimentalAtomicApi::class)
 actual class QuickJs private constructor(
     private val jobDispatcher: CoroutineDispatcher,
 ) : Closeable {
@@ -169,6 +186,7 @@ actual class QuickJs private constructor(
      * Avoid concurrent executions.
      */
     private val jsMutex = Mutex()
+    private val interruptMutex = Mutex()
     private val rootEvaluationMutex = Mutex()
     private val runtimeProgress = MutableStateFlow(0L)
 
@@ -179,36 +197,45 @@ actual class QuickJs private constructor(
     @PublishedApi
     internal actual val typeConverters = TypeConverters()
 
-    actual var isClosed: Boolean = false
-        private set
+    private val closed = AtomicBoolean(false)
+
+    actual var isClosed: Boolean
+        get() = closed.load()
+        private set(value) = closed.store(value)
 
     actual val version: String get() = nativeGetVersion()
 
     actual var memoryLimit: Long = -1L
         set(value) {
-            ensureNotClosed()
-            field = value
-            setMemoryLimit(runtime, globals, value)
+            withJsLockSync {
+                ensureNotClosed()
+                field = value
+                setMemoryLimit(runtime, globals, value)
+            }
         }
 
     actual var maxStackSize: Long = 256 * 1024L
         set(value) {
-            ensureNotClosed()
-            field = value
-            setMaxStackSize(runtime, globals, value)
+            withJsLockSync {
+                ensureNotClosed()
+                field = value
+                setMaxStackSize(runtime, globals, value)
+            }
         }
 
     actual val memoryUsage: MemoryUsage
-        get() {
+        get() = withJsLockSync {
             ensureNotClosed()
-            return getMemoryUsage(runtime, globals)
+            getMemoryUsage(runtime, globals)
         }
 
     actual var evaluationTimeoutMillis: Long = -1L
 
     actual fun interruptEvaluation() {
-        ensureNotClosed()
-        requestInterrupt(interruptState)
+        interruptMutex.withLockSync {
+            ensureNotClosed()
+            requestInterrupt(interruptState)
+        }
     }
 
     init {
@@ -235,7 +262,7 @@ actual class QuickJs private constructor(
         binding: ObjectBinding,
         parent: JsObjectHandle,
     ): JsObjectHandle {
-        return jsMutex.withLockSync {
+        return withJsLockSync {
             ensureNotClosed()
             val nativeHandle = defineObject(
                 globals = globals,
@@ -254,7 +281,7 @@ actual class QuickJs private constructor(
     }
 
     actual fun <R> defineBinding(name: String, binding: FunctionBinding<R>) {
-        jsMutex.withLockSync {
+        withJsLockSync {
             ensureNotClosed()
             defineFunction(
                 globals = globals,
@@ -267,7 +294,7 @@ actual class QuickJs private constructor(
     }
 
     actual fun <R> defineBinding(name: String, binding: AsyncFunctionBinding<R>) {
-        jsMutex.withLockSync {
+        withJsLockSync {
             ensureNotClosed()
             defineFunction(
                 globals = globals,
@@ -281,20 +308,23 @@ actual class QuickJs private constructor(
 
     @Throws(QuickJsException::class)
     actual fun addModule(name: String, code: String) {
-        ensureNotClosed()
-        val bytecode = compile(code = code, filename = name, asModule = true)
-        modules.add(bytecode)
+        withJsLockSync {
+            ensureNotClosed()
+            modules.add(compile(context, globals, name, code, true))
+        }
     }
 
     actual fun addModule(bytecode: ByteArray) {
-        ensureNotClosed()
-        modules.add(bytecode)
+        withJsLockSync {
+            ensureNotClosed()
+            modules.add(bytecode)
+        }
     }
 
     @Throws(QuickJsException::class)
     actual fun compile(code: String, filename: String, asModule: Boolean): ByteArray {
-        ensureNotClosed()
-        jsMutex.withLockSync {
+        return withJsLockSync {
+            ensureNotClosed()
             return compile(context, globals, filename, code, asModule)
         }
     }
@@ -347,13 +377,13 @@ actual class QuickJs private constructor(
         }
         return rootEvaluationMutex.withLock {
             evalException = null
-            resetInterrupt(interruptState, evaluationTimeoutMillis)
+            resetInterruptState(evaluationTimeoutMillis)
             // Cancellation alone can't stop busy JavaScript, so hook it up
             // to a native interrupt.
             val interruptOnCancel = Job(coroutineContext.job)
             interruptOnCancel.invokeOnCompletion { cause ->
-                if (cause is CancellationException && !isClosed) {
-                    requestInterrupt(interruptState)
+                if (cause is CancellationException) {
+                    requestInterruptIfOpen()
                 }
             }
             try {
@@ -361,11 +391,11 @@ actual class QuickJs private constructor(
             } catch (e: QuickJsException) {
                 // Cancellation wins over the interrupt error
                 coroutineContext.ensureActive()
-                if (wasInterrupted(interruptState)) throw QuickJsInterruptedException(e.message)
+                if (wasInterrupted()) throw QuickJsInterruptedException(e.message)
                 throw e
             } finally {
                 interruptOnCancel.complete()
-                resetInterrupt(interruptState, 0L)
+                resetInterruptState(0L)
             }
         }
     }
@@ -380,6 +410,7 @@ actual class QuickJs private constructor(
         try {
             loadModules(session)
             resultHandle = jsMutex.withLock {
+                ensureNotClosed()
                 val handle = withEvaluation(session, evaluation) { evalBlock() }
                 resultHandle = handle
                 evaluation.handle = handle
@@ -423,13 +454,14 @@ actual class QuickJs private constructor(
     }
 
     actual fun gc() {
-        ensureNotClosed()
-        gc(runtime, globals)
+        withJsLockSync {
+            ensureNotClosed()
+            gc(runtime, globals)
+        }
     }
 
     actual override fun close() {
-        if (isClosed) return
-        isClosed = true
+        if (!closed.compareAndSet(expectedValue = false, newValue = true)) return
         signalRuntimeProgress()
         jobsMutex.withLockSync {
             asyncJobs.forEach { it.job.cancel() }
@@ -449,12 +481,37 @@ actual class QuickJs private constructor(
                 context = 0
             }
             if (runtime != 0L) {
-                freeInterrupt(runtime, interruptState)
-                interruptState = 0
+                interruptMutex.withLockSync {
+                    if (interruptState != 0L) {
+                        freeInterrupt(runtime, interruptState)
+                        interruptState = 0
+                    }
+                }
                 releaseRuntime(runtime)
                 runtime = 0
             }
         }
+    }
+
+    private fun requestInterruptIfOpen() {
+        interruptMutex.withLockSync {
+            if (interruptState != 0L) requestInterrupt(interruptState)
+        }
+    }
+
+    private fun resetInterruptState(timeoutMillis: Long) {
+        interruptMutex.withLockSync {
+            if (interruptState != 0L) resetInterrupt(interruptState, timeoutMillis)
+        }
+    }
+
+    private fun wasInterrupted(): Boolean = interruptMutex.withLockSync {
+        interruptState != 0L && wasInterrupted(interruptState)
+    }
+
+    private inline fun <T> withJsLockSync(block: () -> T): T {
+        if (isInBindingCallback(this)) return block()
+        return jsMutex.withLockSync(block)
     }
 
     private suspend fun awaitEvaluateResult(
@@ -527,6 +584,7 @@ actual class QuickJs private constructor(
     }
 
     private suspend fun loadModules(session: EvaluationSession) = jsMutex.withLock {
+        ensureNotClosed()
         withEvaluationSession(session) {
             for (module in modules) {
                 val handle = evaluateBytecode(context = context, globals = globals, buffer = module)
@@ -607,12 +665,12 @@ actual class QuickJs private constructor(
     private fun onCallGetter(
         handle: Long,
         name: String,
-    ): Any? {
+    ): Any? = withBindingCallback(this) {
         ensureNotClosed()
         val binding = objectBindings[handle] ?: throw QuickJsException(
             "JavaScript called getter of '$name' on an unknown binding"
         )
-        return binding.getter(name)
+        binding.getter(name)
     }
 
     /**
@@ -622,7 +680,7 @@ actual class QuickJs private constructor(
         handle: Long,
         name: String,
         value: Any?,
-    ) {
+    ) = withBindingCallback(this) {
         ensureNotClosed()
         val binding = objectBindings[handle] ?: throw QuickJsException(
             "JavaScript called setter of '$name' on an unknown binding"
@@ -637,13 +695,13 @@ actual class QuickJs private constructor(
         handle: Long,
         name: String,
         args: Array<Any?>,
-    ): Any? {
+    ): Any? = withBindingCallback(this) {
         ensureNotClosed()
         if (handle == JsObjectHandle.globalThis.nativeHandle) {
             val binding = globalFunctions[name] ?: throw QuickJsException(
                 "'$name()' does not found in global functions."
             )
-            return when (binding) {
+            when (binding) {
                 is AsyncFunctionBinding<*> -> invokeAsyncFunction(args) { binding.invoke(it) }
                 is FunctionBinding<*> -> binding.invoke(args)
                 is ObjectBinding -> qjsError("Object call not be invoked.")
@@ -652,7 +710,7 @@ actual class QuickJs private constructor(
             val binding = objectBindings[handle] ?: throw QuickJsException(
                 "JavaScript called function '$name' on an unknown binding"
             )
-            return binding.invoke(name, args)
+            binding.invoke(name, args)
         }
     }
 

@@ -437,20 +437,27 @@ JSValue define_js_object(JNIEnv *env, JSContext *context,
     define_js_functions_on(env, context, globals, object, functions, common_func_data);
 
     const char *c_name = (*env)->GetStringUTFChars(env, name, NULL);
+    JSValue retained_object = JS_DupValue(context, object);
+    int define_result;
 
     if (parent == NULL) {
         JSValue global_this = JS_GetGlobalObject(context);
         // Attach object to globalThis
-        JS_DefinePropertyValueStr(context, global_this, c_name, object, 0);
+        define_result = JS_DefinePropertyValueStr(context, global_this, c_name, object, 0);
         JS_FreeValue(context, global_this);
     } else {
         // Attach object to parent
-        JS_DefinePropertyValueStr(context, *parent, c_name, object, 0);
+        define_result = JS_DefinePropertyValueStr(context, *parent, c_name, object, 0);
     }
 
     (*env)->ReleaseStringUTFChars(env, name, c_name);
 
-    return object;
+    if (define_result < 0) {
+        JS_FreeValue(context, retained_object);
+        return JS_EXCEPTION;
+    }
+
+    return retained_object;
 }
 
 void define_js_function(JNIEnv *env, JSContext *context,
