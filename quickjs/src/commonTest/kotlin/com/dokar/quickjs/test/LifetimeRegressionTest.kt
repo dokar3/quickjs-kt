@@ -11,6 +11,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -19,6 +20,34 @@ import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 
 class LifetimeRegressionTest {
+    @Test
+    fun nestedCrossRuntimeBindingTracksAllActiveRuntimes() = runTest {
+        val outer = QuickJs.create(Dispatchers.Default)
+        val inner = QuickJs.create(Dispatchers.Default)
+        try {
+            inner.function("touchOuterRuntime") {
+                outer.memoryUsage
+                assertFailsWith<QuickJsException> { outer.close() }.message.orEmpty()
+            }
+            outer.function("enterInnerRuntime") {
+                runBlocking {
+                    inner.evaluate<String>("touchOuterRuntime()")
+                }
+            }
+
+            val closeError = outer.evaluate<String>("enterInnerRuntime()")
+            assertContains(
+                closeError,
+                "Cannot close QuickJs from within a binding callback.",
+            )
+            assertFalse(outer.isClosed)
+            assertEquals(3L, outer.evaluate<Long>("1 + 2"))
+        } finally {
+            inner.close()
+            outer.close()
+        }
+    }
+
     @Test
     fun closeFromSynchronousBindingFailsWithoutClosingRuntime() = runTest {
         val quickJs = QuickJs.create(Dispatchers.Default)
