@@ -18,8 +18,11 @@ jthrowable new_qjs_exception(JNIEnv *env, const char *format, ...) {
     va_end(args);
 
     jstring message = (*env)->NewStringUTF(env, result);
-    return (*env)->NewObject(env, cls_quick_js_exception(env),
-                             method_quick_js_exception_init(env), message);
+    jthrowable exception = (*env)->NewObject(env, cls_quick_js_exception(env),
+                                             method_quick_js_exception_init(env), message);
+    (*env)->DeleteLocalRef(env, message);
+    free(result);
+    return exception;
 }
 
 void jni_throw_qjs_exception(JNIEnv *env, const char *format, ...) {
@@ -35,6 +38,7 @@ void jni_throw_qjs_exception(JNIEnv *env, const char *format, ...) {
     va_end(args);
 
     (*env)->ThrowNew(env, cls_quick_js_exception(env), result);
+    free(result);
 }
 
 jthrowable try_catch_java_exceptions(JNIEnv *env) {
@@ -57,7 +61,8 @@ int check_js_context_exception(JNIEnv *env, JSContext *context) {
         // Free values
         JS_FreeValue(context, exception);
         // Throw java exception
-        jni_throw_qjs_exception(env, message);
+        jni_throw_qjs_exception(env, "%s", message);
+        free(message);
         return 1;
     } else {
         JS_FreeValue(context, exception);

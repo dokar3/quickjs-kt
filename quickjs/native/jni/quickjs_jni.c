@@ -58,7 +58,11 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
     globals->evaluate_result_promises = NULL;
     globals->evaluate_result_active = NULL;
 
-    pthread_mutex_init(&globals->js_mutex, NULL);
+    pthread_mutexattr_t mutex_attributes;
+    pthread_mutexattr_init(&mutex_attributes);
+    pthread_mutexattr_settype(&mutex_attributes, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&globals->js_mutex, &mutex_attributes);
+    pthread_mutexattr_destroy(&mutex_attributes);
 
     cache_java_vm(env);
 
@@ -141,8 +145,13 @@ Java_com_dokar_quickjs_QuickJs_releaseGlobals(JNIEnv *env, jobject this, jlong c
         cvector_free(managed_js_values);
     }
 
-    if (globals->defined_js_objects != NULL) {
-        cvector_free(globals->defined_js_objects);
+    cvector_vector_type(JSValue)defined_js_objects = globals->defined_js_objects;
+    if (defined_js_objects != NULL) {
+        size_t size = cvector_size(defined_js_objects);
+        for (uint32_t i = 0; i < size; i++) {
+            JS_FreeValue(context, defined_js_objects[i]);
+        }
+        cvector_free(defined_js_objects);
     }
 
     // Check and free global jni object refs
@@ -240,6 +249,10 @@ Java_com_dokar_quickjs_QuickJs_defineObject(JNIEnv *env, jobject this,
                                       name,
                                       properties,
                                       function_names);
+    if (JS_IsException(result)) {
+        check_js_context_exception(env, context);
+        return -1;
+    }
     // Insert at the target index
     cvector_push_back(globals->defined_js_objects, result);
     // Return the handle
@@ -899,8 +912,10 @@ Java_com_dokar_quickjs_QuickJs_getEvaluateResult(JNIEnv *env,
                 error = (jthrowable) result;
             } else {
                 const char *str = JS_ToCString(context, js_result);
-                error = new_qjs_exception(env, str);
-                JS_FreeCString(context, str);
+                error = new_qjs_exception(env, "%s", str != NULL ? str : "<NULL>");
+                if (str != NULL) {
+                    JS_FreeCString(context, str);
+                }
             }
             // Set exception
             jmethodID set_exception_method = method_quick_js_set_eval_exception(env);

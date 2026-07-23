@@ -126,7 +126,7 @@ private fun handleEvalResult(
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun checkContextException(context: CPointer<JSContext>) {
+internal fun checkContextException(context: CPointer<JSContext>) {
     JS_GetException(context).use(context) {
         val tag = JsValueGetNormTag(this)
         if (tag != JS_TAG_NULL && tag != JS_TAG_UNINITIALIZED) {

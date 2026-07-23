@@ -21,6 +21,7 @@ import quickjs.JSContext
 import quickjs.JSValue
 import quickjs.JS_DefinePropertyGetSet
 import quickjs.JS_DefinePropertyValueStr
+import quickjs.JS_DupValue
 import quickjs.JS_FreeAtom
 import quickjs.JS_FreeValue
 import quickjs.JS_GetGlobalObject
@@ -45,8 +46,10 @@ internal fun CPointer<JSContext>.defineObject(
     binding: ObjectBinding
 ): Long {
     val instance = JS_NewObject(this)
+    val retainedInstance = JS_DupValue(this, instance)
 
-    val handle = jsValueToObjectHandle(instance)
+    val handleRef = StableRef.create(retainedInstance)
+    val handle = handleRef.asCPointer().toLong()
 
     val properties = binding.properties
     for (prop in properties) {
@@ -70,12 +73,22 @@ internal fun CPointer<JSContext>.defineObject(
     }
 
     val parent = parentHandle?.let { objectHandleToStableRef(it) }?.get()
-    if (parent == null) {
+    val defineResult = if (parent == null) {
         val globalThis = JS_GetGlobalObject(this)
-        JS_DefinePropertyValueStr(this, globalThis, name, instance, JS_PROP_C_W_E)
-        JS_FreeValue(this, globalThis)
+        try {
+            JS_DefinePropertyValueStr(this, globalThis, name, instance, JS_PROP_C_W_E)
+        } finally {
+            JS_FreeValue(this, globalThis)
+        }
     } else {
         JS_DefinePropertyValueStr(this, parent, name, instance, JS_PROP_C_W_E)
+    }
+
+    if (defineResult < 0) {
+        JS_FreeValue(this, retainedInstance)
+        handleRef.dispose()
+        checkContextException(this)
+        error("QuickJS failed to define object '$name'.")
     }
 
     return handle
@@ -211,10 +224,4 @@ private fun invokeSetter(
 internal fun objectHandleToStableRef(handle: Long): StableRef<CValue<JSValue>>? {
     val voidPtr = handle.toCPointer<int64_tVar>() ?: return null
     return voidPtr.asStableRef<CValue<JSValue>>()
-}
-
-@OptIn(ExperimentalForeignApi::class)
-private fun jsValueToObjectHandle(value: CValue<JSValue>): Long {
-    val ref = StableRef.create(value)
-    return ref.asCPointer().toLong()
 }

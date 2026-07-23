@@ -104,7 +104,6 @@ JSValue new_js_object_from_constructor(JSContext *context, const char *construct
     JSValue global_this = JS_GetGlobalObject(context);
     JSValue js_constructor = JS_GetPropertyStr(context, global_this, constructor);
     if (JS_IsUndefined(js_constructor)) {
-        JS_FreeValue(context, global_this);
         char message[100];
         sprintf(message, "JS constructor '%s' not found.", constructor);
         JS_Throw(context, new_js_error(context, "TypeMappingError", message, 0, NULL));
@@ -144,7 +143,9 @@ JSValue java_set_to_js_set(JNIEnv *env, JSContext *context,
         if (visit_or_circular_ref_error(env, context, visited_set, key)) {
             JS_FreeValue(context, js_array);
             (*env)->DeleteLocalRef(env, key);
-            (*env)->DeleteGlobalRef(env, visited_set);
+            if (delete_global_visited_ref) {
+                (*env)->DeleteGlobalRef(env, visited_set);
+            }
             return JS_EXCEPTION;
         }
         JSValue item = jobject_to_js_value(env, context, visited_set, key);
@@ -202,7 +203,9 @@ JSValue java_map_to_js_map(JNIEnv *env, JSContext *context,
             JS_FreeValue(context, js_array);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
-            (*env)->DeleteGlobalRef(env, visited_set);
+            if (delete_global_visited_ref) {
+                (*env)->DeleteGlobalRef(env, visited_set);
+            }
             return JS_EXCEPTION;
         }
 
@@ -211,7 +214,9 @@ JSValue java_map_to_js_map(JNIEnv *env, JSContext *context,
             JS_FreeValue(context, js_array);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
-            (*env)->DeleteGlobalRef(env, visited_set);
+            if (delete_global_visited_ref) {
+                (*env)->DeleteGlobalRef(env, visited_set);
+            }
             return JS_EXCEPTION;
         }
 
@@ -224,7 +229,9 @@ JSValue java_map_to_js_map(JNIEnv *env, JSContext *context,
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
             (*env)->DeleteLocalRef(env, value);
-            (*env)->DeleteGlobalRef(env, visited_set);
+            if (delete_global_visited_ref) {
+                (*env)->DeleteGlobalRef(env, visited_set);
+            }
             return JS_EXCEPTION;
         }
 
@@ -235,7 +242,9 @@ JSValue java_map_to_js_map(JNIEnv *env, JSContext *context,
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
             (*env)->DeleteLocalRef(env, value);
-            (*env)->DeleteGlobalRef(env, visited_set);
+            if (delete_global_visited_ref) {
+                (*env)->DeleteGlobalRef(env, visited_set);
+            }
             return JS_EXCEPTION;
         }
 
@@ -358,7 +367,9 @@ JSValue java_map_to_js_object(JNIEnv *env, JSContext *context,
             JS_FreeValue(context, js_object);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
-            (*env)->DeleteGlobalRef(env, visited_set);
+            if (delete_global_visited_ref) {
+                (*env)->DeleteGlobalRef(env, visited_set);
+            }
             return JS_EXCEPTION;
         }
 
@@ -367,7 +378,9 @@ JSValue java_map_to_js_object(JNIEnv *env, JSContext *context,
             JS_FreeValue(context, js_object);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
-            (*env)->DeleteGlobalRef(env, visited_set);
+            if (delete_global_visited_ref) {
+                (*env)->DeleteGlobalRef(env, visited_set);
+            }
             const char *message = "Cannot convert java map to js value: "
                                   "only string keys are supported.";
             JS_Throw(context, new_js_error(context, "TypeMappingError", message, 0, NULL));
@@ -384,7 +397,9 @@ JSValue java_map_to_js_object(JNIEnv *env, JSContext *context,
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
             (*env)->DeleteLocalRef(env, value);
-            (*env)->DeleteGlobalRef(env, visited_set);
+            if (delete_global_visited_ref) {
+                (*env)->DeleteGlobalRef(env, visited_set);
+            }
             return JS_EXCEPTION;
         }
 
@@ -396,7 +411,9 @@ JSValue java_map_to_js_object(JNIEnv *env, JSContext *context,
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
             (*env)->DeleteLocalRef(env, value);
-            (*env)->DeleteGlobalRef(env, visited_set);
+            if (delete_global_visited_ref) {
+                (*env)->DeleteGlobalRef(env, visited_set);
+            }
             return js_value;
         }
         JS_SetProperty(context, js_object, js_key, js_value);

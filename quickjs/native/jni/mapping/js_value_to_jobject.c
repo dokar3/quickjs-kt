@@ -31,10 +31,10 @@ jthrowable js_error_to_java_error(JNIEnv *env, JSContext *context, JSValue error
         // Could be arbitrary types
         const char *c_str = JS_ToCString(context, error);
         const char *str = c_str != NULL ? c_str : "<UNSUPPORTED_ERROR>";
+        jthrowable java_error = new_qjs_exception(env, "%s", str);
         if (c_str != NULL) {
             JS_FreeCString(context, c_str);
         }
-        jthrowable java_error = new_qjs_exception(env, str);
         JS_FreeValue(context, js_name);
         return java_error;
     }
@@ -112,12 +112,18 @@ jthrowable js_error_to_java_error(JNIEnv *env, JSContext *context, JSValue error
         jthrowable e = try_catch_java_exceptions(env);
         if (e == NULL && constructor != NULL) {
             jstring java_message = (*env)->NewStringUTF(env, full_message);
-            return (*env)->NewObject(env, java_error_cls, constructor, java_message);
+            jthrowable java_error = (*env)->NewObject(env, java_error_cls, constructor,
+                                                      java_message);
+            (*env)->DeleteLocalRef(env, java_message);
+            free(full_message);
+            return java_error;
         }
     }
 
     // Fallback to the default error class
-    return new_qjs_exception(env, full_message);
+    jthrowable java_error = new_qjs_exception(env, "%s", full_message);
+    free(full_message);
+    return java_error;
 }
 
 jobjectArray to_java_list(JNIEnv *env, JSContext *context, JSValue value) {
