@@ -4,10 +4,11 @@ import * as os from "os";
 import * as path from "path";
 
 type BenchmarkResult = {
+  id: string;
   name: string;
   iterations: number;
   scoreUnit: string;
-  score: number;
+  score: string;
 };
 
 async function throwIfGradleTaskNotSuccuss(output: ShellOutput) {
@@ -101,25 +102,66 @@ async function libraryVersion(): Promise<string> {
   throw new Error("No VERSION_NAME property found in gradle.properties");
 }
 
-function benchmarkResultAsTableLines(result: any): string {
-  const items: BenchmarkResult[] = [];
-  for (const item of result) {
-    items.push({
+function parseBenchmarkResults(result: any): BenchmarkResult[] {
+  return result.map((item: any) => {
+    return {
+      id: item.benchmark,
       name: item.benchmark.split(".").pop(),
       iterations: item.measurementIterations,
       scoreUnit: item.primaryMetric.scoreUnit,
       score: item.primaryMetric.score.toFixed(2),
-    });
+    };
+  });
+}
+
+function isBindingBenchmark(id: string): boolean {
+  return (
+    id.includes(".DefineBindingsBenchmark.") ||
+    id.includes(".InvokeBindingsBenchmark.") ||
+    id.endsWith(".evaluatePromisesWithBindingsSource")
+  );
+}
+
+function formatResult(result: BenchmarkResult | undefined): string {
+  if (result == null) {
+    return "—";
   }
-  return items
-    .map((item) => {
-      return `| ${item.name} | ${item.iterations} | ${item.score} | ${item.scoreUnit} |`;
+  return `${result.score} ${result.scoreUnit} (${result.iterations} iterations)`;
+}
+
+function benchmarkResultAsTableLines(
+  jvmItems: BenchmarkResult[],
+  nativeItems: BenchmarkResult[],
+  bindings: boolean
+): string {
+  const jvmById = new Map(jvmItems.map((item) => [item.id, item]));
+  const nativeById = new Map(nativeItems.map((item) => [item.id, item]));
+  const ids = [...new Set([...jvmById.keys(), ...nativeById.keys()])].filter(
+    (id) => isBindingBenchmark(id) === bindings
+  );
+
+  return ids
+    .map((id) => {
+      const jvm = jvmById.get(id);
+      const native = nativeById.get(id);
+      const name = jvm?.name ?? native?.name ?? id;
+      return `| ${name} | ${formatResult(jvm)} | ${formatResult(native)} |`;
     })
     .join("\n");
 }
 
-const jvmTableLines = benchmarkResultAsTableLines(jvmResult);
-const nativeTableLines = benchmarkResultAsTableLines(nativeResult);
+const jvmItems = parseBenchmarkResults(jvmResult);
+const nativeItems = parseBenchmarkResults(nativeResult);
+const bindingTableLines = benchmarkResultAsTableLines(
+  jvmItems,
+  nativeItems,
+  true
+);
+const executionTableLines = benchmarkResultAsTableLines(
+  jvmItems,
+  nativeItems,
+  false
+);
 
 const date = new Date().toLocaleString("en-US");
 
@@ -147,21 +189,21 @@ CPUs: ${cpus}
 
 Memory: ${totalMemoryGB} GB
 
-### JVM Results
+### Binding
 
-| Name | Iterations | Score | Unit |
-| --- | --- | --- | --- |
-${jvmTableLines}
+| Name | JVM | Kotlin/Native |
+| --- | --- | --- |
+${bindingTableLines}
 
-### Kotlin/Native Results
+### Pure execution
 
-| Name | Iterations | Score | Unit |
-| --- | --- | --- | --- |
-${nativeTableLines}
+| Name | JVM | Kotlin/Native |
+| --- | --- | --- |
+${executionTableLines}
 
 ### Notes
 
-The engine creation times are included in define[Xzy]Bindings benchmarks, so the actual results should be much faster, but the relative results should remain the same.
+The engine creation times are included in define*Bindings benchmarks, so the actual results should be much faster, but the relative results should remain the same.
 `;
 
 await fs.writeFile("./benchmark/README.md", README);
