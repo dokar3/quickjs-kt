@@ -4,13 +4,20 @@ package com.dokar.quickjs.test
 import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.QuickJsException
 import com.dokar.quickjs.binding.asyncFunction
+import com.dokar.quickjs.binding.function
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.test.Test
+import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 
 // https://github.com/dokar3/quickjs-kt/issues/131
 class CloseWhileEvaluatingTest {
@@ -94,6 +101,33 @@ class CloseWhileEvaluatingTest {
             }
             delay(15) // Try to close exactly during the suspension of the async function returning
             quickJs.close()
+            evalJob.join()
+        }
+    }
+
+    @Test
+    fun closeWhileBusyEvaluating() = runTest {
+        repeat(REPEAT_COUNT) {
+            val quickJs = QuickJs.create(Dispatchers.Default)
+            val running = CompletableDeferred<Unit>()
+            // Tells us JavaScript is really running before we close
+            quickJs.function("notifyRunning") { running.complete(Unit) }
+
+            val evalJob = launch(Dispatchers.Default) {
+                try {
+                    quickJs.evaluate<Any?>("notifyRunning(); while(true) {}")
+                } catch (_: QuickJsException) {
+                }
+            }
+
+            running.await()
+            // close() blocks its caller, so it has to be watched from another
+            // scope, one that we are not waiting on when it gets stuck.
+            val closeJob = CoroutineScope(Dispatchers.Default).launch { quickJs.close() }
+            val closed = withContext(Dispatchers.Default) {
+                withTimeoutOrNull(10.seconds) { closeJob.join() } != null
+            }
+            assertTrue(closed, "close() did not return while JavaScript was busy")
             evalJob.join()
         }
     }
