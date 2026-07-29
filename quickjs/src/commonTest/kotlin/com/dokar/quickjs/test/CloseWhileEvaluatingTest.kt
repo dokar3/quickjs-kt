@@ -5,6 +5,7 @@ import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.QuickJsException
 import com.dokar.quickjs.binding.asyncFunction
 import com.dokar.quickjs.binding.function
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,6 +17,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
@@ -113,10 +116,12 @@ class CloseWhileEvaluatingTest {
             // Tells us JavaScript is really running before we close
             quickJs.function("notifyRunning") { running.complete(Unit) }
 
+            var evalError: Throwable? = null
             val evalJob = launch(Dispatchers.Default) {
                 try {
                     quickJs.evaluate<Any?>("notifyRunning(); while(true) {}")
-                } catch (_: QuickJsException) {
+                } catch (e: Throwable) {
+                    evalError = e
                 }
             }
 
@@ -129,6 +134,10 @@ class CloseWhileEvaluatingTest {
             }
             assertTrue(closed, "close() did not return while JavaScript was busy")
             evalJob.join()
+
+            val error = evalError
+            assertIs<CancellationException>(error)
+            assertEquals("Already closed.", error.message)
         }
     }
 
