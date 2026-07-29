@@ -36,6 +36,22 @@ Or in `libs.versions.toml`:
 quickjs-kt = { module = "io.github.dokar3:quickjs-kt", version = "<VERSION>" }
 ```
 
+### Android unit tests
+
+A desktop JVM cannot load the Android native library, so local unit tests need the
+`-jvm` artifact instead:
+
+```kotlin
+configurations.matching { it.name.endsWith("UnitTestRuntimeClasspath") }.configureEach {
+    resolutionStrategy.dependencySubstitution {
+        substitute(module("io.github.dokar3:quickjs-kt-android"))
+            .using(module("io.github.dokar3:quickjs-kt-jvm:<VERSION>"))
+    }
+}
+```
+
+Instrumented tests run on a device, they need no substitution.
+
 ### Evaluate
 
 with DSL (This is recommended if you don't need long-live instances):
@@ -191,6 +207,9 @@ To interrupt manually from anywhere, call `interruptEvaluation()`:
 ```kotlin
 quickJs.interruptEvaluation()
 ```
+
+`QuickJsInterruptedException` extends `QuickJsException`, so catch it first if you
+handle both, otherwise an interrupted evaluation looks like a script error.
 
 ### Modules
 
