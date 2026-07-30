@@ -20,6 +20,14 @@ char *js_array_join(JSContext *context, JSValue array, const char *separator);
 void js_error_to_string(JSContext *context, JSValue error, char **out);
 
 /**
+ * Read the stack trace of a js error.
+ *
+ * @param out Destination string pointer, NULL if the error has no stack trace,
+ * free() is required otherwise.
+ */
+void js_error_stack(JSContext *context, JSValue error, char **out);
+
+/**
  * Create a js error with a message field.
  */
 JSValue new_simple_js_error(JSContext *context, const char *message);

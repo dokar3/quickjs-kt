@@ -25,6 +25,31 @@ jthrowable new_qjs_exception(JNIEnv *env, const char *format, ...) {
     return exception;
 }
 
+static void delete_local_ref(JNIEnv *env, jobject object) {
+    if (object != NULL) {
+        (*env)->DeleteLocalRef(env, object);
+    }
+}
+
+jthrowable new_js_error_exception(JNIEnv *env,
+                                  JSContext *context,
+                                  JSValue error,
+                                  const char *message) {
+    char *stack = NULL;
+    js_error_stack(context, error, &stack);
+
+    jstring j_message = message != NULL ? (*env)->NewStringUTF(env, message) : NULL;
+    jstring j_stack = stack != NULL ? (*env)->NewStringUTF(env, stack) : NULL;
+    free(stack);
+
+    jthrowable exception = (*env)->NewObject(env, cls_quick_js_exception(env),
+                                             method_quick_js_exception_init_with_stack(env),
+                                             j_message, j_stack);
+    delete_local_ref(env, j_message);
+    delete_local_ref(env, j_stack);
+    return exception;
+}
+
 void jni_throw_qjs_exception(JNIEnv *env, const char *format, ...) {
     va_list args;
     va_start(args, format);
@@ -58,10 +83,15 @@ int check_js_context_exception(JNIEnv *env, JSContext *context) {
     if (tag != JS_TAG_NULL && tag != JS_TAG_UNINITIALIZED) {
         char *message = NULL;
         js_error_to_string(context, exception, &message);
-        // Free values
-        JS_FreeValue(context, exception);
         // Throw java exception
-        jni_throw_qjs_exception(env, "%s", message);
+        jthrowable java_exception = new_js_error_exception(env, context, exception, message);
+        JS_FreeValue(context, exception);
+        if (java_exception != NULL) {
+            (*env)->Throw(env, java_exception);
+            (*env)->DeleteLocalRef(env, java_exception);
+        } else {
+            jni_throw_qjs_exception(env, "%s", message);
+        }
         free(message);
         return 1;
     } else {

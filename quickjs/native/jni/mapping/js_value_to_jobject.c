@@ -121,7 +121,7 @@ jthrowable js_error_to_java_error(JNIEnv *env, JSContext *context, JSValue error
     }
 
     // Fallback to the default error class
-    jthrowable java_error = new_qjs_exception(env, "%s", full_message);
+    jthrowable java_error = new_js_error_exception(env, context, error, full_message);
     free(full_message);
     return java_error;
 }

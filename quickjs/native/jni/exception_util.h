@@ -7,6 +7,17 @@
 
 jthrowable new_qjs_exception(JNIEnv *env, const char *format, ...);
 
+/**
+ * Create a QuickJsException carrying the location and the stack trace of a js
+ * error.
+ *
+ * @param message The already formatted message.
+ */
+jthrowable new_js_error_exception(JNIEnv *env,
+                                  JSContext *context,
+                                  JSValue error,
+                                  const char *message);
+
 void jni_throw_qjs_exception(JNIEnv *env, const char *format, ...);
 
 jthrowable try_catch_java_exceptions(JNIEnv *env);

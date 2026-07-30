@@ -177,43 +177,41 @@ internal fun jsErrorToKtError(context: CPointer<JSContext>, error: CValue<JSValu
         ?: return QuickJsException(error.toKtString(context) ?: "<NULL>")
     val message = JS_GetPropertyStr(context, error, "message")
         .use(context) { toKtString(context) }
-    val stack = JS_GetPropertyStr(context, error, "stack")
-    if (JS_IsUndefined(stack) == 1) {
-        JS_FreeValue(context, stack)
-        return newKtError(name, message, null)
-    }
-    if (JS_IsString(stack) == 1) {
-        return stack.use(context) {
-            newKtError(name, "$message\n\b${toKtString(context)}", null)
+    val stackValue = JS_GetPropertyStr(context, error, "stack")
+    val stack = when {
+        JS_IsUndefined(stackValue) == 1 -> {
+            JS_FreeValue(context, stackValue)
+            null
         }
+
+        JS_IsString(stackValue) == 1 -> stackValue.use(context) { toKtString(context) }
+        // Older QuickJS builds expose the stack as an array of frames
+        else -> stackValue.use(context) { joinStackFrames(context, this) }
     }
-    val stackLineCount = JS_GetPropertyStr(context, stack, "length").use(context) {
+    return newKtError(name, message, stack)
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun joinStackFrames(context: CPointer<JSContext>, stack: CValue<JSValue>): String? {
+    val frameCount = JS_GetPropertyStr(context, stack, "length").use(context) {
         if (JsValueGetNormTag(this) == JS_TAG_INT) {
             memScoped {
-                val stackLineCount = alloc<int32_tVar>()
-                JS_ToInt32(context, stackLineCount.ptr, this@use)
-                stackLineCount.value
+                val count = alloc<int32_tVar>()
+                JS_ToInt32(context, count.ptr, this@use)
+                count.value
             }
         } else {
             null
         }
+    } ?: return null
+    val frames = (0 until frameCount).mapNotNull { index ->
+        JS_GetPropertyUint32(context, stack, index.toUInt()).use(context) { toKtString(context) }
     }
-    if (stackLineCount == null) {
-        JS_FreeValue(context, stack)
-        return newKtError(name, message, null)
-    }
-    return memScoped {
-        val lines = Array(stackLineCount) {
-            val line = JS_GetPropertyUint32(context, stack, it.toUInt())
-            line.use(context) { toKtString(context) }
-        }
-        JS_FreeValue(context, stack)
-        newKtError(name, message, lines)
-    }
+    return frames.joinToString("\n").takeIf { it.isNotEmpty() }
 }
 
-private fun newKtError(name: String, message: String?, stack: Array<String?>?): Throwable {
-    val m = if (!stack.isNullOrEmpty()) "$message\n${stack.joinToString("\n")}" else message
+private fun newKtError(name: String, message: String?, stack: String?): Throwable {
+    val m = if (!stack.isNullOrEmpty()) "$message\n$stack" else message
     // Try to restore the error class from the js error name
     @Suppress("DEPRECATION")
     return when (name) {
@@ -234,8 +232,9 @@ private fun newKtError(name: String, message: String?, stack: Array<String?>?): 
         NumberFormatException::class.qualifiedName -> NumberFormatException(m)
         ConcurrentModificationException::class.qualifiedName -> ConcurrentModificationException(m)
         NotImplementedError::class.qualifiedName -> NotImplementedError(m ?: "")
-        QuickJsException::class.qualifiedName -> QuickJsException(m)
-        else -> QuickJsException("$name: $m") // Unknown error, add the name back
+        QuickJsException::class.qualifiedName -> QuickJsException(m, stack)
+        // Unknown error, add the name back
+        else -> QuickJsException("$name: $m", stack)
     }
 }
 

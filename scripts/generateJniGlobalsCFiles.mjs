@@ -165,7 +165,14 @@ const JNI_REFS = [
   },
   {
     className: "com/dokar/quickjs/QuickJsException",
-    methods: [{ name: "<init>", sign: "(Ljava/lang/String;)V" }],
+    methods: [
+      { name: "<init>", sign: "(Ljava/lang/String;)V" },
+      {
+        name: "<init>",
+        alias: "init_with_stack",
+        sign: "(Ljava/lang/String;Ljava/lang/String;)V",
+      },
+    ],
   },
   {
     className: "com/dokar/quickjs/QuickJs",
@@ -188,11 +195,11 @@ const JNI_REFS = [
       },
       {
         name: "setUnhandledPromiseRejection",
-        sign: "(Ljava/lang/Object;)V",
+        sign: "(JLjava/lang/Object;)V",
       },
       {
         name: "clearHandledPromiseRejection",
-        sign: "()V",
+        sign: "(J)V",
       },
     ],
   },

@@ -401,6 +401,21 @@ Most of functions may throw:
 - `QuickJsException`, if a JavaScript error occurred or failed to map a type between JavaScript and Kotlin
 - Other exceptions, if they were occurred in the Kotlin binding
 
+When a `QuickJsException` comes from a JavaScript error, it also tells you where
+it was thrown, which is handy for pointing at the offending line:
+
+```kotlin
+try {
+    quickJs.evaluate<Unit>(code, filename = "app.js")
+} catch (e: QuickJsException) {
+    println("${e.fileName}:${e.lineNumber}:${e.columnNumber}")
+    println(e.stack)
+}
+```
+
+Those are all null when the error carries no location, for example when the
+JavaScript code threw a plain value like `throw 'Bad'`.
+
 If you find other suspicious errors, please feel free to open an issue to report
 
 # Samples

@@ -130,6 +130,36 @@ void js_error_to_string(JSContext *context, JSValue error, char **out) {
     JS_FreeValue(context, stack);
 }
 
+void js_error_stack(JSContext *context, JSValue error, char **out) {
+    *out = NULL;
+    if (!JS_IsObject(error)) {
+        return;
+    }
+
+    JSValue stack = JS_GetPropertyStr(context, error, "stack");
+    if (JS_IsException(stack)) {
+        JS_FreeValue(context, stack);
+        return;
+    }
+
+    // Older QuickJS builds expose the stack as an array of frames
+    char *joined = js_array_join(context, stack, "\n");
+    if (joined != NULL) {
+        *out = joined;
+    } else if (!JS_IsUndefined(stack) && !JS_IsNull(stack)) {
+        const char *str = JS_ToCString(context, stack);
+        if (str != NULL) {
+            char *copy = malloc(strlen(str) + 1);
+            if (copy != NULL) {
+                strcpy(copy, str);
+            }
+            JS_FreeCString(context, str);
+            *out = copy;
+        }
+    }
+    JS_FreeValue(context, stack);
+}
+
 JSValue new_simple_js_error(JSContext *context, const char *message) {
     return new_js_error(context, "Error", message, 0, NULL);
 }
