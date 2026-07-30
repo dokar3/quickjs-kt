@@ -64,27 +64,19 @@ jthrowable js_error_to_java_error(JNIEnv *env, JSContext *context, JSValue error
     int msg_len = strlen(message);
 
     // Get stack trace
-    JSValue stack = JS_GetPropertyStr(context, error, "stack");
+    char *stack = NULL;
+    js_error_stack(context, error, &stack);
 
     char *full_message;
-    if (!JS_IsUndefined(stack)) {
-        char *joined = js_array_join(context, stack, "\n");
-        const char *stack_str = joined != NULL ? joined : JS_ToCString(context, stack);
-
+    if (stack != NULL) {
         // Join
         if (java_error_cls == NULL) {
             // Add error name to the message
-            full_message = (char *) malloc(name_len + msg_len + strlen(stack_str) + 4);
-            sprintf(full_message, "%s: %s\n%s", name, message, stack_str);
+            full_message = (char *) malloc(name_len + msg_len + strlen(stack) + 4);
+            sprintf(full_message, "%s: %s\n%s", name, message, stack);
         } else {
-            full_message = (char *) malloc(msg_len + strlen(stack_str) + 2);
-            sprintf(full_message, "%s\n%s", message, stack_str);
-        }
-        // Free
-        if (joined != NULL) {
-            free((void *) stack_str);
-        } else {
-            JS_FreeCString(context, stack_str);
+            full_message = (char *) malloc(msg_len + strlen(stack) + 2);
+            sprintf(full_message, "%s\n%s", message, stack);
         }
     } else {
         if (java_error_cls == NULL) {
@@ -104,7 +96,6 @@ jthrowable js_error_to_java_error(JNIEnv *env, JSContext *context, JSValue error
     }
     JS_FreeValue(context, js_name);
     JS_FreeValue(context, js_message);
-    JS_FreeValue(context, stack);
 
     if (java_error_cls != NULL) {
         jmethodID constructor = (*env)->GetMethodID(env, java_error_cls, "<init>",
@@ -116,13 +107,15 @@ jthrowable js_error_to_java_error(JNIEnv *env, JSContext *context, JSValue error
                                                       java_message);
             (*env)->DeleteLocalRef(env, java_message);
             free(full_message);
+            free(stack);
             return java_error;
         }
     }
 
     // Fallback to the default error class
-    jthrowable java_error = new_qjs_exception(env, "%s", full_message);
+    jthrowable java_error = new_js_error_exception(env, context, error, full_message, stack);
     free(full_message);
+    free(stack);
     return java_error;
 }
 

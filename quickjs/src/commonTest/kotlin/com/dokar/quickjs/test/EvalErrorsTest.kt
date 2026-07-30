@@ -9,17 +9,21 @@ import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 class EvalErrorsTest {
     @Test
     fun evalWithSyntaxError() = runTest {
         assertFails {
             quickJs {
-                evaluate<Any?>("fn test() {}")
+                evaluate<Any?>("fn test() {}", filename = "syntax.js")
             }
         }.also {
             assertEquals(QuickJsException::class, it::class)
             assertContains(it.message!!, "SyntaxError")
+            assertEquals("syntax.js", (it as QuickJsException).fileName)
+            assertEquals(1, it.lineNumber)
         }
     }
 
@@ -56,6 +60,7 @@ class EvalErrorsTest {
         }.also {
             assertEquals(QuickJsException::class, it::class)
             assertEquals("Bad", it.message)
+            assertNull((it as QuickJsException).fileName)
         }
         assertFails {
             quickJs {
@@ -76,6 +81,24 @@ class EvalErrorsTest {
         }.also {
             assertEquals(QuickJsException::class, it::class)
             assertContains(it.message!!, "Something wrong")
+        }
+    }
+
+    @Test
+    fun evalErrorHasLocationAndStack() = runTest {
+        assertFails {
+            quickJs {
+                evaluate<Any?>(
+                    code = "function boom() {\n  throw new Error('Something wrong');\n}\nboom();",
+                    filename = "app.js",
+                )
+            }
+        }.also {
+            val error = it as QuickJsException
+            assertEquals("app.js", error.fileName)
+            assertEquals(2, error.lineNumber)
+            assertNotNull(error.columnNumber)
+            assertContains(error.stack!!, "boom")
         }
     }
 

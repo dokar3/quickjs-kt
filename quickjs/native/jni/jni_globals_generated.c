@@ -71,6 +71,7 @@ static jmethodID _method_linked_hash_map_put = NULL;
 static jmethodID _method_linked_hash_set_init = NULL;
 static jmethodID _method_linked_hash_set_add = NULL;
 static jmethodID _method_quick_js_exception_init = NULL;
+static jmethodID _method_quick_js_exception_init_with_stack = NULL;
 static jmethodID _method_quick_js_on_call_getter = NULL;
 static jmethodID _method_quick_js_on_call_setter = NULL;
 static jmethodID _method_quick_js_on_call_function = NULL;
@@ -604,6 +605,13 @@ jmethodID method_quick_js_exception_init(JNIEnv *env) {
     return _method_quick_js_exception_init;
 }
 
+jmethodID method_quick_js_exception_init_with_stack(JNIEnv *env) {
+    if (_method_quick_js_exception_init_with_stack == NULL) {
+        _method_quick_js_exception_init_with_stack = (*env)->GetMethodID(env, cls_quick_js_exception(env), "<init>", "(Ljava/lang/String;Ljava/lang/String;)V");
+    }
+    return _method_quick_js_exception_init_with_stack;
+}
+
 jmethodID method_quick_js_on_call_getter(JNIEnv *env) {
     if (_method_quick_js_on_call_getter == NULL) {
         _method_quick_js_on_call_getter = (*env)->GetMethodID(env, cls_quick_js(env), "onCallGetter", "(JLjava/lang/String;)Ljava/lang/Object;");
@@ -873,6 +881,7 @@ void clear_jni_refs_cache(JNIEnv *env) {
     _method_linked_hash_set_init = NULL;
     _method_linked_hash_set_add = NULL;
     _method_quick_js_exception_init = NULL;
+    _method_quick_js_exception_init_with_stack = NULL;
     _method_quick_js_on_call_getter = NULL;
     _method_quick_js_on_call_setter = NULL;
     _method_quick_js_on_call_function = NULL;

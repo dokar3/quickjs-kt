@@ -142,6 +142,8 @@ jmethodID method_linked_hash_set_add(JNIEnv *env);
 
 jmethodID method_quick_js_exception_init(JNIEnv *env);
 
+jmethodID method_quick_js_exception_init_with_stack(JNIEnv *env);
+
 jmethodID method_quick_js_on_call_getter(JNIEnv *env);
 
 jmethodID method_quick_js_on_call_setter(JNIEnv *env);

@@ -65,7 +65,11 @@ char *js_array_join(JSContext *context, JSValue array, const char *separator) {
     return result;
 }
 
-void js_error_to_string(JSContext *context, JSValue error, char **out) {
+void js_error_to_string(JSContext *context, JSValue error, char **out, char **out_stack) {
+    if (out_stack != NULL) {
+        *out_stack = NULL;
+    }
+
     // Get name
     JSValue js_name = JS_GetPropertyStr(context, error, "name");
 
@@ -95,28 +99,23 @@ void js_error_to_string(JSContext *context, JSValue error, char **out) {
     int msg_len = strlen(message);
 
     // Get stack trace
-    JSAtom stack_atom = JS_NewAtom(context, "stack");
-    JSValue stack = JS_GetProperty(context, error, stack_atom);
-    JS_FreeAtom(context, stack_atom);
-    if (!JS_IsUndefined(stack)) {
-        char *joined = js_array_join(context, stack, "\n");
-        const char *stack_str = joined != NULL ? joined : JS_ToCString(context, stack);
-
-        char *full_message = (char *) malloc(name_len + msg_len + strlen(stack_str) + 4);
-        sprintf(full_message, "%s: %s\n%s", name, message, stack_str);
-
-        // Free
-        if (joined != NULL) {
-            free((void *) stack_str);
-        } else {
-            JS_FreeCString(context, stack_str);
-        }
-
+    char *stack = NULL;
+    js_error_stack(context, error, &stack);
+    if (stack != NULL) {
+        char *full_message = (char *) malloc(name_len + msg_len + strlen(stack) + 4);
+        sprintf(full_message, "%s: %s\n%s", name, message, stack);
         *out = full_message;
     } else {
         char *str = (char *) malloc(name_len + msg_len + 3);
         sprintf(str, "%s: %s", name, message);
         *out = str;
+    }
+
+    // Hand the stack over to the caller, so it doesn't have to read it again
+    if (out_stack != NULL) {
+        *out_stack = stack;
+    } else {
+        free(stack);
     }
 
     if (c_name != NULL) {
@@ -127,6 +126,38 @@ void js_error_to_string(JSContext *context, JSValue error, char **out) {
     }
     JS_FreeValue(context, js_name);
     JS_FreeValue(context, js_message);
+}
+
+void js_error_stack(JSContext *context, JSValue error, char **out) {
+    *out = NULL;
+    if (!JS_IsObject(error)) {
+        return;
+    }
+
+    JSValue stack = JS_GetPropertyStr(context, error, "stack");
+    if (JS_IsException(stack)) {
+        // Reading 'stack' threw, discard the new pending exception, otherwise it
+        // would be reported as a second, unrelated error by the next check
+        JS_FreeValue(context, JS_GetException(context));
+        JS_FreeValue(context, stack);
+        return;
+    }
+
+    // Older QuickJS builds expose the stack as an array of frames
+    char *joined = js_array_join(context, stack, "\n");
+    if (joined != NULL) {
+        *out = joined;
+    } else if (!JS_IsUndefined(stack) && !JS_IsNull(stack)) {
+        const char *str = JS_ToCString(context, stack);
+        if (str != NULL) {
+            char *copy = malloc(strlen(str) + 1);
+            if (copy != NULL) {
+                strcpy(copy, str);
+            }
+            JS_FreeCString(context, str);
+            *out = copy;
+        }
+    }
     JS_FreeValue(context, stack);
 }
 
