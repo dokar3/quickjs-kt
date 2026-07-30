@@ -12,11 +12,14 @@ jthrowable new_qjs_exception(JNIEnv *env, const char *format, ...);
  * error.
  *
  * @param message The already formatted message.
+ * @param stack The stack trace of the error, pass NULL to read it from the
+ * error, the caller keeps the ownership of it.
  */
 jthrowable new_js_error_exception(JNIEnv *env,
                                   JSContext *context,
                                   JSValue error,
-                                  const char *message);
+                                  const char *message,
+                                  const char *stack);
 
 void jni_throw_qjs_exception(JNIEnv *env, const char *format, ...);
 

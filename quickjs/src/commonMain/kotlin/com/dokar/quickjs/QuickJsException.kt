@@ -47,24 +47,50 @@ private class StackLocation(
 )
 
 /**
- * Read the location out of the innermost stack frame, which looks like
- * '    at fn (file.js:12:5)' or '    at file.js:12:5' for parsing errors.
+ * Read the location out of the innermost stack frame that has one. Frames look
+ * like '    at fn (file.js:12:5)', '    at file.js:12:5' for parsing errors, or
+ * '    at fn (native)' for native functions, which carry no location at all.
  */
 private fun firstStackLocation(stack: String): StackLocation? {
-    val frame = stack.lineSequence().firstOrNull { it.isNotBlank() }?.trim() ?: return null
-    val text = frame.removePrefix("at ").let {
-        if (it.endsWith(")")) it.substringAfterLast('(').dropLast(1) else it
+    // A frame naming a file but no position, '    at fn (file.js)'
+    var fileOnly: StackLocation? = null
+    for (line in stack.lineSequence()) {
+        val frame = line.trim().removePrefix("at ")
+        val parenthesized = frame.endsWith(")") && frame.contains('(')
+        val text = if (parenthesized) frame.substringAfterLast('(').dropLast(1) else frame
+        if (text.isEmpty() || text == "native") {
+            continue
+        }
+        // Split from the end, file names may contain colons too
+        val parts = text.split(':')
+        var fileNameEnd = parts.size
+        var lineNumber: Int? = null
+        var columnNumber: Int? = null
+        // Positions are appended as ':line' or ':line:column'
+        val last = if (parts.size > 1) parts.last().toIntOrNull() else null
+        if (last != null) {
+            val secondLast = if (parts.size > 2) parts[parts.size - 2].toIntOrNull() else null
+            if (secondLast != null) {
+                lineNumber = secondLast
+                columnNumber = last
+                fileNameEnd -= 2
+            } else {
+                lineNumber = last
+                fileNameEnd -= 1
+            }
+        }
+        val fileName = parts.subList(0, fileNameEnd).joinToString(":")
+        if (fileName.isEmpty()) {
+            continue
+        }
+        if (lineNumber != null) {
+            return StackLocation(fileName, lineNumber, columnNumber)
+        }
+        // Without parentheses this could be a function name of a frame with no
+        // debug info, '    at fn', rather than a file name
+        if (parenthesized && fileOnly == null) {
+            fileOnly = StackLocation(fileName, null, null)
+        }
     }
-    if (text.isEmpty() || text == "native") {
-        return null
-    }
-    // Split from the end, file names may contain colons too
-    val parts = text.split(':')
-    val line = parts.getOrNull(parts.size - 2)?.toIntOrNull()
-    val column = parts.last().toIntOrNull()
-    if (line == null || column == null) {
-        // A frame without a position, '    at fn (file.js)'
-        return StackLocation(text, null, null)
-    }
-    return StackLocation(parts.dropLast(2).joinToString(":"), line, column)
+    return fileOnly
 }

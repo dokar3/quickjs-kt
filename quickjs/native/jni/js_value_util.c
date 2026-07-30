@@ -65,7 +65,11 @@ char *js_array_join(JSContext *context, JSValue array, const char *separator) {
     return result;
 }
 
-void js_error_to_string(JSContext *context, JSValue error, char **out) {
+void js_error_to_string(JSContext *context, JSValue error, char **out, char **out_stack) {
+    if (out_stack != NULL) {
+        *out_stack = NULL;
+    }
+
     // Get name
     JSValue js_name = JS_GetPropertyStr(context, error, "name");
 
@@ -100,12 +104,18 @@ void js_error_to_string(JSContext *context, JSValue error, char **out) {
     if (stack != NULL) {
         char *full_message = (char *) malloc(name_len + msg_len + strlen(stack) + 4);
         sprintf(full_message, "%s: %s\n%s", name, message, stack);
-        free(stack);
         *out = full_message;
     } else {
         char *str = (char *) malloc(name_len + msg_len + 3);
         sprintf(str, "%s: %s", name, message);
         *out = str;
+    }
+
+    // Hand the stack over to the caller, so it doesn't have to read it again
+    if (out_stack != NULL) {
+        *out_stack = stack;
+    } else {
+        free(stack);
     }
 
     if (c_name != NULL) {
@@ -126,6 +136,9 @@ void js_error_stack(JSContext *context, JSValue error, char **out) {
 
     JSValue stack = JS_GetPropertyStr(context, error, "stack");
     if (JS_IsException(stack)) {
+        // Reading 'stack' threw, discard the new pending exception, otherwise it
+        // would be reported as a second, unrelated error by the next check
+        JS_FreeValue(context, JS_GetException(context));
         JS_FreeValue(context, stack);
         return;
     }

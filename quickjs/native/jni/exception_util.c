@@ -34,13 +34,17 @@ static void delete_local_ref(JNIEnv *env, jobject object) {
 jthrowable new_js_error_exception(JNIEnv *env,
                                   JSContext *context,
                                   JSValue error,
-                                  const char *message) {
-    char *stack = NULL;
-    js_error_stack(context, error, &stack);
+                                  const char *message,
+                                  const char *stack) {
+    char *read_stack = NULL;
+    if (stack == NULL) {
+        js_error_stack(context, error, &read_stack);
+    }
+    const char *js_stack = stack != NULL ? stack : read_stack;
 
     jstring j_message = message != NULL ? (*env)->NewStringUTF(env, message) : NULL;
-    jstring j_stack = stack != NULL ? (*env)->NewStringUTF(env, stack) : NULL;
-    free(stack);
+    jstring j_stack = js_stack != NULL ? (*env)->NewStringUTF(env, js_stack) : NULL;
+    free(read_stack);
 
     jthrowable exception = (*env)->NewObject(env, cls_quick_js_exception(env),
                                              method_quick_js_exception_init_with_stack(env),
@@ -82,9 +86,11 @@ int check_js_context_exception(JNIEnv *env, JSContext *context) {
     // Check exception
     if (tag != JS_TAG_NULL && tag != JS_TAG_UNINITIALIZED) {
         char *message = NULL;
-        js_error_to_string(context, exception, &message);
+        char *stack = NULL;
+        js_error_to_string(context, exception, &message, &stack);
         // Throw java exception
-        jthrowable java_exception = new_js_error_exception(env, context, exception, message);
+        jthrowable java_exception = new_js_error_exception(env, context, exception, message,
+                                                          stack);
         JS_FreeValue(context, exception);
         if (java_exception != NULL) {
             (*env)->Throw(env, java_exception);
@@ -92,6 +98,7 @@ int check_js_context_exception(JNIEnv *env, JSContext *context) {
         } else {
             jni_throw_qjs_exception(env, "%s", message);
         }
+        free(stack);
         free(message);
         return 1;
     } else {
