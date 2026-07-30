@@ -95,23 +95,12 @@ void js_error_to_string(JSContext *context, JSValue error, char **out) {
     int msg_len = strlen(message);
 
     // Get stack trace
-    JSAtom stack_atom = JS_NewAtom(context, "stack");
-    JSValue stack = JS_GetProperty(context, error, stack_atom);
-    JS_FreeAtom(context, stack_atom);
-    if (!JS_IsUndefined(stack)) {
-        char *joined = js_array_join(context, stack, "\n");
-        const char *stack_str = joined != NULL ? joined : JS_ToCString(context, stack);
-
-        char *full_message = (char *) malloc(name_len + msg_len + strlen(stack_str) + 4);
-        sprintf(full_message, "%s: %s\n%s", name, message, stack_str);
-
-        // Free
-        if (joined != NULL) {
-            free((void *) stack_str);
-        } else {
-            JS_FreeCString(context, stack_str);
-        }
-
+    char *stack = NULL;
+    js_error_stack(context, error, &stack);
+    if (stack != NULL) {
+        char *full_message = (char *) malloc(name_len + msg_len + strlen(stack) + 4);
+        sprintf(full_message, "%s: %s\n%s", name, message, stack);
+        free(stack);
         *out = full_message;
     } else {
         char *str = (char *) malloc(name_len + msg_len + 3);
@@ -127,7 +116,6 @@ void js_error_to_string(JSContext *context, JSValue error, char **out) {
     }
     JS_FreeValue(context, js_name);
     JS_FreeValue(context, js_message);
-    JS_FreeValue(context, stack);
 }
 
 void js_error_stack(JSContext *context, JSValue error, char **out) {

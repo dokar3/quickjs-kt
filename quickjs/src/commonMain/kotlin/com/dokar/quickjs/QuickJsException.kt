@@ -60,18 +60,11 @@ private fun firstStackLocation(stack: String): StackLocation? {
     }
     // Split from the end, file names may contain colons too
     val parts = text.split(':')
-    if (parts.size >= 3) {
-        val line = parts[parts.size - 2].toIntOrNull()
-        val column = parts[parts.size - 1].toIntOrNull()
-        if (line != null && column != null) {
-            return StackLocation(parts.dropLast(2).joinToString(":"), line, column)
-        }
+    val line = parts.getOrNull(parts.size - 2)?.toIntOrNull()
+    val column = parts.last().toIntOrNull()
+    if (line == null || column == null) {
+        // A frame without a position, '    at fn (file.js)'
+        return StackLocation(text, null, null)
     }
-    if (parts.size >= 2) {
-        val line = parts.last().toIntOrNull()
-        if (line != null) {
-            return StackLocation(parts.dropLast(1).joinToString(":"), line, null)
-        }
-    }
-    return StackLocation(text, null, null)
+    return StackLocation(parts.dropLast(2).joinToString(":"), line, column)
 }
