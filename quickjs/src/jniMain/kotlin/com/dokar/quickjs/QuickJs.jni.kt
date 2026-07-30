@@ -378,6 +378,8 @@ actual class QuickJs private constructor(
             } catch (e: QuickJsException) {
                 // Cancellation wins over the interrupt error
                 coroutineContext.ensureActive()
+                // close() interrupts too, report it like the other close paths
+                if (isClosed) throw CancellationException("Already closed.")
                 if (wasInterrupted()) throw QuickJsInterruptedException(e.message)
                 throw e
             } finally {
@@ -452,6 +454,10 @@ actual class QuickJs private constructor(
             qjsError("Cannot close QuickJs from within a binding callback.")
         }
         if (!closed.compareAndSet(expectedValue = false, newValue = true)) return
+        // A busy evaluation holds the JS lock until it returns, so interrupt it
+        // first. Without this, closing while something like 'while(true){}' is
+        // running would wait forever.
+        requestInterruptIfOpen()
         signalRuntimeProgress()
         jobsMutex.withLockSync {
             asyncJobs.forEach { it.job.cancel() }
