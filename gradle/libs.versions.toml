@@ -17,7 +17,7 @@ compose-plugin = "1.11.1"
 androidx-activityCompose = "1.13.0"
 androidx-appcompat = "1.7.1"
 coroutines = "1.11.0"
-ktor = "3.5.1"
+ktor = "3.5.2"
 moshi = "1.15.2"
 
 [libraries]
