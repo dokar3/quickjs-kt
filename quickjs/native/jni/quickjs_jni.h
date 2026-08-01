@@ -11,6 +11,18 @@
  */
 typedef struct {
     /**
+     * The owning QuickJs instance used by the synchronous module loader.
+     */
+    jobject module_loader_host;
+    /** QuickJs.loadModule(String) method used by the module loader. */
+    jmethodID load_module_method;
+    /** QuickJs.getModuleSource(Object) content accessor. */
+    jmethodID get_module_source_method;
+    /** QuickJs.getModuleBytecode(Object) content accessor. */
+    jmethodID get_module_bytecode_method;
+    /** QuickJs.onModuleCompiled(String, ByteArray) notification callback. */
+    jmethodID on_module_compiled_method;
+    /**
      * Some JS values, used by C functions.
      */
     cvector_vector_type(JSValue)managed_js_values;

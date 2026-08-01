@@ -213,41 +213,63 @@ handle both, otherwise an interrupted evaluation looks like a script error.
 
 ### Modules
 
-[ES Modules](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules) are supported when `evaluate()` or `compile()` has the parameter `asModule = true`.
+[ES Modules](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules) are supported when `evaluate()` or `compile()` uses `asModule = true`.
+
+Create a runtime-scoped `ModuleLoader` to load source on a cache miss and compatible QuickJS bytecode on a cache hit:
 
 ```kotlin
-quickJs {
-    // ...
-    evaluate<String>(
+val sources: Map<String, String> = downloadModuleSources()
+val bytecodeCache = mutableMapOf<String, ByteArray>()
+
+val loader = moduleLoader {
+    load { name ->
+        bytecodeCache[name]
+            ?.let(ModuleContent::Bytecode)
+            ?: sources[name]?.let(ModuleContent::Source)
+    }
+    onCompiled { name, bytecode ->
+        // Update an in-memory cache immediately, then enqueue disk persistence.
+        bytecodeCache[name] = bytecode
+        enqueueModuleBytecodeForPersistence(name, bytecode)
+    }
+}
+
+quickJs(moduleLoader = loader) {
+    var result: Int? = null
+    function("returns") { result = (it.first() as Number).toInt() }
+
+    evaluate<Any?>(
         """
-            import * as hello from "hello";
-            // Use hello
+            import { answer } from "static-answer";
+            const dynamic = await import("dynamic-answer");
+            returns(answer + dynamic.answer);
         """.trimIndent(),
+        filename = "entry",
         asModule = true,
     )
+
+    assertEquals(42, result)
 }
 ```
 
-Modules can be added using `addModule()`  functions, both code and QuickJS bytecode are supported.
+`load()` is called lazily for static and dynamic imports. Source modules loaded into an evaluation context are retained there and delivered to `onCompiled()`; bytecode modules are reused without another compilation callback.
+
+Both loader callbacks run synchronously while QuickJS is resolving a module. Return promptly, do not perform blocking persistence, and do not synchronously re-enter the same `QuickJs` instance. Callback exceptions fail the current compile, graph-resolution, or evaluation operation. The byte array passed to `onCompiled()` remains valid after the callback returns, so it can be handed to an application-owned asynchronous persistence queue.
+
+To inspect the statically reachable modules in an existing entry bytecode without evaluating top-level code, use `resolveModuleGraph()`. It resolves in a temporary context and does not preload the evaluation context, so `onCompiled()` should update the loader's in-memory cache before the method returns:
 
 ```kotlin
-quickJs {
-    val helloModuleCode = """
-        export function greeting() {
-            return "Hi from the hello module!";
-        }
-    """.trimIndent()
-    addModule(name = "hello", code = helloModuleCode)
-    // OR
-    val bytecode = compile(
-        code = helloModuleCode,
-        filename = "hello",
-        asModule = true,
-    )
-    addModule(bytecode)
-    // ...
+quickJs(moduleLoader = loader) {
+    val staticModules = resolveModuleGraph(cachedEntryBytecode)
+    // onCompiled() has populated bytecodeCache for the static source misses.
+    // Dynamic import() targets are loaded later by evaluate().
+    evaluate<Any?>(cachedEntryBytecode)
 }
 ```
+
+Cache keys, source hashes, persistence, eviction, and invalidation are application concerns. QuickJS bytecode is engine-version-specific and must keep the same module name. It is not validated for safety and must only be loaded from a trusted, integrity-protected source; distribute source code instead when content is not trusted. When a module changes or cached bytecode is invalid, create a new `QuickJs` runtime and have the loader return its latest source; `onCompiled()` supplies the replacement bytecode.
+
+The legacy `addModule(name, code)` and `addModule(bytecode)` APIs keep their existing pre-evaluation queue behavior, but are deprecated in favor of `ModuleLoader`.
 
 When evaluating ES module code, no return values will be captured, you may need a function binding to receive the result.
 
@@ -415,7 +437,7 @@ Most of functions may throw:
 
 - `IllegalStateException`, if some function was called after calling `close`
 
-`evaluate()` and `compile()` may throw:
+`evaluate()`, `compile()`, `resolveModuleGraph()`, and `addModule(bytecode)` may throw:
 
 - `QuickJsException`, if a JavaScript error occurred or failed to map a type between JavaScript and Kotlin
 - Other exceptions, if they were occurred in the Kotlin binding

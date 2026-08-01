@@ -9,6 +9,7 @@ import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
 
+@Suppress("DEPRECATION")
 class ModulesTest {
     @Test
     fun codeAsModule() = runTest {

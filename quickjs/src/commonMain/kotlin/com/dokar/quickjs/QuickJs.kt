@@ -27,12 +27,56 @@ suspend inline fun <T : Any?> quickJs(block: QuickJs.() -> T): T {
 }
 
 /**
+ * DSL for a [QuickJs] runtime backed by [moduleLoader]. The instance is closed
+ * automatically when [block] finishes.
+ *
+ * The dispatcher from the current coroutine context is used for async jobs.
+ *
+ * @param moduleLoader The runtime-scoped ES module loader.
+ */
+@OptIn(ExperimentalStdlibApi::class)
+suspend inline fun <T : Any?> quickJs(
+    moduleLoader: ModuleLoader,
+    block: QuickJs.() -> T,
+): T {
+    val dispatcher = coroutineContext[CoroutineDispatcher]
+        ?: throw UnsupportedOperationException(
+            "The current coroutine context does not have a coroutine context. " +
+                    "Please pass your dispatcher explicitly using another function."
+        )
+    return quickJs(dispatcher, moduleLoader, block)
+}
+
+/**
  * DSL for [QuickJs]. The instance will be closed automatically when the [block] is finished.
  *
  * @param jobDispatcher The dispatcher for executing async jobs.
  */
 inline fun <T : Any?> quickJs(jobDispatcher: CoroutineDispatcher, block: QuickJs.() -> T): T {
     val quickJs = QuickJs.create(jobDispatcher = jobDispatcher)
+    return try {
+        quickJs.block()
+    } finally {
+        quickJs.close()
+    }
+}
+
+/**
+ * DSL for a [QuickJs] runtime backed by [moduleLoader]. The instance is closed
+ * automatically when [block] finishes.
+ *
+ * @param jobDispatcher The dispatcher for executing async jobs.
+ * @param moduleLoader The runtime-scoped ES module loader.
+ */
+inline fun <T : Any?> quickJs(
+    jobDispatcher: CoroutineDispatcher,
+    moduleLoader: ModuleLoader,
+    block: QuickJs.() -> T,
+): T {
+    val quickJs = QuickJs.create(
+        jobDispatcher = jobDispatcher,
+        moduleLoader = moduleLoader,
+    )
     return try {
         quickJs.block()
     } finally {
@@ -140,13 +184,14 @@ expect class QuickJs {
     )
 
     /**
-     * Add a JavaScript module
+     * Add a JavaScript module using the legacy pre-evaluation module queue.
      *
      * @param name The module name.
      * @param code The JavaScript code.
      *
-     * @throws QuickJsException If failed to compile the code.
+     * @throws QuickJsException If the runtime is closed or compilation fails.
      */
+    @Deprecated("Use a ModuleLoader when creating QuickJs instead.")
     @Throws(QuickJsException::class)
     fun addModule(
         name: String,
@@ -154,10 +199,11 @@ expect class QuickJs {
     )
 
     /**
-     * Add a compiled JavaScript module.
+     * Add compiled JavaScript module bytecode to the legacy pre-evaluation queue.
      *
-     * @param bytecode The compiled module bytecode.
+     * @param bytecode The compiled ES module bytecode.
      */
+    @Deprecated("Use a ModuleLoader when creating QuickJs instead.")
     fun addModule(bytecode: ByteArray)
 
     /**
@@ -172,6 +218,23 @@ expect class QuickJs {
      */
     @Throws(QuickJsException::class)
     fun compile(code: String, filename: String = "main.js", asModule: Boolean = false): ByteArray
+
+    /**
+     * Resolves the statically reachable ES module graph without evaluating it.
+     *
+     * Dependencies are supplied by the runtime's [ModuleLoader]. Resolution uses a
+     * temporary context and does not preload the main evaluation context. To avoid
+     * recompiling source during a later [evaluate], [ModuleLoader.onCompiled] should
+     * make its bytecode immediately available to subsequent [ModuleLoader.load]
+     * calls. Dynamic imports are loaded later during evaluation.
+     *
+     * @param entryBytecode Compiled bytecode for the graph entry module.
+     * @return Names observed while resolving the entry and its static dependencies.
+     * @throws QuickJsException If the runtime is closed, bytecode is invalid, or
+     * static dependency resolution fails.
+     */
+    @Throws(QuickJsException::class)
+    fun resolveModuleGraph(entryBytecode: ByteArray): Set<String>
 
     /**
      * Evaluate QuickJS-compiled bytecode.
@@ -228,5 +291,18 @@ expect class QuickJs {
          */
         @Throws(QuickJsException::class)
         fun create(jobDispatcher: CoroutineDispatcher): QuickJs
+
+        /**
+         * Creates a QuickJS runtime backed by [moduleLoader].
+         *
+         * @param jobDispatcher The dispatcher for executing async jobs.
+         * @param moduleLoader The runtime-scoped ES module loader.
+         * @throws QuickJsException If runtime creation fails.
+         */
+        @Throws(QuickJsException::class)
+        fun create(
+            jobDispatcher: CoroutineDispatcher,
+            moduleLoader: ModuleLoader,
+        ): QuickJs
     }
 }

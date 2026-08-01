@@ -15,6 +15,8 @@ import com.dokar.quickjs.bridge.executePendingJob
 import com.dokar.quickjs.bridge.invokeJsFunction
 import com.dokar.quickjs.bridge.ktMemoryUsage
 import com.dokar.quickjs.bridge.objectHandleToStableRef
+import com.dokar.quickjs.bridge.resolveModuleGraph
+import com.dokar.quickjs.bridge.setModuleLoader
 import com.dokar.quickjs.bridge.setPromiseRejectionHandler
 import com.dokar.quickjs.converter.TypeConverter
 import com.dokar.quickjs.converter.TypeConverters
@@ -36,11 +38,11 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.job
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -63,17 +65,18 @@ import quickjs.qjs_interrupt_install
 import quickjs.qjs_interrupt_request
 import quickjs.qjs_interrupt_reset
 import quickjs.quickjs_version
+import kotlin.concurrent.atomics.AtomicBoolean
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.coroutineContext
-import kotlin.concurrent.atomics.AtomicBoolean
-import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.reflect.typeOf
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalAtomicApi::class)
 actual class QuickJs private constructor(
-    private val jobDispatcher: CoroutineDispatcher
+    private val jobDispatcher: CoroutineDispatcher,
+    private val moduleLoader: ModuleLoader?,
 ) {
     private val runtime: CPointer<JSRuntime> = JS_NewRuntime()
         ?: qjsError("Failed to create js runtime.")
@@ -101,6 +104,7 @@ actual class QuickJs private constructor(
     private val managedJsValues = mutableListOf<CValue<JSValue>>()
 
     private val modules = mutableListOf<ByteArray>()
+    private var resolvingModuleNames: LinkedHashSet<String>? = null
 
     private val jobsMutex = Mutex()
     private val asyncJobs = mutableListOf<AsyncJob>()
@@ -168,6 +172,9 @@ actual class QuickJs private constructor(
     init {
         interruptState = qjs_interrupt_install(runtime)
         setPromiseRejectionHandler(ref, runtime)
+        if (moduleLoader != null) {
+            setModuleLoader(ref, runtime)
+        }
     }
 
     actual fun addTypeConverters(vararg converters: TypeConverter<*, *>) {
@@ -250,6 +257,22 @@ actual class QuickJs private constructor(
         return withJsLockSync {
             ensureNotClosed()
             return context.compile(code = code, filename = filename, asModule = asModule)
+        }
+    }
+
+    @Throws(QuickJsException::class)
+    actual fun resolveModuleGraph(entryBytecode: ByteArray): Set<String> = withJsLockSync {
+        ensureNotClosed()
+        val graphContext = JS_NewContext(runtime)
+            ?: qjsError("Failed to create module graph context.")
+        val names = linkedSetOf<String>()
+        resolvingModuleNames = names
+        try {
+            names += graphContext.resolveModuleGraph(entryBytecode)
+            names
+        } finally {
+            resolvingModuleNames = null
+            JS_FreeContext(graphContext)
         }
     }
 
@@ -548,6 +571,18 @@ actual class QuickJs private constructor(
         }
     }
 
+    /** Loads content from the runtime-scoped module loader. */
+    internal fun loadModule(name: String): ModuleContent? {
+        resolvingModuleNames?.add(name)
+        return moduleLoader?.load(name)
+    }
+
+    /** Delivers source-compiled bytecode to the runtime-scoped module loader. */
+    internal fun onModuleCompiled(name: String, bytecode: ByteArray) {
+        moduleLoader?.onCompiled(name, bytecode)
+    }
+
+    /** Loads queued modules using the legacy addModule behavior. */
     private suspend fun loadModules(session: EvaluationSession) = jsMutex.withLock {
         ensureNotClosed()
         withEvaluationSession(session) {
@@ -693,7 +728,21 @@ actual class QuickJs private constructor(
     actual companion object {
         @Throws(QuickJsException::class)
         actual fun create(jobDispatcher: CoroutineDispatcher): QuickJs {
-            return QuickJs(jobDispatcher = jobDispatcher)
+            return QuickJs(
+                jobDispatcher = jobDispatcher,
+                moduleLoader = null,
+            )
+        }
+
+        @Throws(QuickJsException::class)
+        actual fun create(
+            jobDispatcher: CoroutineDispatcher,
+            moduleLoader: ModuleLoader,
+        ): QuickJs {
+            return QuickJs(
+                jobDispatcher = jobDispatcher,
+                moduleLoader = moduleLoader,
+            )
         }
     }
 }

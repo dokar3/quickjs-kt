@@ -382,6 +382,31 @@
           ]
         },
         {
+          "name": "loadModule",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
+          "name": "getModuleSource",
+          "parameterTypes": [
+            "java.lang.Object"
+          ]
+        },
+        {
+          "name": "getModuleBytecode",
+          "parameterTypes": [
+            "java.lang.Object"
+          ]
+        },
+        {
+          "name": "onModuleCompiled",
+          "parameterTypes": [
+            "java.lang.String",
+            "byte[]"
+          ]
+        },
+        {
           "name": "setEvalException",
           "parameterTypes": [
             "java.lang.Throwable"
