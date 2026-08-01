@@ -13,6 +13,7 @@
 #include "quickjs_version.h"
 #include "quickjs_interrupt.h"
 #include "promise_rejection_handler.h"
+#include "module_loader.h"
 
 JSRuntime *runtime_from_ptr(JNIEnv *env, jlong ptr) {
     if (ptr == 0) {
@@ -39,6 +40,38 @@ Globals *globals_from_ptr(JNIEnv *env, jlong ptr) {
 }
 
 /**
+ * Releases resources owned by an initGlobals call that cannot return a usable handle.
+ *
+ * Java exceptions must be cleared before entering this function and restored by
+ * the caller after cleanup.
+ */
+static void release_failed_globals_init(JNIEnv *env,
+                                        JSRuntime *runtime,
+                                        Globals *globals) {
+    if (runtime != NULL) {
+        JS_SetHostPromiseRejectionTracker(runtime, NULL, NULL);
+    }
+
+    cvector_vector_type(jobject) global_object_refs = globals->global_object_refs;
+    if (global_object_refs != NULL) {
+        size_t size = cvector_size(global_object_refs);
+        for (uint32_t i = 0; i < size; i++) {
+            if (global_object_refs[i] != NULL) {
+                (*env)->DeleteGlobalRef(env, global_object_refs[i]);
+            }
+        }
+        cvector_free(global_object_refs);
+    }
+
+    pthread_mutex_destroy(&globals->js_mutex);
+    clear_java_vm_cache();
+    if (get_qjs_instance_count() <= 0) {
+        clear_jni_refs_cache(env);
+    }
+    free(globals);
+}
+
+/**
  * Initialize global resources.
  */
 JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
@@ -50,6 +83,10 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
 #pragma ide diagnostic ignored "MemoryLeak"
     Globals *globals = malloc(sizeof(Globals));
 #pragma clang diagnostic pop
+    if (globals == NULL) {
+        jni_throw_qjs_exception(env, "Cannot allocate global resources.");
+        return 0;
+    }
 
     globals->managed_js_values = NULL;
     globals->defined_js_objects = NULL;
@@ -57,6 +94,11 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
     globals->created_js_functions = NULL;
     globals->evaluate_result_promises = NULL;
     globals->evaluate_result_active = NULL;
+    globals->module_loader_host = NULL;
+    globals->load_module_method = NULL;
+    globals->get_module_source_method = NULL;
+    globals->get_module_bytecode_method = NULL;
+    globals->on_module_compiled_method = NULL;
 
     pthread_mutexattr_t mutex_attributes;
     pthread_mutexattr_init(&mutex_attributes);
@@ -71,12 +113,60 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
     jclass cls_ubyte_array = (*env)->GetObjectArrayElement(env, classes, 1);
     set_cls_ubyte_array(env, cls_ubyte_array);
 
+    jthrowable class_exception = try_catch_java_exceptions(env);
+    if (class_exception != NULL) {
+        release_failed_globals_init(env, NULL, globals);
+        (*env)->Throw(env, class_exception);
+        (*env)->DeleteLocalRef(env, class_exception);
+        return 0;
+    }
+
     JSRuntime *runtime = runtime_from_ptr(env, runtime_ptr);
+    if (runtime == NULL) {
+        jthrowable exception = try_catch_java_exceptions(env);
+        if (exception == NULL) {
+            exception = new_qjs_exception(env, "JS runtime is destroyed.");
+        }
+        release_failed_globals_init(env, NULL, globals);
+        if (exception != NULL) {
+            (*env)->Throw(env, exception);
+            (*env)->DeleteLocalRef(env, exception);
+        }
+        return 0;
+    }
+
     jobject global_host_ref = (*env)->NewGlobalRef(env, this);
+    if (global_host_ref == NULL) {
+        jthrowable exception = try_catch_java_exceptions(env);
+        if (exception == NULL) {
+            exception = new_qjs_exception(
+                    env,
+                    "Cannot allocate module loader host reference.");
+        }
+        release_failed_globals_init(env, runtime, globals);
+        if (exception != NULL) {
+            (*env)->Throw(env, exception);
+            (*env)->DeleteLocalRef(env, exception);
+        }
+        return 0;
+    }
     cvector_push_back(globals->global_object_refs, global_host_ref);
+
     // Handle unhandled promise rejections
     JS_SetHostPromiseRejectionTracker(runtime, promise_rejection_handler,
                                       global_host_ref);
+    if (!install_module_loader(env, runtime, globals, global_host_ref)) {
+        jthrowable exception = try_catch_java_exceptions(env);
+        if (exception == NULL) {
+            exception = new_qjs_exception(env, "Cannot install module loader.");
+        }
+        release_failed_globals_init(env, runtime, globals);
+        if (exception != NULL) {
+            (*env)->Throw(env, exception);
+            (*env)->DeleteLocalRef(env, exception);
+        }
+        return 0;
+    }
 
     return (jlong) globals;
 }
@@ -565,6 +655,105 @@ Java_com_dokar_quickjs_QuickJs_compile(JNIEnv *env, jobject this, jlong context_
 }
 
 /**
+ * Resolves an ES module graph in a temporary context without evaluating it.
+ *
+ * A fresh context ensures every static dependency reaches the runtime loader,
+ * even when the main context already contains modules with the same names.
+ */
+JNIEXPORT jstring JNICALL
+Java_com_dokar_quickjs_QuickJs_resolveModuleGraphBytecode(JNIEnv *env,
+                                                         jobject this,
+                                                         jlong runtime_ptr,
+                                                         jlong globals_ptr,
+                                                         jbyteArray jbuffer) {
+    JSRuntime *runtime = runtime_from_ptr(env, runtime_ptr);
+    Globals *globals = globals_from_ptr(env, globals_ptr);
+    if (runtime == NULL || globals == NULL) {
+        return NULL;
+    }
+
+    jsize buffer_length = (*env)->GetArrayLength(env, jbuffer);
+    jbyte *buffer = (*env)->GetByteArrayElements(env, jbuffer, NULL);
+    if (buffer == NULL) {
+        // Preserve an exception such as OutOfMemoryError raised by the JNI call.
+        if (!(*env)->ExceptionCheck(env)) {
+            jni_throw_qjs_exception(env, "Cannot read ES module entry bytecode.");
+        }
+        return NULL;
+    }
+
+    pthread_mutex_lock(&globals->js_mutex);
+    JSContext *context = JS_NewContext(runtime);
+    if (context == NULL) {
+        (*env)->ReleaseByteArrayElements(env, jbuffer, buffer, JNI_ABORT);
+        pthread_mutex_unlock(&globals->js_mutex);
+        jni_throw_qjs_exception(env, "Cannot create module graph context.");
+        return NULL;
+    }
+    JS_UpdateStackTop(runtime);
+    JSValue entry = JS_ReadObject(
+            context,
+            (uint8_t *) buffer,
+            (size_t) buffer_length,
+            JS_READ_OBJ_BYTECODE | JS_READ_OBJ_REFERENCE);
+    (*env)->ReleaseByteArrayElements(env, jbuffer, buffer, JNI_ABORT);
+
+    if (JS_IsException(entry)) {
+        if (!check_js_context_exception(env, context)) {
+            jni_throw_qjs_exception(env, "Cannot read ES module entry bytecode.");
+        }
+        JS_FreeContext(context);
+        pthread_mutex_unlock(&globals->js_mutex);
+        return NULL;
+    }
+    if (JS_VALUE_GET_TAG(entry) != JS_TAG_MODULE) {
+        JS_FreeValue(context, entry);
+        JS_FreeContext(context);
+        pthread_mutex_unlock(&globals->js_mutex);
+        jni_throw_qjs_exception(env, "Bytecode is not an ES module.");
+        return NULL;
+    }
+
+    JSAtom module_name_atom = JS_GetModuleName(context, JS_VALUE_GET_PTR(entry));
+    const char *module_name = JS_AtomToCString(context, module_name_atom);
+    JS_FreeAtom(context, module_name_atom);
+    if (module_name == NULL) {
+        JS_FreeValue(context, entry);
+        if (!check_js_context_exception(env, context)) {
+            jni_throw_qjs_exception(env, "Cannot read the ES module entry name.");
+        }
+        JS_FreeContext(context);
+        pthread_mutex_unlock(&globals->js_mutex);
+        return NULL;
+    }
+
+    jstring result = (*env)->NewStringUTF(env, module_name);
+    JS_FreeCString(context, module_name);
+    if (result == NULL) {
+        JS_FreeValue(context, entry);
+        JS_FreeContext(context);
+        pthread_mutex_unlock(&globals->js_mutex);
+        return NULL;
+    }
+
+    if (JS_ResolveModule(context, entry) < 0) {
+        JS_FreeValue(context, entry);
+        (*env)->DeleteLocalRef(env, result);
+        if (!check_js_context_exception(env, context)) {
+            jni_throw_qjs_exception(env, "Cannot resolve ES module entry bytecode.");
+        }
+        JS_FreeContext(context);
+        pthread_mutex_unlock(&globals->js_mutex);
+        return NULL;
+    }
+
+    JS_FreeValue(context, entry);
+    JS_FreeContext(context);
+    pthread_mutex_unlock(&globals->js_mutex);
+    return result;
+}
+
+/**
  * Evaluate JavaScript code.
  */
 JNIEXPORT jlong JNICALL
@@ -631,20 +820,33 @@ Java_com_dokar_quickjs_QuickJs_evaluateBytecode(JNIEnv *env, jobject this, jlong
     JS_UpdateStackTop(JS_GetRuntime(context));
 
     // Read buffer
-    JSValue bytecode = JS_ReadObject(context, (uint8_t *) buffer, buf_len, JS_READ_OBJ_BYTECODE);
+    JSValue bytecode = JS_ReadObject(context, (uint8_t *) buffer, buf_len, JS_READ_OBJ_BYTECODE | JS_READ_OBJ_REFERENCE);
     if (JS_IsException(bytecode)) {
-        (*env)->ReleaseByteArrayElements(env, jbuffer, buffer, 0);
-        jni_throw_qjs_exception(env, "Cannot read buffer as bytecode.");
-
+        (*env)->ReleaseByteArrayElements(env, jbuffer, buffer, JNI_ABORT);
+        if (!check_js_context_exception(env, context)) {
+            jni_throw_qjs_exception(env, "Cannot read buffer as bytecode.");
+        }
         pthread_mutex_unlock(&globals->js_mutex);
+        return -1;
+    }
 
+    // Module bytecode only contains dependency names. Resolve the complete graph
+    // before evaluation so QuickJS never observes null dependency pointers.
+    if (JS_VALUE_GET_TAG(bytecode) == JS_TAG_MODULE &&
+        JS_ResolveModule(context, bytecode) < 0) {
+        (*env)->ReleaseByteArrayElements(env, jbuffer, buffer, JNI_ABORT);
+        JS_FreeValue(context, bytecode);
+        if (!check_js_context_exception(env, context)) {
+            jni_throw_qjs_exception(env, "Cannot resolve module bytecode.");
+        }
+        pthread_mutex_unlock(&globals->js_mutex);
         return -1;
     }
 
     // Eval
     JSValue value = JS_EvalFunction(context, bytecode);
 
-    (*env)->ReleaseByteArrayElements(env, jbuffer, buffer, 0);
+    (*env)->ReleaseByteArrayElements(env, jbuffer, buffer, JNI_ABORT);
 
     pthread_mutex_unlock(&globals->js_mutex);
 

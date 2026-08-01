@@ -23,11 +23,11 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.job
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -145,6 +145,7 @@ suspend fun <T> QuickJs.evaluate(
 @OptIn(ExperimentalUnsignedTypes::class, ExperimentalAtomicApi::class)
 actual class QuickJs private constructor(
     private val jobDispatcher: CoroutineDispatcher,
+    private val moduleLoader: ModuleLoader?,
 ) : Closeable {
     // Native pointers
     private var globals: Long = 0
@@ -156,6 +157,7 @@ actual class QuickJs private constructor(
     private val globalFunctions = mutableMapOf<String, Binding>()
 
     private val modules = mutableListOf<ByteArray>()
+    private var resolvingModuleNames: LinkedHashSet<String>? = null
 
     private var evalException: Throwable? = null
     private var currentEvaluationSession: EvaluationSession? = null
@@ -230,13 +232,20 @@ actual class QuickJs private constructor(
             runtime = newRuntime()
             interruptState = installInterrupt(runtime)
             context = newContext(runtime)
+        } catch (error: QuickJsException) {
+            close()
+            throw error
+        }
+        try {
+            // Module-loader installation performs JNI lookups that may throw
+            // exceptions outside the QuickJsException hierarchy.
             globals = initGlobals(
                 runtime,
                 arrayOf(Unit::class.java, UByteArray::class.java)
             )
-        } catch (e: QuickJsException) {
+        } catch (error: Throwable) {
             close()
-            throw e
+            throw error
         }
     }
 
@@ -313,6 +322,23 @@ actual class QuickJs private constructor(
         return withJsLockSync {
             ensureNotClosed()
             return compile(context, globals, filename, code, asModule)
+        }
+    }
+
+    @Throws(QuickJsException::class)
+    actual fun resolveModuleGraph(entryBytecode: ByteArray): Set<String> = withJsLockSync {
+        ensureNotClosed()
+        val names = linkedSetOf<String>()
+        resolvingModuleNames = names
+        try {
+            names += resolveModuleGraphBytecode(
+                runtime = runtime,
+                globals = globals,
+                bytecode = entryBytecode,
+            )
+            names
+        } finally {
+            resolvingModuleNames = null
         }
     }
 
@@ -579,6 +605,30 @@ actual class QuickJs private constructor(
         }
     }
 
+    /** Loads module content synchronously for the JNI bridge. */
+    @Suppress("unused")
+    private fun loadModule(name: String): Any? {
+        resolvingModuleNames?.add(name)
+        return moduleLoader?.load(name)
+    }
+
+    /** Returns source when [content] represents a source module. */
+    @Suppress("unused")
+    private fun getModuleSource(content: Any): String? =
+        (content as? ModuleContent.Source)?.code
+
+    /** Returns bytecode when [content] represents a compiled module. */
+    @Suppress("unused")
+    private fun getModuleBytecode(content: Any): ByteArray? =
+        (content as? ModuleContent.Bytecode)?.bytes
+
+    /** Delivers source-compiled bytecode to the runtime's loader. */
+    @Suppress("unused")
+    private fun onModuleCompiled(name: String, bytecode: ByteArray) {
+        moduleLoader?.onCompiled(name, bytecode)
+    }
+
+    /** Loads queued modules using the legacy addModule behavior. */
     private suspend fun loadModules(session: EvaluationSession) = jsMutex.withLock {
         ensureNotClosed()
         withEvaluationSession(session) {
@@ -868,6 +918,13 @@ actual class QuickJs private constructor(
     ): ByteArray
 
     @Throws(QuickJsException::class)
+    private external fun resolveModuleGraphBytecode(
+        runtime: Long,
+        globals: Long,
+        bytecode: ByteArray,
+    ): String
+
+    @Throws(QuickJsException::class)
     private external fun evaluate(
         context: Long,
         globals: Long,
@@ -941,6 +998,16 @@ actual class QuickJs private constructor(
             jobDispatcher: CoroutineDispatcher,
         ): QuickJs = QuickJs(
             jobDispatcher = jobDispatcher,
+            moduleLoader = null,
+        )
+
+        @Throws(QuickJsException::class)
+        actual fun create(
+            jobDispatcher: CoroutineDispatcher,
+            moduleLoader: ModuleLoader,
+        ): QuickJs = QuickJs(
+            jobDispatcher = jobDispatcher,
+            moduleLoader = moduleLoader,
         )
     }
 }
