@@ -22,6 +22,10 @@ typedef struct {
     jmethodID get_module_bytecode_method;
     /** QuickJs.onModuleCompiled(String, ByteArray) notification callback. */
     jmethodID on_module_compiled_method;
+    /** QuickJs.onModuleLoadFailed(String) failure callback. */
+    jmethodID on_module_load_failed_method;
+    /** Monotonic counter used to suppress parent notifications after a nested failure. */
+    uint64_t module_load_failure_version;
     /**
      * Some JS values, used by C functions.
      */

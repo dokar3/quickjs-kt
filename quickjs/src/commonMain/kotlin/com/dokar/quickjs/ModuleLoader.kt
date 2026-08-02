@@ -3,7 +3,7 @@ package com.dokar.quickjs
 /**
  * Supplies ES modules to one [QuickJs] runtime.
  *
- * Both callbacks run synchronously while QuickJS is resolving a module. They
+ * All callbacks run synchronously while QuickJS is resolving a module. They
  * must return quickly and must not re-enter the same [QuickJs] instance.
  */
 fun interface ModuleLoader {
@@ -31,6 +31,20 @@ fun interface ModuleLoader {
      * @param bytecode The newly compiled module bytecode.
      */
     fun onCompiled(name: String, bytecode: ByteArray) = Unit
+
+    /**
+     * Reports that QuickJS could not load a requested module.
+     *
+     * This callback is delivered for both static and dynamic imports. A dynamic
+     * import still triggers the callback when JavaScript handles its rejection
+     * with `try/catch` or `Promise.catch`. The callback runs synchronously during
+     * module resolution, so callers should only enqueue invalidation work and
+     * must not re-enter the same [QuickJs] instance. Unhandled callback exceptions
+     * become the current module loading failure.
+     *
+     * @param name The normalized name of the module that failed to load.
+     */
+    fun onLoadFailed(name: String) = Unit
 }
 
 /**
@@ -39,6 +53,7 @@ fun interface ModuleLoader {
 class ModuleLoaderBuilder internal constructor() {
     private var loadBlock: ((String) -> ModuleContent?)? = null
     private var onCompiledBlock: (String, ByteArray) -> Unit = { _, _ -> }
+    private var onLoadFailedBlock: (String) -> Unit = {}
 
     /**
      * Configures synchronous module lookup.
@@ -54,16 +69,28 @@ class ModuleLoaderBuilder internal constructor() {
         onCompiledBlock = block
     }
 
+    /**
+     * Configures immediate notification for failed module loading attempts.
+     */
+    fun onLoadFailed(block: (name: String) -> Unit) {
+        onLoadFailedBlock = block
+    }
+
     internal fun build(): ModuleLoader {
         val loadCallback = requireNotNull(loadBlock) {
             "ModuleLoader requires a load callback."
         }
         val onCompiledCallback = onCompiledBlock
+        val onLoadFailedCallback = onLoadFailedBlock
         return object : ModuleLoader {
             override fun load(name: String): ModuleContent? = loadCallback(name)
 
             override fun onCompiled(name: String, bytecode: ByteArray) {
                 onCompiledCallback(name, bytecode)
+            }
+
+            override fun onLoadFailed(name: String) {
+                onLoadFailedCallback(name)
             }
         }
     }

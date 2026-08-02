@@ -259,6 +259,7 @@ class ModuleLoaderTest {
         }
 
         val compiledBeforeFailure = linkedMapOf<String, ByteArray>()
+        val failed = mutableListOf<String>()
         val incompleteLoader = moduleLoader {
             load { name ->
                 if (name == "first") {
@@ -268,6 +269,7 @@ class ModuleLoaderTest {
                 }
             }
             onCompiled { name, bytecode -> compiledBeforeFailure[name] = bytecode }
+            onLoadFailed { name -> failed += name }
         }
 
         quickJs(moduleLoader = incompleteLoader) {
@@ -276,6 +278,7 @@ class ModuleLoaderTest {
             }
         }
 
+        assertEquals(listOf("missing"), failed)
         assertEquals(setOf("first"), compiledBeforeFailure.keys)
         assertTrue(compiledBeforeFailure.getValue("first").isNotEmpty())
     }
@@ -356,20 +359,26 @@ class ModuleLoaderTest {
     }
 
     @Test
-    fun missingModuleFailsWithItsNormalizedName() = runTest {
-        val loader = moduleLoader { load { null } }
+    fun missingModuleFailureReportsItsNormalizedName() = runTest {
+        val failed = mutableListOf<String>()
+        val loader = moduleLoader {
+            load { null }
+            onLoadFailed { name -> failed += name }
+        }
 
         val failure = quickJs(moduleLoader = loader) {
             assertFailsWith<QuickJsException> {
                 evaluate<Any?>(
-                    "import 'missing';",
-                    filename = "entry",
+                    "import './missing.js';",
+                    filename = "app/entry.js",
                     asModule = true,
                 )
             }
         }
 
-        assertContains(failure.message.orEmpty(), "missing")
+        assertContains(failure.message.orEmpty(), "app/missing.js")
+        assertEquals(QuickJsException::class, failure::class)
+        assertEquals(listOf("app/missing.js"), failed)
     }
 
     @Test
@@ -397,17 +406,22 @@ class ModuleLoaderTest {
             )
         }
 
+        val corruptFailures = mutableListOf<String>()
         val corruptLoader = moduleLoader {
             load { ModuleContent.Bytecode(byteArrayOf(0, 1, 2, 3)) }
+            onLoadFailed { name -> corruptFailures += name }
         }
         quickJs(moduleLoader = corruptLoader) {
             assertFailsWith<QuickJsException> {
                 evaluate<Any?>("import 'corrupt';", asModule = true)
             }
         }
+        assertEquals(listOf("corrupt"), corruptFailures)
 
+        val mismatchFailures = mutableListOf<String>()
         val mismatchedLoader = moduleLoader {
             load { ModuleContent.Bytecode(actualModule) }
+            onLoadFailed { name -> mismatchFailures += name }
         }
         val mismatch = quickJs(moduleLoader = mismatchedLoader) {
             assertFailsWith<QuickJsException> {
@@ -415,6 +429,103 @@ class ModuleLoaderTest {
             }
         }
         assertContains(mismatch.message.orEmpty(), "expected")
+        assertEquals(listOf("expected"), mismatchFailures)
+    }
+
+    @Test
+    fun compileAndDynamicImportFailuresInvokeTheFailureCallback() = runTest {
+        val failed = mutableListOf<String>()
+        val loader = moduleLoader {
+            load { null }
+            onLoadFailed { name -> failed += name }
+        }
+
+        quickJs(moduleLoader = loader) {
+            assertFailsWith<QuickJsException> {
+                compile(
+                    "import 'compile-dependency';",
+                    filename = "compile-entry",
+                    asModule = true,
+                )
+            }
+        }
+        assertEquals(listOf("compile-dependency"), failed)
+
+        quickJs(moduleLoader = loader) {
+            assertFailsWith<QuickJsException> {
+                evaluate<Any?>(
+                    "await import('dynamic-dependency');",
+                    filename = "dynamic-entry",
+                    asModule = true,
+                )
+            }
+        }
+        assertEquals(listOf("compile-dependency", "dynamic-dependency"), failed)
+    }
+
+    @Test
+    fun handledDynamicImportFailureStillInvokesTheFailureCallback() = runTest {
+        val failed = mutableListOf<String>()
+        val loader = moduleLoader {
+            load { null }
+            onLoadFailed { name -> failed += name }
+        }
+
+        quickJs(moduleLoader = loader) {
+            evaluate<Any?>(
+                "try { await import('optional'); } catch (_) {}",
+                filename = "dynamic-entry",
+                asModule = true,
+            )
+        }
+
+        assertEquals(listOf("optional"), failed)
+    }
+
+    @Test
+    fun nestedDependencyFailureReportsTheInnermostModuleName() = runTest {
+        val failed = mutableListOf<String>()
+        val loader = moduleLoader {
+            load { name ->
+                when (name) {
+                    "parent" -> ModuleContent.Source("import 'corrupt-leaf';")
+                    "corrupt-leaf" -> ModuleContent.Bytecode(byteArrayOf(0, 1, 2, 3))
+                    else -> null
+                }
+            }
+            onLoadFailed { name -> failed += name }
+        }
+
+        quickJs(moduleLoader = loader) {
+            assertFailsWith<QuickJsException> {
+                evaluate<Any?>("import 'parent';", asModule = true)
+            }
+        }
+
+        assertEquals(listOf("corrupt-leaf"), failed)
+    }
+
+    @Test
+    fun runtimeFailureAfterModuleLoadingRemainsARegularQuickJsException() = runTest {
+        val failed = mutableListOf<String>()
+        val loader = moduleLoader {
+            load { ModuleContent.Source("export const value = 42;") }
+            onLoadFailed { name -> failed += name }
+        }
+
+        val failure = quickJs(moduleLoader = loader) {
+            assertFailsWith<QuickJsException> {
+                evaluate<Any?>(
+                    "import 'dependency'; throw new Error('execution failed');",
+                    filename = "entry",
+                    asModule = true,
+                )
+            }
+        }
+
+        assertEquals(QuickJsException::class, failure::class)
+        assertContains(failure.message.orEmpty(), "execution failed")
+        assertTrue(failed.isEmpty())
     }
 
     @Test
@@ -501,8 +612,10 @@ class ModuleLoaderTest {
 
     @Test
     fun loaderAndCompilationCallbackExceptionsFailTheOperation() = runTest {
+        val failed = mutableListOf<String>()
         val loadFailure = moduleLoader {
             load { throw IllegalStateException("load failed") }
+            onLoadFailed { name -> failed += name }
         }
         val loadError = quickJs(moduleLoader = loadFailure) {
             assertFails {
@@ -510,6 +623,7 @@ class ModuleLoaderTest {
             }
         }
         assertContains(loadError.message.orEmpty(), "load failed")
+        assertEquals(listOf("dependency"), failed)
 
         val compileError = quickJs(moduleLoader = loadFailure) {
             assertFails {
@@ -521,6 +635,7 @@ class ModuleLoaderTest {
             }
         }
         assertContains(compileError.message.orEmpty(), "load failed")
+        assertEquals(listOf("dependency", "dependency"), failed)
 
         val callbackFailure = moduleLoader {
             load { ModuleContent.Source("export const value = 42;") }
@@ -532,15 +647,38 @@ class ModuleLoaderTest {
             }
         }
         assertContains(callbackError.message.orEmpty(), "persistence handoff failed")
+
+        val quickJsLoadFailure = moduleLoader {
+            load { throw QuickJsException("custom loader failure") }
+        }
+        val quickJsLoadError = quickJs(moduleLoader = quickJsLoadFailure) {
+            assertFailsWith<QuickJsException> {
+                evaluate<Any?>("import 'dependency';", asModule = true)
+            }
+        }
+        assertEquals(QuickJsException::class, quickJsLoadError::class)
+
+        val failureCallbackError = moduleLoader {
+            load { null }
+            onLoadFailed { throw IllegalStateException("invalidation handoff failed") }
+        }
+        val invalidationError = quickJs(moduleLoader = failureCallbackError) {
+            assertFails {
+                evaluate<Any?>("import 'dependency';", asModule = true)
+            }
+        }
+        assertContains(invalidationError.message.orEmpty(), "invalidation handoff failed")
     }
 
     @Test
     fun invalidSourceCanBeCorrectedBeforeSuccessfulResolution() = runTest {
         var source = "export const value = ;"
+        val failed = mutableListOf<String>()
         val loader = moduleLoader {
             load { name ->
                 if (name == "recoverable") ModuleContent.Source(source) else null
             }
+            onLoadFailed { name -> failed += name }
         }
 
         var captured = 0
@@ -553,6 +691,7 @@ class ModuleLoaderTest {
                     asModule = true,
                 )
             }
+            assertEquals(listOf("recoverable"), failed)
 
             source = "export const value = 42;"
             evaluate<Any?>(

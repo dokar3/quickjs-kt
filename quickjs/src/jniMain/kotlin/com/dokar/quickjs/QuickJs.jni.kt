@@ -629,6 +629,12 @@ actual class QuickJs private constructor(
         moduleLoader?.onCompiled(name, bytecode)
     }
 
+    /** Reports a failed module loading attempt to the runtime's loader. */
+    @Suppress("unused")
+    private fun onModuleLoadFailed(name: String) {
+        moduleLoader?.onLoadFailed(name)
+    }
+
     /** Loads queued modules using the legacy addModule behavior. */
     private suspend fun loadModules(session: EvaluationSession) = jsMutex.withLock {
         ensureNotClosed()

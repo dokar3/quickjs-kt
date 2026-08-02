@@ -105,6 +105,9 @@ actual class QuickJs private constructor(
 
     private val modules = mutableListOf<ByteArray>()
     private var resolvingModuleNames: LinkedHashSet<String>? = null
+    /** Suppresses parent notifications after a nested synchronous loader failure. */
+    internal var moduleLoadFailureVersion = 0L
+        private set
 
     private val jobsMutex = Mutex()
     private val asyncJobs = mutableListOf<AsyncJob>()
@@ -580,6 +583,12 @@ actual class QuickJs private constructor(
     /** Delivers source-compiled bytecode to the runtime-scoped module loader. */
     internal fun onModuleCompiled(name: String, bytecode: ByteArray) {
         moduleLoader?.onCompiled(name, bytecode)
+    }
+
+    /** Reports a failed module loading attempt to the runtime's loader. */
+    internal fun onModuleLoadFailed(name: String) {
+        moduleLoadFailureVersion++
+        moduleLoader?.onLoadFailed(name)
     }
 
     /** Loads queued modules using the legacy addModule behavior. */

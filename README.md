@@ -230,6 +230,10 @@ val loader = moduleLoader {
     onCompiled { name, bytecode ->
         bytecodeCache[name] = bytecode
     }
+    onLoadFailed { name ->
+        // Enqueue invalidation instead of performing blocking persistence here.
+        enqueueModuleBytecodeInvalidation(name)
+    }
 }
 
 quickJs(moduleLoader = loader) {
@@ -250,7 +254,7 @@ quickJs(moduleLoader = loader) {
 }
 ```
 
-`load()` runs when a static or dynamic import is resolved. `onCompiled()` receives bytecode for modules loaded from source. Both callbacks are synchronous, so keep them fast and do not re-enter the same `QuickJs` instance.
+`load()` runs when a static or dynamic import is resolved. `onCompiled()` receives bytecode for modules loaded from source. `onLoadFailed()` receives the normalized name when QuickJS cannot load a requested module, including handled dynamic import rejections. All callbacks are synchronous, so keep them fast, avoid blocking persistence, and do not re-enter the same `QuickJs` instance.
 
 Use `resolveModuleGraph()` to load and compile the static imports of cached entry bytecode without evaluating it:
 
@@ -261,7 +265,7 @@ quickJs(moduleLoader = loader) {
 }
 ```
 
-QuickJS bytecode is engine-version-specific and must use the same module name. Only load bytecode from a trusted source. Cache storage and invalidation are up to the application.
+QuickJS bytecode is engine-version-specific and must use the same module name. Only load bytecode from a trusted source. Cache storage and invalidation are up to the application; `onLoadFailed()` can enqueue invalidation of a failed cached module.
 
 When evaluating ES module code, no return values will be captured, you may need a function binding to receive the result.
 

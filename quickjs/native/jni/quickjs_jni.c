@@ -100,6 +100,8 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
     globals->get_module_source_method = NULL;
     globals->get_module_bytecode_method = NULL;
     globals->on_module_compiled_method = NULL;
+    globals->on_module_load_failed_method = NULL;
+    globals->module_load_failure_version = 0;
 
     pthread_mutexattr_t mutex_attributes;
     pthread_mutexattr_init(&mutex_attributes);

@@ -407,6 +407,12 @@
           ]
         },
         {
+          "name": "onModuleLoadFailed",
+          "parameterTypes": [
+            "java.lang.String"
+          ]
+        },
+        {
           "name": "setEvalException",
           "parameterTypes": [
             "java.lang.Throwable"
