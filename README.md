@@ -213,9 +213,9 @@ handle both, otherwise an interrupted evaluation looks like a script error.
 
 ### Modules
 
-[ES Modules](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules) are supported when `evaluate()` or `compile()` uses `asModule = true`.
+[ES Modules](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules) are supported by passing `asModule = true` to `evaluate()` or `compile()`.
 
-Create a runtime-scoped `ModuleLoader` to load source on a cache miss and compatible QuickJS bytecode on a cache hit:
+Use a `ModuleLoader` to provide imported modules. It can return source code or cached bytecode:
 
 ```kotlin
 val sources: Map<String, String> = downloadModuleSources()
@@ -228,9 +228,7 @@ val loader = moduleLoader {
             ?: sources[name]?.let(ModuleContent::Source)
     }
     onCompiled { name, bytecode ->
-        // Update an in-memory cache immediately, then enqueue disk persistence.
         bytecodeCache[name] = bytecode
-        enqueueModuleBytecodeForPersistence(name, bytecode)
     }
 }
 
@@ -252,24 +250,18 @@ quickJs(moduleLoader = loader) {
 }
 ```
 
-`load()` is called lazily for static and dynamic imports. Source modules loaded into an evaluation context are retained there and delivered to `onCompiled()`; bytecode modules are reused without another compilation callback.
+`load()` runs when a static or dynamic import is resolved. `onCompiled()` receives bytecode for modules loaded from source. Both callbacks are synchronous, so keep them fast and do not re-enter the same `QuickJs` instance.
 
-Both loader callbacks run synchronously while QuickJS is resolving a module. Return promptly, do not perform blocking persistence, and do not synchronously re-enter the same `QuickJs` instance. Callback exceptions fail the current compile, graph-resolution, or evaluation operation. The byte array passed to `onCompiled()` remains valid after the callback returns, so it can be handed to an application-owned asynchronous persistence queue.
-
-To inspect the statically reachable modules in an existing entry bytecode without evaluating top-level code, use `resolveModuleGraph()`. It resolves in a temporary context and does not preload the evaluation context, so `onCompiled()` should update the loader's in-memory cache before the method returns:
+Use `resolveModuleGraph()` to load and compile the static imports of cached entry bytecode without evaluating it:
 
 ```kotlin
 quickJs(moduleLoader = loader) {
-    val staticModules = resolveModuleGraph(cachedEntryBytecode)
-    // onCompiled() has populated bytecodeCache for the static source misses.
-    // Dynamic import() targets are loaded later by evaluate().
+    resolveModuleGraph(cachedEntryBytecode)
     evaluate<Any?>(cachedEntryBytecode)
 }
 ```
 
-Cache keys, source hashes, persistence, eviction, and invalidation are application concerns. QuickJS bytecode is engine-version-specific and must keep the same module name. It is not validated for safety and must only be loaded from a trusted, integrity-protected source; distribute source code instead when content is not trusted. When a module changes or cached bytecode is invalid, create a new `QuickJs` runtime and have the loader return its latest source; `onCompiled()` supplies the replacement bytecode.
-
-The legacy `addModule(name, code)` and `addModule(bytecode)` APIs keep their existing pre-evaluation queue behavior, but are deprecated in favor of `ModuleLoader`.
+QuickJS bytecode is engine-version-specific and must use the same module name. Only load bytecode from a trusted source. Cache storage and invalidation are up to the application.
 
 When evaluating ES module code, no return values will be captured, you may need a function binding to receive the result.
 
