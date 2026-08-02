@@ -433,7 +433,7 @@ class ModuleLoaderTest {
     }
 
     @Test
-    fun compileAndDynamicImportFailuresInvokeTheFailureCallback() = runTest {
+    fun compileAndUnhandledDynamicImportFailuresInvokeCallbackAndFailOperation() = runTest {
         val failed = mutableListOf<String>()
         val loader = moduleLoader {
             load { null }
@@ -611,7 +611,7 @@ class ModuleLoaderTest {
     }
 
     @Test
-    fun loaderAndCompilationCallbackExceptionsFailTheOperation() = runTest {
+    fun loaderAndCompilationCallbackExceptionsReportFailureAndFailOperation() = runTest {
         val failed = mutableListOf<String>()
         val loadFailure = moduleLoader {
             load { throw IllegalStateException("load failed") }
@@ -637,9 +637,11 @@ class ModuleLoaderTest {
         assertContains(compileError.message.orEmpty(), "load failed")
         assertEquals(listOf("dependency", "dependency"), failed)
 
+        val compilationCallbackFailures = mutableListOf<String>()
         val callbackFailure = moduleLoader {
             load { ModuleContent.Source("export const value = 42;") }
             onCompiled { _, _ -> throw IllegalStateException("persistence handoff failed") }
+            onLoadFailed { name -> compilationCallbackFailures += name }
         }
         val callbackError = quickJs(moduleLoader = callbackFailure) {
             assertFails {
@@ -647,6 +649,7 @@ class ModuleLoaderTest {
             }
         }
         assertContains(callbackError.message.orEmpty(), "persistence handoff failed")
+        assertEquals(listOf("dependency"), compilationCallbackFailures)
 
         val quickJsLoadFailure = moduleLoader {
             load { throw QuickJsException("custom loader failure") }
