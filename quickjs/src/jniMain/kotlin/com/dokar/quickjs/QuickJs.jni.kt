@@ -241,7 +241,8 @@ actual class QuickJs private constructor(
             // exceptions outside the QuickJsException hierarchy.
             globals = initGlobals(
                 runtime,
-                arrayOf(Unit::class.java, UByteArray::class.java)
+                arrayOf(Unit::class.java, UByteArray::class.java),
+                moduleLoader != null,
             )
         } catch (error: Throwable) {
             close()
@@ -854,7 +855,11 @@ actual class QuickJs private constructor(
     @Throws(QuickJsException::class)
     private external fun newContext(runtime: Long): Long
 
-    private external fun initGlobals(runtime: Long, classes: Array<Class<*>>): Long
+    private external fun initGlobals(
+        runtime: Long,
+        classes: Array<Class<*>>,
+        enableModuleLoader: Boolean,
+    ): Long
 
     @Throws(QuickJsException::class)
     private external fun releaseGlobals(context: Long, globals: Long)

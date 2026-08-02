@@ -373,6 +373,21 @@ class ModuleLoaderTest {
     }
 
     @Test
+    fun missingModuleWithoutLoaderKeepsBaseException() = runTest {
+        val failure = quickJs {
+            assertFailsWith<QuickJsException> {
+                evaluate<Any?>(
+                    "import 'missing';",
+                    filename = "entry",
+                    asModule = true,
+                )
+            }
+        }
+
+        assertEquals(QuickJsException::class, failure::class)
+    }
+
+    @Test
     fun corruptAndMismatchedBytecodeAreRejected() = runTest {
         val actualModule = quickJs {
             compile(
