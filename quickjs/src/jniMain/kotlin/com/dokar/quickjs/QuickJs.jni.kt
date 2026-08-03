@@ -241,7 +241,8 @@ actual class QuickJs private constructor(
             // exceptions outside the QuickJsException hierarchy.
             globals = initGlobals(
                 runtime,
-                arrayOf(Unit::class.java, UByteArray::class.java)
+                arrayOf(Unit::class.java, UByteArray::class.java),
+                moduleLoader != null,
             )
         } catch (error: Throwable) {
             close()
@@ -628,6 +629,12 @@ actual class QuickJs private constructor(
         moduleLoader?.onCompiled(name, bytecode)
     }
 
+    /** Reports a failed module loading attempt to the runtime's loader. */
+    @Suppress("unused")
+    private fun onModuleLoadFailed(name: String) {
+        moduleLoader?.onLoadFailed(name)
+    }
+
     /** Loads queued modules using the legacy addModule behavior. */
     private suspend fun loadModules(session: EvaluationSession) = jsMutex.withLock {
         ensureNotClosed()
@@ -854,7 +861,11 @@ actual class QuickJs private constructor(
     @Throws(QuickJsException::class)
     private external fun newContext(runtime: Long): Long
 
-    private external fun initGlobals(runtime: Long, classes: Array<Class<*>>): Long
+    private external fun initGlobals(
+        runtime: Long,
+        classes: Array<Class<*>>,
+        enableModuleLoader: Boolean,
+    ): Long
 
     @Throws(QuickJsException::class)
     private external fun releaseGlobals(context: Long, globals: Long)

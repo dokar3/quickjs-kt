@@ -113,6 +113,29 @@ private fun readModuleName(
     }
 }
 
+/** Reports a loader failure and forwards the original or callback error to QuickJS. */
+@OptIn(ExperimentalForeignApi::class)
+private fun throwModuleLoadFailure(
+    context: CPointer<JSContext>,
+    quickJs: QuickJs,
+    name: String,
+    error: Throwable,
+    failureVersion: Long,
+): CPointer<JSModuleDef>? {
+    val failure = if (failureVersion == quickJs.moduleLoadFailureVersion) {
+        try {
+            quickJs.onModuleLoadFailed(name)
+            error
+        } catch (callbackError: Throwable) {
+            callbackError
+        }
+    } else {
+        error
+    }
+    JS_Throw(context, ktErrorToJsError(context, failure))
+    return null
+}
+
 @OptIn(ExperimentalForeignApi::class)
 private fun loadModule(
   context: CPointer<JSContext>?,
@@ -121,10 +144,17 @@ private fun loadModule(
 ): CPointer<JSModuleDef>? {
   val jsContext = context ?: return null
   val quickJs = opaque?.asStableRef<QuickJs>()?.get()
-  return try {
-    val name = moduleName?.toKStringFromUtf8()
+  val (name, owner) = try {
+    val resolvedName = moduleName?.toKStringFromUtf8()
       ?: qjsError("Missing ES module name.")
-    val owner = quickJs ?: qjsError("Missing QuickJs module loader state.")
+    val resolvedOwner = quickJs ?: qjsError("Missing QuickJs module loader state.")
+    resolvedName to resolvedOwner
+  } catch (error: Throwable) {
+    JS_Throw(jsContext, ktErrorToJsError(jsContext, error))
+    return null
+  }
+  val failureVersion = owner.moduleLoadFailureVersion
+  val definition = try {
     when (val content = owner.loadModule(name)
       ?: qjsError("could not load module '$name'")) {
       is ModuleContent.Source -> compileSourceModule(
@@ -141,9 +171,22 @@ private fun loadModule(
       )
     }
   } catch (error: Throwable) {
-    JS_Throw(jsContext, ktErrorToJsError(jsContext, error))
-    null
+    return throwModuleLoadFailure(
+      context = jsContext,
+      quickJs = owner,
+      name = name,
+      error = error,
+      failureVersion = failureVersion,
+    )
   }
+  if (definition == null && failureVersion == owner.moduleLoadFailureVersion) {
+    try {
+      owner.onModuleLoadFailed(name)
+    } catch (error: Throwable) {
+      JS_Throw(jsContext, ktErrorToJsError(jsContext, error))
+    }
+  }
+  return definition
 }
 
 /** Installs the runtime-scoped host module loader. */

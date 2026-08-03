@@ -3,7 +3,7 @@ package com.dokar.quickjs
 /**
  * Supplies ES modules to one [QuickJs] runtime.
  *
- * Both callbacks run synchronously while QuickJS is resolving a module. They
+ * All callbacks run synchronously while QuickJS is resolving a module. They
  * must return quickly and must not re-enter the same [QuickJs] instance.
  */
 fun interface ModuleLoader {
@@ -11,8 +11,9 @@ fun interface ModuleLoader {
      * Loads a normalized module name requested by QuickJS.
      *
      * Return source for a cache miss, compatible bytecode for a cache hit, or
-     * null when the module is unavailable. Unhandled exceptions fail the
-     * current compile, graph-resolution, or evaluation operation.
+     * null when the module is unavailable. Returning null or throwing an
+     * unhandled exception fails the current compile, graph-resolution, or
+     * evaluation operation and invokes [onLoadFailed] with this module name.
      *
      * @param name The normalized module name.
      * @return The module content, or null when it cannot be loaded.
@@ -25,12 +26,36 @@ fun interface ModuleLoader {
      * QuickJs does not retain the Kotlin byte array after this call. Callers may
      * keep it or enqueue it for asynchronous persistence. Callbacks already
      * delivered for earlier modules remain valid if later graph resolution
-     * fails. Unhandled exceptions fail the current operation.
+     * fails. An unhandled exception fails the current module loading attempt and
+     * invokes [onLoadFailed] with this module name.
      *
      * @param name The normalized module name.
      * @param bytecode The newly compiled module bytecode.
      */
     fun onCompiled(name: String, bytecode: ByteArray) = Unit
+
+    /**
+     * Reports that QuickJS could not load a requested module.
+     *
+     * The callback is invoked when:
+     *
+     * - [load] returns null or throws an exception.
+     * - Source or bytecode returned by [load] cannot be compiled, read, or validated.
+     * - [onCompiled] throws an exception.
+     *
+     * A failure notification does not consume the original module error:
+     *
+     * - Static imports and unhandled dynamic imports still fail the current operation.
+     * - A dynamic import handled with `try/catch` or `Promise.catch` can continue after
+     *   this callback.
+     *
+     * The callback runs synchronously during module resolution, so callers should only
+     * enqueue invalidation work and must not re-enter the same [QuickJs] instance.
+     * An unhandled callback exception becomes the current module loading failure.
+     *
+     * @param name The normalized name of the module that failed to load.
+     */
+    fun onLoadFailed(name: String) = Unit
 }
 
 /**
@@ -39,6 +64,7 @@ fun interface ModuleLoader {
 class ModuleLoaderBuilder internal constructor() {
     private var loadBlock: ((String) -> ModuleContent?)? = null
     private var onCompiledBlock: (String, ByteArray) -> Unit = { _, _ -> }
+    private var onLoadFailedBlock: (String) -> Unit = {}
 
     /**
      * Configures synchronous module lookup.
@@ -54,16 +80,28 @@ class ModuleLoaderBuilder internal constructor() {
         onCompiledBlock = block
     }
 
+    /**
+     * Configures immediate notification for failed module loading attempts.
+     */
+    fun onLoadFailed(block: (name: String) -> Unit) {
+        onLoadFailedBlock = block
+    }
+
     internal fun build(): ModuleLoader {
         val loadCallback = requireNotNull(loadBlock) {
             "ModuleLoader requires a load callback."
         }
         val onCompiledCallback = onCompiledBlock
+        val onLoadFailedCallback = onLoadFailedBlock
         return object : ModuleLoader {
             override fun load(name: String): ModuleContent? = loadCallback(name)
 
             override fun onCompiled(name: String, bytecode: ByteArray) {
                 onCompiledCallback(name, bytecode)
+            }
+
+            override fun onLoadFailed(name: String) {
+                onLoadFailedCallback(name)
             }
         }
     }

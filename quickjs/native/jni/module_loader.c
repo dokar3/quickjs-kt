@@ -31,6 +31,23 @@ static int forward_java_exception(JNIEnv *env,
     return 1;
 }
 
+/** Notifies the host while the normalized name of a failed module is known. */
+static void notify_module_load_failed(JNIEnv *env,
+                                      Globals *globals,
+                                      JSContext *context,
+                                      jstring java_name,
+                                      const char *module_name) {
+    globals->module_load_failure_version++;
+    (*env)->CallVoidMethod(
+            env,
+            globals->module_loader_host,
+            globals->on_module_load_failed_method,
+            java_name);
+    forward_java_exception(
+            env, context,
+            "Module load failure callback failed for '%s'.", module_name);
+}
+
 /** Serializes a source-compiled module and immediately notifies its owner. */
 static int notify_module_compiled(JNIEnv *env,
                                   Globals *globals,
@@ -176,16 +193,16 @@ static JSModuleDef *load_module(JSContext *context, const char *module_name, voi
             globals->module_loader_host,
             globals->load_module_method,
             java_name);
+    JSModuleDef *definition = NULL;
+    uint64_t failure_version = globals->module_load_failure_version;
     if (forward_java_exception(
             env, context,
             "Kotlin module loader failed for '%s'.", module_name)) {
-        (*env)->DeleteLocalRef(env, java_name);
-        return NULL;
+        goto notify_failure;
     }
     if (content == NULL) {
-        (*env)->DeleteLocalRef(env, java_name);
         JS_ThrowReferenceError(context, "could not load module '%s'", module_name);
-        return NULL;
+        goto notify_failure;
     }
 
     jstring java_source = (jstring) (*env)->CallObjectMethod(
@@ -196,9 +213,7 @@ static JSModuleDef *load_module(JSContext *context, const char *module_name, voi
     if (forward_java_exception(
             env, context,
             "Cannot inspect module source for '%s'.", module_name)) {
-        (*env)->DeleteLocalRef(env, content);
-        (*env)->DeleteLocalRef(env, java_name);
-        return NULL;
+        goto notify_failure;
     }
 
     JSValue module = JS_UNDEFINED;
@@ -211,9 +226,7 @@ static JSModuleDef *load_module(JSContext *context, const char *module_name, voi
                 JS_ThrowInternalError(context, "Cannot read module source '%s'.", module_name);
             }
             (*env)->DeleteLocalRef(env, java_source);
-            (*env)->DeleteLocalRef(env, content);
-            (*env)->DeleteLocalRef(env, java_name);
-            return NULL;
+            goto notify_failure;
         }
         module = JS_Eval(
                 context,
@@ -238,15 +251,11 @@ static JSModuleDef *load_module(JSContext *context, const char *module_name, voi
         if (forward_java_exception(
                 env, context,
                 "Cannot inspect module bytecode for '%s'.", module_name)) {
-            (*env)->DeleteLocalRef(env, content);
-            (*env)->DeleteLocalRef(env, java_name);
-            return NULL;
+            goto notify_failure;
         }
         if (java_bytecode == NULL) {
-            (*env)->DeleteLocalRef(env, content);
-            (*env)->DeleteLocalRef(env, java_name);
             JS_ThrowTypeError(context, "Unsupported module content for '%s'.", module_name);
-            return NULL;
+            goto notify_failure;
         }
         module = read_module_bytecode(env, context, java_bytecode, module_name);
         (*env)->DeleteLocalRef(env, java_bytecode);
@@ -257,19 +266,29 @@ static JSModuleDef *load_module(JSContext *context, const char *module_name, voi
         }
     }
 
-    (*env)->DeleteLocalRef(env, content);
-    (*env)->DeleteLocalRef(env, java_name);
     if (JS_IsException(module)) {
-        return NULL;
+        goto notify_failure;
     }
     if (JS_VALUE_GET_TAG(module) != JS_TAG_MODULE) {
-        JS_FreeValue(context, module);
         JS_ThrowTypeError(context, "Content for '%s' is not an ES module.", module_name);
-        return NULL;
+        JS_FreeValue(context, module);
+        goto notify_failure;
     }
 
-    JSModuleDef *definition = JS_VALUE_GET_PTR(module);
+    definition = JS_VALUE_GET_PTR(module);
     JS_FreeValue(context, module);
+    goto cleanup_refs;
+
+notify_failure:
+    if (failure_version == globals->module_load_failure_version) {
+        notify_module_load_failed(env, globals, context, java_name, module_name);
+    }
+
+cleanup_refs:
+    if (content != NULL) {
+        (*env)->DeleteLocalRef(env, content);
+    }
+    (*env)->DeleteLocalRef(env, java_name);
     return definition;
 }
 
@@ -298,12 +317,18 @@ int install_module_loader(JNIEnv *env, JSRuntime *runtime, Globals *globals, job
             host_class,
             "onModuleCompiled",
             "(Ljava/lang/String;[B)V");
+    jmethodID on_module_load_failed_method = (*env)->GetMethodID(
+            env,
+            host_class,
+            "onModuleLoadFailed",
+            "(Ljava/lang/String;)V");
     (*env)->DeleteLocalRef(env, host_class);
 
     if (load_module_method == NULL ||
         get_module_source_method == NULL ||
         get_module_bytecode_method == NULL ||
-        on_module_compiled_method == NULL) {
+        on_module_compiled_method == NULL ||
+        on_module_load_failed_method == NULL) {
         return 0;
     }
 
@@ -312,6 +337,7 @@ int install_module_loader(JNIEnv *env, JSRuntime *runtime, Globals *globals, job
     globals->get_module_source_method = get_module_source_method;
     globals->get_module_bytecode_method = get_module_bytecode_method;
     globals->on_module_compiled_method = on_module_compiled_method;
+    globals->on_module_load_failed_method = on_module_load_failed_method;
     JS_SetModuleLoaderFunc(runtime, NULL, load_module, globals);
     return 1;
 }

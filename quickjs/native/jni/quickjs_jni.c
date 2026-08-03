@@ -77,7 +77,8 @@ static void release_failed_globals_init(JNIEnv *env,
 JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
                                                                    jobject this,
                                                                    jlong runtime_ptr,
-                                                                   jobjectArray classes) {
+                                                                   jobjectArray classes,
+                                                                   jboolean enable_module_loader) {
     // Suppress lint: We will free it in releaseGlobals()
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "MemoryLeak"
@@ -99,6 +100,8 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
     globals->get_module_source_method = NULL;
     globals->get_module_bytecode_method = NULL;
     globals->on_module_compiled_method = NULL;
+    globals->on_module_load_failed_method = NULL;
+    globals->module_load_failure_version = 0;
 
     pthread_mutexattr_t mutex_attributes;
     pthread_mutexattr_init(&mutex_attributes);
@@ -155,7 +158,8 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
     // Handle unhandled promise rejections
     JS_SetHostPromiseRejectionTracker(runtime, promise_rejection_handler,
                                       global_host_ref);
-    if (!install_module_loader(env, runtime, globals, global_host_ref)) {
+    if (enable_module_loader == JNI_TRUE &&
+        !install_module_loader(env, runtime, globals, global_host_ref)) {
         jthrowable exception = try_catch_java_exceptions(env);
         if (exception == NULL) {
             exception = new_qjs_exception(env, "Cannot install module loader.");
