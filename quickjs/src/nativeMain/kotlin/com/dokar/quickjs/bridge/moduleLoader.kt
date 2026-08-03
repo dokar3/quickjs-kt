@@ -15,6 +15,7 @@ import kotlinx.cinterop.asStableRef
 import kotlinx.cinterop.cstr
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.reinterpret
+import kotlinx.cinterop.set
 import kotlinx.cinterop.staticCFunction
 import kotlinx.cinterop.toCValues
 import kotlinx.cinterop.toKStringFromUtf8
@@ -35,6 +36,7 @@ import quickjs.JS_TAG_MODULE
 import quickjs.JS_Throw
 import quickjs.JsValueGetNormTag
 import quickjs.JsValueGetPtr
+import quickjs.js_malloc
 
 /** Compiles source returned by the runtime-scoped module loader. */
 @OptIn(ExperimentalForeignApi::class)
@@ -136,6 +138,38 @@ private fun throwModuleLoadFailure(
     return null
 }
 
+/** Resolves a module specifier through the runtime-scoped normalizer. */
+@OptIn(ExperimentalForeignApi::class)
+private fun normalizeModule(
+    context: CPointer<JSContext>?,
+    baseName: CPointer<ByteVar>?,
+    requestedName: CPointer<ByteVar>?,
+    opaque: COpaquePointer?,
+): CPointer<ByteVar>? {
+    val jsContext = context ?: return null
+    return try {
+        val base = baseName?.toKStringFromUtf8()
+            ?: qjsError("Missing ES module base name.")
+        val requested = requestedName?.toKStringFromUtf8()
+            ?: qjsError("Missing ES module requested name.")
+        val quickJs = opaque?.asStableRef<QuickJs>()?.get()
+            ?: qjsError("Missing QuickJs module normalizer state.")
+        val normalized = quickJs.normalizeModule(base, requested)
+        val bytes = normalized.encodeToByteArray()
+        val result = js_malloc(jsContext, (bytes.size + 1).toULong())
+            ?.reinterpret<ByteVar>()
+            ?: return null
+        for (index in bytes.indices) {
+            result[index] = bytes[index]
+        }
+        result[bytes.size] = 0
+        result
+    } catch (error: Throwable) {
+        JS_Throw(jsContext, ktErrorToJsError(jsContext, error))
+        null
+    }
+}
+
 @OptIn(ExperimentalForeignApi::class)
 private fun loadModule(
   context: CPointer<JSContext>?,
@@ -195,10 +229,19 @@ internal fun setModuleLoader(
     quickJs: StableRef<QuickJs>,
     runtime: CPointer<JSRuntime>,
 ) {
-    JS_SetModuleLoaderFunc(
-        rt = runtime,
-        module_normalize = null,
-        module_loader = staticCFunction(::loadModule),
-        opaque = quickJs.asCPointer(),
-    )
+    if (quickJs.get().hasModuleNormalizer()) {
+        JS_SetModuleLoaderFunc(
+            rt = runtime,
+            module_normalize = staticCFunction(::normalizeModule),
+            module_loader = staticCFunction(::loadModule),
+            opaque = quickJs.asCPointer(),
+        )
+    } else {
+        JS_SetModuleLoaderFunc(
+            rt = runtime,
+            module_normalize = null,
+            module_loader = staticCFunction(::loadModule),
+            opaque = quickJs.asCPointer(),
+        )
+    }
 }

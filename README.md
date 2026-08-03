@@ -225,6 +225,9 @@ val sources: Map<String, String> = downloadModuleSources()
 val bytecodeCache = mutableMapOf<String, ByteArray>()
 
 val loader = moduleLoader {
+    normalize { baseName, requestedName ->
+        resolveModuleName(baseName, requestedName)
+    }
     load { name ->
         bytecodeCache[name]
             ?.let(ModuleContent::Bytecode)
@@ -257,7 +260,7 @@ quickJs(moduleLoader = loader) {
 }
 ```
 
-`load()` runs when a static or dynamic import is resolved. `onCompiled()` receives bytecode for modules loaded from source. `onLoadFailed()` receives the normalized name when QuickJS cannot load a requested module, including handled dynamic import rejections. All callbacks are synchronous, so keep them fast, avoid blocking persistence, and do not re-enter the same `QuickJs` instance.
+`normalize()` optionally maps imports to canonical names; otherwise QuickJS uses its default normalization. `load()` handles static and dynamic imports, `onCompiled()` receives bytecode for source modules, and `onLoadFailed()` receives the normalized name when loading fails. All callbacks are synchronous, so keep them fast, avoid blocking persistence, and do not re-enter the same `QuickJs` instance.
 
 Use `resolveModuleGraph()` to load and compile the static imports of cached entry bytecode without evaluating it:
 

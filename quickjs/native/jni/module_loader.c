@@ -166,6 +166,83 @@ static int validate_module_name(JSContext *context,
     return matches;
 }
 
+/** Resolves a module specifier through the runtime-scoped Kotlin normalizer. */
+static char *normalize_module(JSContext *context,
+                              const char *base_name,
+                              const char *requested_name,
+                              void *opaque) {
+    Globals *globals = (Globals *) opaque;
+    JNIEnv *env = get_jni_env();
+    if (env == NULL) {
+        JS_ThrowInternalError(
+                context,
+                "Cannot access JNI while normalizing module '%s'.",
+                requested_name);
+        return NULL;
+    }
+
+    jstring java_base_name = (*env)->NewStringUTF(env, base_name);
+    if (java_base_name == NULL) {
+        if (!forward_java_exception(
+                env, context,
+                "Cannot allocate module base name for '%s'.", requested_name)) {
+            JS_ThrowInternalError(
+                    context, "Cannot allocate module base name for '%s'.", requested_name);
+        }
+        return NULL;
+    }
+    jstring java_requested_name = (*env)->NewStringUTF(env, requested_name);
+    if (java_requested_name == NULL) {
+        if (!forward_java_exception(
+                env, context,
+                "Cannot allocate requested module name '%s'.", requested_name)) {
+            JS_ThrowInternalError(
+                    context, "Cannot allocate requested module name '%s'.", requested_name);
+        }
+        (*env)->DeleteLocalRef(env, java_base_name);
+        return NULL;
+    }
+
+    jstring java_normalized_name = (jstring) (*env)->CallObjectMethod(
+            env,
+            globals->module_loader_host,
+            globals->normalize_module_method,
+            java_base_name,
+            java_requested_name);
+    (*env)->DeleteLocalRef(env, java_requested_name);
+    (*env)->DeleteLocalRef(env, java_base_name);
+    if (forward_java_exception(
+            env, context,
+            "Kotlin module normalizer failed for '%s'.", requested_name)) {
+        return NULL;
+    }
+    if (java_normalized_name == NULL) {
+        JS_ThrowInternalError(
+                context, "Module normalizer returned null for '%s'.", requested_name);
+        return NULL;
+    }
+
+    const char *normalized_name = (*env)->GetStringUTFChars(env, java_normalized_name, NULL);
+    if (normalized_name == NULL) {
+        if (!forward_java_exception(
+                env, context,
+                "Cannot read normalized module name for '%s'.", requested_name)) {
+            JS_ThrowInternalError(
+                    context, "Cannot read normalized module name for '%s'.", requested_name);
+        }
+        (*env)->DeleteLocalRef(env, java_normalized_name);
+        return NULL;
+    }
+    size_t normalized_length = strlen(normalized_name);
+    char *result = js_malloc(context, normalized_length + 1);
+    if (result != NULL) {
+        memcpy(result, normalized_name, normalized_length + 1);
+    }
+    (*env)->ReleaseStringUTFChars(env, java_normalized_name, normalized_name);
+    (*env)->DeleteLocalRef(env, java_normalized_name);
+    return result;
+}
+
 /**
  * Loads source or bytecode from the runtime-scoped Kotlin ModuleLoader.
 
@@ -297,6 +374,16 @@ int install_module_loader(JNIEnv *env, JSRuntime *runtime, Globals *globals, job
     if (host_class == NULL) {
         return 0;
     }
+    jmethodID has_module_normalizer_method = (*env)->GetMethodID(
+            env,
+            host_class,
+            "hasModuleNormalizer",
+            "()Z");
+    jmethodID normalize_module_method = (*env)->GetMethodID(
+            env,
+            host_class,
+            "normalizeModule",
+            "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
     jmethodID load_module_method = (*env)->GetMethodID(
             env,
             host_class,
@@ -322,22 +409,36 @@ int install_module_loader(JNIEnv *env, JSRuntime *runtime, Globals *globals, job
             host_class,
             "onModuleLoadFailed",
             "(Ljava/lang/String;)V");
-    (*env)->DeleteLocalRef(env, host_class);
 
-    if (load_module_method == NULL ||
+    if (has_module_normalizer_method == NULL ||
+        normalize_module_method == NULL ||
+        load_module_method == NULL ||
         get_module_source_method == NULL ||
         get_module_bytecode_method == NULL ||
         on_module_compiled_method == NULL ||
         on_module_load_failed_method == NULL) {
+        (*env)->DeleteLocalRef(env, host_class);
+        return 0;
+    }
+
+    jboolean has_module_normalizer = (*env)->CallBooleanMethod(
+            env, call_host, has_module_normalizer_method);
+    (*env)->DeleteLocalRef(env, host_class);
+    if ((*env)->ExceptionCheck(env)) {
         return 0;
     }
 
     globals->module_loader_host = call_host;
+    globals->normalize_module_method = normalize_module_method;
     globals->load_module_method = load_module_method;
     globals->get_module_source_method = get_module_source_method;
     globals->get_module_bytecode_method = get_module_bytecode_method;
     globals->on_module_compiled_method = on_module_compiled_method;
     globals->on_module_load_failed_method = on_module_load_failed_method;
-    JS_SetModuleLoaderFunc(runtime, NULL, load_module, globals);
+    JS_SetModuleLoaderFunc(
+            runtime,
+            has_module_normalizer ? normalize_module : NULL,
+            load_module,
+            globals);
     return 1;
 }

@@ -611,6 +611,259 @@ class ModuleLoaderTest {
     }
 
     @Test
+    fun customNormalizerResolvesPackagesAndPackageRelativeImports() = runTest {
+        val normalized = mutableListOf<Pair<String, String>>()
+        val loaded = mutableListOf<String>()
+        val sources = mapOf(
+            "node_modules/@example/package/index.js" to """
+                import { value } from "./value.js";
+                export const result = value * 2;
+            """.trimIndent(),
+            "node_modules/@example/package/value.js" to "export const value = 21;",
+        )
+        val loader = moduleLoader {
+            normalize { baseName, requestedName ->
+                normalized += baseName to requestedName
+                when (requestedName) {
+                    "@example/package" -> "node_modules/@example/package/index.js"
+                    else -> baseName.substringBeforeLast('/') + "/" +
+                            requestedName.removePrefix("./")
+                }
+            }
+            load { name ->
+                loaded += name
+                sources[name]?.let(ModuleContent::Source)
+            }
+        }
+
+        var captured = 0
+        quickJs(moduleLoader = loader) {
+            function("capture") { captured = (it.first() as Number).toInt() }
+            evaluate<Any?>(
+                code = """
+                    import { result } from "@example/package";
+                    capture(result);
+                """.trimIndent(),
+                filename = "lesson/entry.js",
+                asModule = true,
+            )
+        }
+
+        assertEquals(42, captured)
+        assertEquals(
+            listOf(
+                "lesson/entry.js" to "@example/package",
+                "node_modules/@example/package/index.js" to "./value.js",
+            ),
+            normalized,
+        )
+        assertEquals(
+            listOf(
+                "node_modules/@example/package/index.js",
+                "node_modules/@example/package/value.js",
+            ),
+            loaded,
+        )
+    }
+
+    @Test
+    fun customNormalizerLoadsCanonicalBytecode() = runTest {
+        val canonicalName = "packages/value.js"
+        val bytecode = quickJs {
+            compile(
+                code = "export const value = 42;",
+                filename = canonicalName,
+                asModule = true,
+            )
+        }
+        val loaded = mutableListOf<String>()
+        val compiled = mutableListOf<String>()
+        val loader = moduleLoader {
+            normalize { _, requestedName ->
+                if (requestedName == "value-alias") canonicalName else requestedName
+            }
+            load { name ->
+                loaded += name
+                if (name == canonicalName) ModuleContent.Bytecode(bytecode) else null
+            }
+            onCompiled { name, _ -> compiled += name }
+        }
+
+        var captured = 0
+        quickJs(moduleLoader = loader) {
+            function("capture") { captured = (it.first() as Number).toInt() }
+            evaluate<Any?>(
+                code = """
+                    import { value } from "value-alias";
+                    capture(value);
+                """.trimIndent(),
+                filename = "entry.js",
+                asModule = true,
+            )
+        }
+
+        assertEquals(42, captured)
+        assertEquals(listOf(canonicalName), loaded)
+        assertTrue(compiled.isEmpty())
+    }
+
+    @Test
+    fun resolveModuleGraphUsesCustomNormalizer() = runTest {
+        val producer = moduleLoader {
+            load { name ->
+                when (name) {
+                    "package-alias" -> ModuleContent.Source(
+                        "import { value } from './leaf.js'; export { value };"
+                    )
+                    "leaf.js" -> ModuleContent.Source("export const value = 42;")
+                    else -> null
+                }
+            }
+        }
+        val entryBytecode = quickJs(moduleLoader = producer) {
+            compile(
+                code = "import { value } from 'package-alias'; export { value };",
+                filename = "entry.js",
+                asModule = true,
+            )
+        }
+
+        val normalized = mutableListOf<Pair<String, String>>()
+        val compiled = mutableListOf<String>()
+        val sources = mapOf(
+            "packages/parent.js" to """
+                import { value } from './leaf.js';
+                export { value };
+            """.trimIndent(),
+            "packages/leaf.js" to "export const value = 42;",
+        )
+        val loader = moduleLoader {
+            normalize { baseName, requestedName ->
+                normalized += baseName to requestedName
+                when (requestedName) {
+                    "package-alias" -> "packages/parent.js"
+                    "./leaf.js" -> "packages/leaf.js"
+                    else -> requestedName
+                }
+            }
+            load { name -> sources[name]?.let(ModuleContent::Source) }
+            onCompiled { name, _ -> compiled += name }
+        }
+
+        quickJs(moduleLoader = loader) {
+            assertEquals(
+                setOf("entry.js", "packages/parent.js", "packages/leaf.js"),
+                resolveModuleGraph(entryBytecode),
+            )
+        }
+
+        assertEquals(
+            listOf(
+                "entry.js" to "package-alias",
+                "packages/parent.js" to "./leaf.js",
+            ),
+            normalized,
+        )
+        assertEquals(setOf("packages/parent.js", "packages/leaf.js"), compiled.toSet())
+        assertEquals(2, compiled.size)
+    }
+
+    @Test
+    fun canonicalNamesDeduplicateAliases() = runTest {
+        var loads = 0
+        val compiled = mutableListOf<String>()
+        val loader = moduleLoader {
+            normalize { _, _ -> "shared/module.js" }
+            load { name ->
+                if (name == "shared/module.js") {
+                    loads++
+                    ModuleContent.Source("export const value = 21;")
+                } else {
+                    null
+                }
+            }
+            onCompiled { name, _ -> compiled += name }
+        }
+
+        var captured = 0
+        quickJs(moduleLoader = loader) {
+            function("capture") { captured = (it.first() as Number).toInt() }
+            evaluate<Any?>(
+                code = """
+                    import { value as first } from "first-alias";
+                    import { value as second } from "second-alias";
+                    capture(first + second);
+                """.trimIndent(),
+                filename = "entry.js",
+                asModule = true,
+            )
+        }
+
+        assertEquals(42, captured)
+        assertEquals(1, loads)
+        assertEquals(listOf("shared/module.js"), compiled)
+    }
+
+    @Test
+    fun dynamicImportUsesCustomNormalizer() = runTest {
+        val normalized = mutableListOf<Pair<String, String>>()
+        val loader = moduleLoader {
+            normalize { baseName, requestedName ->
+                normalized += baseName to requestedName
+                "dynamic/value.js"
+            }
+            load { name ->
+                if (name == "dynamic/value.js") {
+                    ModuleContent.Source("export const value = 42;")
+                } else {
+                    null
+                }
+            }
+        }
+
+        var captured = 0
+        quickJs(moduleLoader = loader) {
+            function("capture") { captured = (it.first() as Number).toInt() }
+            evaluate<Any?>(
+                code = """
+                    const loaded = await import("dynamic-alias");
+                    capture(loaded.value);
+                """.trimIndent(),
+                filename = "entry.js",
+                asModule = true,
+            )
+        }
+
+        assertEquals(42, captured)
+        assertEquals(listOf("entry.js" to "dynamic-alias"), normalized)
+    }
+
+    @Test
+    fun normalizerExceptionsFailBeforeLoading() = runTest {
+        var loads = 0
+        val loader = moduleLoader {
+            normalize { _, _ -> throw IllegalStateException("normalize failed") }
+            load {
+                loads++
+                ModuleContent.Source("export const value = 42;")
+            }
+        }
+
+        val failure = quickJs(moduleLoader = loader) {
+            assertFails {
+                evaluate<Any?>(
+                    code = "import 'dependency';",
+                    filename = "entry.js",
+                    asModule = true,
+                )
+            }
+        }
+
+        assertContains(failure.message.orEmpty(), "normalize failed")
+        assertEquals(0, loads)
+    }
+
+    @Test
     fun loaderAndCompilationCallbackExceptionsReportFailureAndFailOperation() = runTest {
         val failed = mutableListOf<String>()
         val loadFailure = moduleLoader {

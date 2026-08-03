@@ -8,7 +8,18 @@ package com.dokar.quickjs
  */
 fun interface ModuleLoader {
     /**
+     * Optional custom module-name resolver.
+     *
+     * When null, QuickJS's native default normalizer is used unchanged.
+     */
+    val normalizer: ModuleNormalizer?
+        get() = null
+
+    /**
      * Loads a normalized module name requested by QuickJS.
+     *
+     * [name] is produced by [normalizer] when configured, or by QuickJS's
+     * native default normalizer otherwise.
      *
      * Return source for a cache miss, compatible bytecode for a cache hit, or
      * null when the module is unavailable. Returning null or throwing an
@@ -59,12 +70,41 @@ fun interface ModuleLoader {
 }
 
 /**
+ * Resolves an import specifier to the canonical module name used by QuickJS.
+ *
+ * The callback runs synchronously while QuickJS is resolving a module. It must
+ * return quickly and must not re-enter the same [QuickJs] instance. The returned
+ * name identifies the module for caching, cycle detection, loading, and
+ * [ModuleLoader.onCompiled].
+ */
+fun interface ModuleNormalizer {
+    /**
+     * Resolves [requestedName] relative to [baseName].
+     *
+     * @param baseName The canonical name of the importing module.
+     * @param requestedName The specifier written in the import statement.
+     * @return The canonical module name passed to [ModuleLoader.load].
+     */
+    fun normalize(baseName: String, requestedName: String): String
+}
+
+/**
  * Configures a [ModuleLoader] with separate load and compilation callbacks.
  */
 class ModuleLoaderBuilder internal constructor() {
+    private var normalizeBlock: ((String, String) -> String)? = null
     private var loadBlock: ((String) -> ModuleContent?)? = null
     private var onCompiledBlock: (String, ByteArray) -> Unit = { _, _ -> }
     private var onLoadFailedBlock: (String) -> Unit = {}
+
+    /**
+     * Configures custom module-name resolution.
+     *
+     * Without this callback, QuickJS uses its native default normalizer.
+     */
+    fun normalize(block: (baseName: String, requestedName: String) -> String) {
+        normalizeBlock = block
+    }
 
     /**
      * Configures synchronous module lookup.
@@ -91,9 +131,14 @@ class ModuleLoaderBuilder internal constructor() {
         val loadCallback = requireNotNull(loadBlock) {
             "ModuleLoader requires a load callback."
         }
+        val normalizerCallback = normalizeBlock?.let { callback ->
+            ModuleNormalizer { baseName, requestedName -> callback(baseName, requestedName) }
+        }
         val onCompiledCallback = onCompiledBlock
         val onLoadFailedCallback = onLoadFailedBlock
         return object : ModuleLoader {
+            override val normalizer: ModuleNormalizer? = normalizerCallback
+
             override fun load(name: String): ModuleContent? = loadCallback(name)
 
             override fun onCompiled(name: String, bytecode: ByteArray) {
