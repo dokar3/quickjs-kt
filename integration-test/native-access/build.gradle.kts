@@ -178,8 +178,10 @@ kotlin {
                 linkerOpts(
                     "-L${nativeOutputDirectory.get().asFile.absolutePath}",
                     "-lquickjs_native_operations",
-                    "-Wl,--export-all-symbols",
                 )
+                if (nativeLibraryExtension == "dll") {
+                    linkerOpts("-Wl,--export-all-symbols")
+                }
                 if (nativeLibraryExtension != "dll") {
                     linkerOpts(
                         "-rpath",

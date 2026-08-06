@@ -108,18 +108,29 @@ val extractQuickJsLibrary = tasks.register("extractQuickJsLibrary") {
 
         val libFileName = "libquickjs.${currentSharedLibraryExtension()}"
         val entryPath = "jni/${currentQuickJsPlatform()}/$libFileName"
+        val extractedDir = quickJsExtractedDir.get().asFile
+        val graalVmMetadataDir = extractedDir.resolve("META-INF/native-image/com.dokar.quickjs/quickjs")
+
+        delete(extractedDir)
 
         copy {
             from(zipTree(jarFile)) {
                 include(entryPath)
                 include("META-INF/native-image/com.dokar.quickjs/quickjs/**")
             }
-            into(quickJsExtractedDir.get().asFile)
+            into(extractedDir)
             eachFile {
                 if (path.startsWith("jni/")) {
                     path = name
                 }
             }
+        }
+
+        require(extractedDir.resolve(libFileName).isFile) {
+            "QuickJS native library entry $entryPath was not copied from $jarFile"
+        }
+        require(graalVmMetadataDir.isDirectory) {
+            "GraalVM metadata directory META-INF/native-image/com.dokar.quickjs/quickjs was not copied from $jarFile"
         }
     }
 }
