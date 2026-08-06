@@ -155,6 +155,7 @@ actual class QuickJs private constructor(
 
     private val objectBindings = mutableMapOf<Long, ObjectBinding>()
     private val globalFunctions = mutableMapOf<String, Binding>()
+    private val nativeCloseHandlers = mutableListOf<(QuickJsNativeContext) -> Unit>()
 
     private val modules = mutableListOf<ByteArray>()
     private var resolvingModuleNames: LinkedHashSet<String>? = null
@@ -224,6 +225,23 @@ actual class QuickJs private constructor(
         interruptMutex.withLockSync {
             ensureNotClosed()
             requestInterrupt(interruptState)
+        }
+    }
+
+    @ExperimentalQuickJsApi
+    actual fun <T> withNativeContext(block: (QuickJsNativeContext) -> T): T {
+        return withJsLockSync {
+            ensureNotClosed()
+            updateStackTop(runtime)
+            block(QuickJsNativeContext(contextAddress = context, runtimeAddress = runtime))
+        }
+    }
+
+    @ExperimentalQuickJsApi
+    actual fun onNativeClose(cleanup: (QuickJsNativeContext) -> Unit) {
+        withJsLockSync {
+            ensureNotClosed()
+            nativeCloseHandlers += cleanup
         }
     }
 
@@ -491,7 +509,24 @@ actual class QuickJs private constructor(
             asyncJobs.clear()
             activeEvaluateResults.clear()
         }
+        var nativeCleanupError: Throwable? = null
         jsMutex.withLockSync {
+            if (context != 0L && runtime != 0L) {
+                updateStackTop(runtime)
+                nativeCloseHandlers.asReversed().forEach { cleanup ->
+                    try {
+                        cleanup(
+                            QuickJsNativeContext(
+                                contextAddress = context,
+                                runtimeAddress = runtime,
+                            )
+                        )
+                    } catch (error: Throwable) {
+                        if (nativeCleanupError == null) nativeCleanupError = error
+                    }
+                }
+                nativeCloseHandlers.clear()
+            }
             objectBindings.clear()
             globalFunctions.clear()
             modules.clear()
@@ -514,6 +549,7 @@ actual class QuickJs private constructor(
                 runtime = 0
             }
         }
+        nativeCleanupError?.let { throw it }
     }
 
     private fun requestInterruptIfOpen() {
@@ -911,6 +947,8 @@ actual class QuickJs private constructor(
     private external fun freeInterrupt(runtime: Long, state: Long)
 
     private external fun requestInterrupt(state: Long)
+
+    private external fun updateStackTop(runtime: Long)
 
     private external fun resetInterrupt(state: Long, timeoutMillis: Long)
 

@@ -138,6 +138,27 @@ expect class QuickJs {
     fun interruptEvaluation()
 
     /**
+     * Run a synchronous operation against this instance's native QuickJS
+     * context while the runtime is exclusively locked.
+     *
+     * The native context must not be retained or used after [block] returns.
+     * The platform-specific [QuickJsNativeContext] exposes the pointer or
+     * address representation needed by consumer native code.
+     */
+    @ExperimentalQuickJsApi
+    fun <T> withNativeContext(block: (QuickJsNativeContext) -> T): T
+
+    /**
+     * Register native cleanup to run before this instance releases its
+     * context and runtime.
+     *
+     * Cleanup callbacks run in reverse registration order, are synchronous,
+     * and receive a fresh valid [QuickJsNativeContext].
+     */
+    @ExperimentalQuickJsApi
+    fun onNativeClose(cleanup: (QuickJsNativeContext) -> Unit)
+
+    /**
      * Add type converters to extend the type mapping on function parameters,
      * function returns, and [evaluate] results.
      */
