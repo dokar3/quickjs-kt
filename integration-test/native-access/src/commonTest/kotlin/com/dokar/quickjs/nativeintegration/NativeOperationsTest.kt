@@ -30,6 +30,10 @@ class NativeOperationsTest {
         }
 
         assertEquals(5, quickJs.evaluate<Int>("nativeSum(2, 3)"))
+        assertEquals(
+            2147483648.0,
+            quickJs.evaluate<Double>("nativeSum(2147483647, 1)"),
+        )
         assertEquals(45, quickJs.withNativeContext { context ->
             NativeOperations.execute(context)
         })

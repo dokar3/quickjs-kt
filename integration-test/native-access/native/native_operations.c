@@ -15,7 +15,7 @@ static JSValue native_sum(JSContext *ctx, JSValueConst this_val, int argc,
         JS_ToInt32(ctx, &right, argv[1]) < 0) {
         return JS_ThrowTypeError(ctx, "nativeSum expects two numbers");
     }
-    return JS_NewInt32(ctx, left + right);
+    return JS_NewInt64(ctx, (int64_t)left + (int64_t)right);
 }
 
 static JSContext *context_from_pointer(void *pointer) {
