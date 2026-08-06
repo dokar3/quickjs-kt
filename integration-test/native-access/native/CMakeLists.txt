@@ -5,30 +5,33 @@ project(quickjs_native_operations C)
 if (NOT DEFINED JAVA_HOME)
     message(FATAL_ERROR "JAVA_HOME is required")
 endif ()
-if (NOT DEFINED QUICKJS_ROOT)
-    message(FATAL_ERROR "QUICKJS_ROOT is required")
-endif ()
 if (NOT DEFINED QUICKJS_LIBRARY)
     message(FATAL_ERROR "QUICKJS_LIBRARY is required")
+endif ()
+if (NOT DEFINED QUICKJS_HEADER_DIR)
+    message(FATAL_ERROR "QUICKJS_HEADER_DIR is required")
 endif ()
 if (NOT DEFINED NATIVE_OUTPUT_DIR)
     message(FATAL_ERROR "NATIVE_OUTPUT_DIR is required")
 endif ()
 
-if (DEFINED QUICKJS_HEADER_DIR)
-    include_directories("${QUICKJS_HEADER_DIR}")
+if (WIN32)
+    set(JAVA_PLATFORM_INCLUDE_DIR "win32")
+elseif (APPLE)
+    set(JAVA_PLATFORM_INCLUDE_DIR "darwin")
+elseif (UNIX)
+    set(JAVA_PLATFORM_INCLUDE_DIR "linux")
 else()
-    include_directories("${QUICKJS_ROOT}/native/quickjs")
+    message(FATAL_ERROR "Unsupported platform")
 endif()
 
-include_directories(
-        "${JAVA_HOME}/include"
-        "${JAVA_HOME}/include/darwin"
-        "${JAVA_HOME}/include/linux"
-        "${JAVA_HOME}/include/win32"
-)
-
 add_library(quickjs_native_operations SHARED native_operations.c)
+
+target_include_directories(quickjs_native_operations PRIVATE
+        "${QUICKJS_HEADER_DIR}"
+        "${JAVA_HOME}/include"
+        "${JAVA_HOME}/include/${JAVA_PLATFORM_INCLUDE_DIR}"
+)
 
 set(QUICKJS_LINK_LIBRARY "${QUICKJS_LIBRARY}")
 if (WIN32 AND MSVC)

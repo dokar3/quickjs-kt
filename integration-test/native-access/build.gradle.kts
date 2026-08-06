@@ -28,24 +28,41 @@ val quickjsExtractedDirectory = nativeBuildDirectory.map { it.dir("extracted_qui
 
 val currentOs = System.getProperty("os.name").lowercase(Locale.US)
 val currentArchitecture = System.getProperty("os.arch").lowercase(Locale.US)
-val nativeLibraryExtension = when {
-    currentOs.contains("linux") -> "so"
-    currentOs.contains("mac") || currentOs.contains("osx") -> "dylib"
-    currentOs.contains("windows") -> "dll"
+val currentPlatform = when {
+    currentOs.contains("linux") -> "linux"
+    currentOs.contains("mac") || currentOs.contains("osx") -> "macos"
+    currentOs.contains("windows") -> "windows"
     else -> error("Unsupported operating system: $currentOs")
 }
+val currentArchitectureName = when (currentArchitecture) {
+    "aarch64", "arm64" -> "aarch64"
+    "amd64", "x86_64" -> "x64"
+    else -> error("Unsupported architecture: $currentArchitecture")
+}
+val currentTarget = "${currentPlatform}_$currentArchitectureName"
+val isWindows = currentPlatform == "windows"
+val nativeLibraryExtension = when (currentPlatform) {
+    "linux" -> "so"
+    "macos" -> "dylib"
+    "windows" -> "dll"
+    else -> error("Unsupported platform: $currentPlatform")
+}
+val nativeLibraryFileName = if (isWindows) {
+    "quickjs_native_operations.dll"
+} else {
+    "libquickjs_native_operations.$nativeLibraryExtension"
+}
+val quickjsLibraryFileName = if (isWindows) {
+    "libquickjs.dll"
+} else {
+    "libquickjs.$nativeLibraryExtension"
+}
 val nativeLibraryFile = nativeOutputDirectory.map {
-    it.file(
-        if (nativeLibraryExtension == "dll") {
-            "quickjs_native_operations.$nativeLibraryExtension"
-        } else {
-            "libquickjs_native_operations.$nativeLibraryExtension"
-        }
-    )
+    it.file(nativeLibraryFileName)
 }
 
 val quickjsLibraryFile = quickjsExtractedDirectory.map {
-    it.file(if (nativeLibraryExtension == "dll") "libquickjs.dll" else "libquickjs.$nativeLibraryExtension")
+    it.file(quickjsLibraryFileName)
 }
 
 val extractQuickJsLibrary = tasks.register("extractQuickJsLibrary") {
@@ -58,19 +75,10 @@ val extractQuickJsLibrary = tasks.register("extractQuickJsLibrary") {
         val jarFile = quickjsClasspath.files.firstOrNull { it.name.endsWith(".jar") }
             ?: error("Could not resolve published quickjs-kt-jvm jar from mavenLocal")
 
-        val platformDirName = when {
-            currentOs.contains("linux") -> "linux"
-            currentOs.contains("mac") || currentOs.contains("osx") -> "macos"
-            currentOs.contains("windows") -> "windows"
-            else -> error("Unsupported operating system: $currentOs")
-        } + "_" + when (currentArchitecture) {
-            "aarch64", "arm64" -> "aarch64"
-            "amd64", "x86_64" -> "x64"
-            else -> error("Unsupported architecture: $currentArchitecture")
-        }
+        val entryPath = "jni/$currentTarget/$quickjsLibraryFileName"
 
-        val libFileName = if (nativeLibraryExtension == "dll") "libquickjs.dll" else "libquickjs.$nativeLibraryExtension"
-        val entryPath = "jni/$platformDirName/$libFileName"
+        val extractedDirectory = quickjsExtractedDirectory.get().asFile
+        delete(extractedDirectory)
 
         val destFile = quickjsLibraryFile.get().asFile
         destFile.parentFile.mkdirs()
@@ -80,7 +88,7 @@ val extractQuickJsLibrary = tasks.register("extractQuickJsLibrary") {
     }
 }
 
-val nativeLibrarySearchPath = if (nativeLibraryExtension == "dll") {
+val nativeLibrarySearchPath = if (isWindows) {
     val systemPath = System.getenv().entries
         .firstOrNull { it.key.equals("PATH", ignoreCase = true) }
         ?.value
@@ -135,7 +143,6 @@ val configureNativeOperations = tasks.register("configureNativeOperations", Exec
             "-B", nativeCmakeDirectory.get().asFile.absolutePath,
             "-DCMAKE_BUILD_TYPE=Release",
             "-DJAVA_HOME=${File(System.getProperty("java.home")).absolutePath}",
-            "-DQUICKJS_ROOT=${rootDir.resolve("quickjs").absolutePath}",
             "-DQUICKJS_HEADER_DIR=${quickjsHeaderDirectory.get().asFile.absolutePath}",
             "-DQUICKJS_LIBRARY=${quickjsLibraryFile.get().asFile.absolutePath}",
             "-DNATIVE_OUTPUT_DIR=${nativeOutputDirectory.get().asFile.absolutePath}",
@@ -159,11 +166,11 @@ val buildNativeOperations = tasks.register("buildNativeOperations", Exec::class.
 kotlin {
     jvm()
     when {
-        currentOs.contains("windows") -> mingwX64()
-        currentOs.contains("linux") && (currentArchitecture == "aarch64" || currentArchitecture == "arm64") -> linuxArm64()
-        currentOs.contains("linux") -> linuxX64()
-        (currentOs.contains("mac") || currentOs.contains("osx")) && (currentArchitecture == "aarch64" || currentArchitecture == "arm64") -> macosArm64()
-        currentOs.contains("mac") || currentOs.contains("osx") -> macosX64()
+        currentPlatform == "windows" -> mingwX64()
+        currentPlatform == "linux" && currentArchitectureName == "aarch64" -> linuxArm64()
+        currentPlatform == "linux" -> linuxX64()
+        currentPlatform == "macos" && currentArchitectureName == "aarch64" -> macosArm64()
+        currentPlatform == "macos" -> macosX64()
     }
 
     applyDefaultHierarchyTemplate()
@@ -179,10 +186,10 @@ kotlin {
                     "-L${nativeOutputDirectory.get().asFile.absolutePath}",
                     "-lquickjs_native_operations",
                 )
-                if (nativeLibraryExtension == "dll") {
+                if (isWindows) {
                     linkerOpts("-Wl,--export-all-symbols")
                 }
-                if (nativeLibraryExtension != "dll") {
+                if (!isWindows) {
                     linkerOpts(
                         "-rpath",
                         nativeOutputDirectory.get().asFile.absolutePath,
