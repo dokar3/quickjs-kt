@@ -1,4 +1,3 @@
-import com.dokar.quickjs.disableUnsupportedPlatformTasks
 import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.testing.Test
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
@@ -15,10 +14,18 @@ repositories {
     mavenCentral()
 }
 
-val quickjsProject = project(":quickjs")
+val quickjsVersion = providers.gradleProperty("VERSION_NAME").get()
+
+val quickjsClasspath = configurations.create("quickjsClasspath")
+dependencies {
+    quickjsClasspath("io.github.dokar3:quickjs-kt-jvm:$quickjsVersion")
+}
+
 val nativeBuildDirectory = layout.buildDirectory.dir("native")
 val nativeCmakeDirectory = nativeBuildDirectory.map { it.dir("cmake") }
 val nativeOutputDirectory = nativeBuildDirectory.map { it.dir("output") }
+val quickjsExtractedDirectory = nativeBuildDirectory.map { it.dir("extracted_quickjs") }
+
 val currentOs = System.getProperty("os.name").lowercase(Locale.US)
 val currentArchitecture = System.getProperty("os.arch").lowercase(Locale.US)
 val nativeLibraryExtension = when {
@@ -36,21 +43,43 @@ val nativeLibraryFile = nativeOutputDirectory.map {
         }
     )
 }
-val quickjsLibraryDirectory = quickjsProject.layout.projectDirectory.dir(
-    "native/build/jni_libs/${when {
-        currentOs.contains("linux") -> "linux"
-        currentOs.contains("mac") || currentOs.contains("osx") -> "macos"
-        currentOs.contains("windows") -> "windows"
-        else -> error("Unsupported operating system: $currentOs")
-    }}_${when (currentArchitecture) {
-        "aarch64", "arm64" -> "aarch64"
-        "amd64", "x86_64" -> "x64"
-        else -> error("Unsupported architecture: $currentArchitecture")
-    }}"
-)
-val quickjsLibraryFile = quickjsLibraryDirectory.file(
-    if (nativeLibraryExtension == "dll") "libquickjs.dll" else "libquickjs.$nativeLibraryExtension"
-)
+
+val quickjsLibraryFile = quickjsExtractedDirectory.map {
+    it.file(if (nativeLibraryExtension == "dll") "libquickjs.dll" else "libquickjs.$nativeLibraryExtension")
+}
+
+val extractQuickJsLibrary = tasks.register("extractQuickJsLibrary") {
+    group = "verification"
+    description = "Extracts libquickjs native library from the published mavenLocal JVM artifact."
+    dependsOn(":quickjs:publishToMavenLocal")
+    inputs.files(quickjsClasspath)
+    outputs.file(quickjsLibraryFile)
+    doLast {
+        val jarFile = quickjsClasspath.files.firstOrNull { it.name.endsWith(".jar") }
+            ?: error("Could not resolve published quickjs-kt-jvm jar from mavenLocal")
+
+        val platformDirName = when {
+            currentOs.contains("linux") -> "linux"
+            currentOs.contains("mac") || currentOs.contains("osx") -> "macos"
+            currentOs.contains("windows") -> "windows"
+            else -> error("Unsupported operating system: $currentOs")
+        } + "_" + when (currentArchitecture) {
+            "aarch64", "arm64" -> "aarch64"
+            "amd64", "x86_64" -> "x64"
+            else -> error("Unsupported architecture: $currentArchitecture")
+        }
+
+        val libFileName = if (nativeLibraryExtension == "dll") "libquickjs.dll" else "libquickjs.$nativeLibraryExtension"
+        val entryPath = "jni/$platformDirName/$libFileName"
+
+        val destFile = quickjsLibraryFile.get().asFile
+        destFile.parentFile.mkdirs()
+
+        val extracted = zipTree(jarFile).matching { include(entryPath) }.singleFile
+        extracted.copyTo(destFile, overwrite = true)
+    }
+}
+
 val nativeLibrarySearchPath = if (nativeLibraryExtension == "dll") {
     val systemPath = System.getenv().entries
         .firstOrNull { it.key.equals("PATH", ignoreCase = true) }
@@ -58,21 +87,43 @@ val nativeLibrarySearchPath = if (nativeLibraryExtension == "dll") {
         .orEmpty()
     listOf(
         nativeOutputDirectory.get().asFile.absolutePath,
-        quickjsLibraryDirectory.asFile.absolutePath,
+        nativeOutputDirectory.get().asFile.resolve("Debug").absolutePath,
+        nativeOutputDirectory.get().asFile.resolve("Release").absolutePath,
+        quickjsExtractedDirectory.get().asFile.absolutePath,
         systemPath,
     ).joinToString(File.pathSeparator)
 } else {
     null
 }
 
+val quickjsHeaderDirectory = nativeBuildDirectory.map { it.dir("include") }
+val quickjsHeaderFile = quickjsHeaderDirectory.map { it.file("quickjs.h") }
+
+val prepareQuickJsHeader = tasks.register("prepareQuickJsHeader") {
+    group = "verification"
+    description = "Rewrites quickjs.h into build dir, resolving MSVC struct cast compatibility."
+    val originalHeader = rootDir.resolve("quickjs/native/quickjs/quickjs.h")
+    inputs.file(originalHeader)
+    outputs.file(quickjsHeaderFile)
+    doLast {
+        val originalContent = originalHeader.readText()
+        val fixedContent = originalContent.replace("return (JSValue)v;", "return v;")
+        require(fixedContent != originalContent) { "Failed to patch return cast in quickjs.h" }
+        val outFile = quickjsHeaderFile.get().asFile
+        outFile.parentFile.mkdirs()
+        outFile.writeText(fixedContent)
+    }
+}
+
 val configureNativeOperations = tasks.register("configureNativeOperations", Exec::class.java) {
     group = "verification"
     description = "Configures the consumer-style native QuickJS integration library."
-    dependsOn(quickjsProject.tasks.named("buildQuickJsJniLibs"))
+    dependsOn(extractQuickJsLibrary, prepareQuickJsHeader)
     inputs.files(
         file("native/CMakeLists.txt"),
         file("native/native_operations.c"),
         file("native/native_operations.h"),
+        quickjsHeaderFile,
         quickjsLibraryFile,
     )
     doFirst {
@@ -82,10 +133,11 @@ val configureNativeOperations = tasks.register("configureNativeOperations", Exec
         args(
             "-S", file("native").absolutePath,
             "-B", nativeCmakeDirectory.get().asFile.absolutePath,
-            "-DCMAKE_BUILD_TYPE=Debug",
+            "-DCMAKE_BUILD_TYPE=Release",
             "-DJAVA_HOME=${File(System.getProperty("java.home")).absolutePath}",
-            "-DQUICKJS_ROOT=${quickjsProject.projectDir.absolutePath}",
-            "-DQUICKJS_LIBRARY=${quickjsLibraryFile.asFile.absolutePath}",
+            "-DQUICKJS_ROOT=${rootDir.resolve("quickjs").absolutePath}",
+            "-DQUICKJS_HEADER_DIR=${quickjsHeaderDirectory.get().asFile.absolutePath}",
+            "-DQUICKJS_LIBRARY=${quickjsLibraryFile.get().asFile.absolutePath}",
             "-DNATIVE_OUTPUT_DIR=${nativeOutputDirectory.get().asFile.absolutePath}",
         )
     }
@@ -106,11 +158,13 @@ val buildNativeOperations = tasks.register("buildNativeOperations", Exec::class.
 
 kotlin {
     jvm()
-    mingwX64()
-    linuxX64()
-    linuxArm64()
-    macosX64()
-    macosArm64()
+    when {
+        currentOs.contains("windows") -> mingwX64()
+        currentOs.contains("linux") && (currentArchitecture == "aarch64" || currentArchitecture == "arm64") -> linuxArm64()
+        currentOs.contains("linux") -> linuxX64()
+        (currentOs.contains("mac") || currentOs.contains("osx")) && (currentArchitecture == "aarch64" || currentArchitecture == "arm64") -> macosArm64()
+        currentOs.contains("mac") || currentOs.contains("osx") -> macosX64()
+    }
 
     applyDefaultHierarchyTemplate()
 
@@ -124,6 +178,7 @@ kotlin {
                 linkerOpts(
                     "-L${nativeOutputDirectory.get().asFile.absolutePath}",
                     "-lquickjs_native_operations",
+                    "-Wl,--export-all-symbols",
                 )
                 if (nativeLibraryExtension != "dll") {
                     linkerOpts(
@@ -138,7 +193,10 @@ kotlin {
             create("nativeOperations") {
                 headers(file("native/native_operations.h"))
                 packageName("nativeoperations")
-                compilerOpts("-I${file("native").absolutePath}")
+                compilerOpts(
+                    "-I${file("native").absolutePath}",
+                    "-I${quickjsHeaderDirectory.get().asFile.absolutePath}",
+                )
             }
         }
     }
@@ -146,7 +204,7 @@ kotlin {
     sourceSets {
         commonTest.dependencies {
             implementation(kotlin("test"))
-            implementation(projects.quickjs)
+            implementation("io.github.dokar3:quickjs-kt:$quickjsVersion")
             implementation(libs.kotlinx.coroutines.test)
         }
     }
@@ -169,5 +227,3 @@ tasks.withType<Test>().configureEach {
 tasks.withType<KotlinNativeTest>().configureEach {
     nativeLibrarySearchPath?.let { environment("PATH", it) }
 }
-
-disableUnsupportedPlatformTasks()
