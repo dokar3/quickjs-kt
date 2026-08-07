@@ -1,10 +1,9 @@
-import com.dokar.quickjs.disableUnsupportedPlatformTasks
-
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.mavenPublish)
     alias(libs.plugins.ksp)
+    id("com.dokar.quickjs.disable-unsupported-platform-tasks")
 }
 
 kotlin {
@@ -50,8 +49,6 @@ android {
 dependencies {
     add("kspJvmTest", libs.moshi.kotlin.codegen)
 }
-
-disableUnsupportedPlatformTasks()
 
 afterEvaluate {
     // Disable Android tests

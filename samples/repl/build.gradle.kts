@@ -1,10 +1,10 @@
 @file:OptIn(org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeCacheApi::class)
 
-import com.dokar.quickjs.disableUnsupportedPlatformTasks
 import org.jetbrains.kotlin.gradle.plugin.mpp.DisableCacheInKotlinVersion
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
+    id("com.dokar.quickjs.disable-unsupported-platform-tasks")
 }
 
 kotlin {
@@ -57,5 +57,3 @@ java {
 // application {
 //     mainClass.set("ReplMainKt")
 // }
-
-disableUnsupportedPlatformTasks()

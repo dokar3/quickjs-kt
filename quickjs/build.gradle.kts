@@ -1,12 +1,12 @@
 /// Based on https://github.com/cashapp/zipline/blob/trunk/zipline/build.gradle.kts
-import com.dokar.quickjs.applyQuickJsNativeBuildTasks
-import com.dokar.quickjs.disableUnsupportedPlatformTasks
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.mavenPublish)
+    id("com.dokar.quickjs.native-build")
+    id("com.dokar.quickjs.disable-unsupported-platform-tasks")
 }
 
 kotlin {
@@ -139,10 +139,6 @@ android {
         }
     }
 }
-
-applyQuickJsNativeBuildTasks(cmakeFile)
-
-disableUnsupportedPlatformTasks()
 
 afterEvaluate {
     // Disable Android tests
