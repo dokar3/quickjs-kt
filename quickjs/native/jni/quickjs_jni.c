@@ -462,6 +462,15 @@ Java_com_dokar_quickjs_QuickJs_requestInterrupt(JNIEnv *env, jobject this, jlong
     qjs_interrupt_request((void *) state_ptr);
 }
 
+JNIEXPORT void JNICALL
+Java_com_dokar_quickjs_QuickJs_updateStackTop(JNIEnv *env, jobject this, jlong runtime_ptr) {
+    JSRuntime *runtime = runtime_from_ptr(env, runtime_ptr);
+    if (runtime == NULL) {
+        return;
+    }
+    JS_UpdateStackTop(runtime);
+}
+
 /**
  * Reset the interrupt flags and deadline (now + timeout_millis, <= 0 for none).
  */

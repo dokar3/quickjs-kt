@@ -78,8 +78,8 @@ elseif (TARGET_PLATFORM STREQUAL "windows_x64")
     endif ()
     # For QuickJS
     add_compile_definitions(CONFIG_WIN32)
-    # Add stack check implementation
-    list(APPEND all_sources "common/stack_chk.c")
+    # Add stack check implementation and exports definition
+    list(APPEND all_sources "common/stack_chk.c" "quickjs.def")
 elseif (TARGET_PLATFORM STREQUAL "android")
     add_compile_definitions(CONFIG_ANDROID)
 endif ()

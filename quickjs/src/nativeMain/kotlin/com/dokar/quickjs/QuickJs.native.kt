@@ -30,6 +30,7 @@ import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.StableRef
+import kotlinx.cinterop.toLong
 import kotlinx.cinterop.toKStringFromUtf8
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -100,6 +101,7 @@ actual class QuickJs private constructor(
 
     private val objectBindings = mutableMapOf<Long, ObjectBinding>()
     private val globalFunctions = mutableMapOf<String, Binding>()
+    private val nativeCloseHandlers = mutableListOf<(QuickJsNativeContext) -> Unit>()
 
     private val managedJsValues = mutableListOf<CValue<JSValue>>()
 
@@ -169,6 +171,28 @@ actual class QuickJs private constructor(
         interruptMutex.withLockSync {
             ensureNotClosed()
             qjs_interrupt_request(interruptState)
+        }
+    }
+
+    @ExperimentalQuickJsApi
+    actual fun <T> withNativeContext(block: (QuickJsNativeContext) -> T): T {
+        return withJsLockSync {
+            ensureNotClosed()
+            JS_UpdateStackTop(runtime)
+            block(
+                QuickJsNativeContext(
+                    contextAddress = context.toLong(),
+                    runtimeAddress = runtime.toLong(),
+                )
+            )
+        }
+    }
+
+    @ExperimentalQuickJsApi
+    actual fun onNativeClose(cleanup: (QuickJsNativeContext) -> Unit) {
+        withJsLockSync {
+            ensureNotClosed()
+            nativeCloseHandlers += cleanup
         }
     }
 
@@ -350,7 +374,22 @@ actual class QuickJs private constructor(
             promises
         }
         signalRuntimeProgress()
+        var nativeCleanupError: Throwable? = null
         jsMutex.withLockSync {
+            JS_UpdateStackTop(runtime)
+            nativeCloseHandlers.asReversed().forEach { cleanup ->
+                try {
+                    cleanup(
+                        QuickJsNativeContext(
+                            contextAddress = context.toLong(),
+                            runtimeAddress = runtime.toLong(),
+                        )
+                    )
+                } catch (error: Throwable) {
+                    if (nativeCleanupError == null) nativeCleanupError = error
+                }
+            }
+            nativeCloseHandlers.clear()
             promisesToFree.forEach { it.free(context) }
             managedJsValues.forEach { JS_FreeValue(context, it) }
             managedJsValues.clear()
@@ -372,6 +411,7 @@ actual class QuickJs private constructor(
         }
         modules.clear()
         ref.dispose()
+        nativeCleanupError?.let { throw it }
     }
 
     @Suppress("UNCHECKED_CAST")

@@ -18,6 +18,9 @@ That's why I created this library, with some good features:
 - Simple and idiomatic Kotlin APIs, it's easy to define binding and evaluate arbitrary code
 - Highly integrated with **Kotlin Coroutines**, it is `async` and `suspend`ed. See [#Async](#async)
 - Kotlin Multiplatform targets, including `Android`, `JVM` and `Kotlin/Native`
+- Lazy modules, loaded on demand with optional bytecode caching. See [Modules](#modules)
+- Interruption, with cancellation, timeouts, and manual interrupts. See [Interrupting evaluations](#interrupting-evaluations)
+- Mixed Kotlin and native bindings in the same QuickJS runtime. See [Native context access](#native-context-access)
 - The latest version of QuickJS
 
 # Usages
@@ -323,6 +326,29 @@ Use the DSL aliases then!
 +import com.dokar.quickjs.alias.eval
 +import com.dokar.quickjs.alias.prop
 ```
+
+### Native context access
+
+For consumer-native bindings, injections, or direct QuickJS operations, use the
+experimental scoped native context API. The callback runs while the QuickJS
+instance is exclusively locked. Native pointers must not be retained or used
+after the callback returns.
+
+```kotlin
+@OptIn(ExperimentalQuickJsApi::class)
+quickJs.onNativeClose { context ->
+    NativeBindings.uninstall(context)
+}
+
+@OptIn(ExperimentalQuickJsApi::class)
+quickJs.withNativeContext { context ->
+    NativeBindings.install(context)
+}
+```
+
+`QuickJsNativeContext` exposes native addresses on JVM/Android and typed C
+pointers on Kotlin/Native. Cleanup callbacks run before the runtime and
+context are released, in reverse registration order.
 
 # Type mappings
 
