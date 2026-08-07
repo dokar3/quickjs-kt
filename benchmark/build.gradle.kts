@@ -1,9 +1,8 @@
-import com.dokar.quickjs.disableUnsupportedPlatformTasks
-
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.kotlinBenchmark)
     alias(libs.plugins.kotlinAllOpen)
+    id("com.dokar.quickjs.disable-unsupported-platform-tasks")
 }
 
 kotlin {
@@ -34,5 +33,3 @@ benchmark {
 allOpen {
     annotation("org.openjdk.jmh.annotations.State")
 }
-
-disableUnsupportedPlatformTasks()

@@ -1,10 +1,9 @@
-import com.dokar.quickjs.disableUnsupportedPlatformTasks
-
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.mavenPublish)
     alias(libs.plugins.serialization)
+    id("com.dokar.quickjs.disable-unsupported-platform-tasks")
 }
 
 kotlin {
@@ -60,8 +59,6 @@ android {
         consumerProguardFiles("consumer-rules.pro")
     }
 }
-
-disableUnsupportedPlatformTasks()
 
 afterEvaluate {
     // Disable Android tests
