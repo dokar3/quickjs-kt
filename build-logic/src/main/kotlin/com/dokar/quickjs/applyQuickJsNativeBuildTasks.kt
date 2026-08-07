@@ -175,7 +175,8 @@ private fun Project.findBuildPlatformsFromStartTaskNames(): List<Platform> {
     if (isPublishing) {
         val allPlatforms = Platform.values().toList()
         return when (currentPlatform) {
-            Platform.linux_x64 -> allPlatforms.filter {
+            Platform.linux_x64,
+            Platform.linux_aarch64 -> allPlatforms.filter {
                 it == Platform.linux_x64 || it == Platform.linux_aarch64
             }
             Platform.windows_x64 -> allPlatforms.filter { it == Platform.windows_x64 }

@@ -13,6 +13,8 @@ class QuickJsNativeBuildPlugin : Plugin<Project> {
 
 class DisableUnsupportedPlatformTasksPlugin : Plugin<Project> {
     override fun apply(project: Project) {
-        project.disableUnsupportedPlatformTasks()
+        project.gradle.projectsEvaluated {
+            project.disableUnsupportedPlatformTasks()
+        }
     }
 }
