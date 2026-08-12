@@ -147,6 +147,8 @@ actual class QuickJs private constructor(
     private val jobDispatcher: CoroutineDispatcher,
     private val moduleLoader: ModuleLoader?,
 ) : Closeable {
+    private val moduleNormalizer = moduleLoader?.normalizer
+
     // Native pointers
     private var globals: Long = 0
     private var runtime: Long = 0
@@ -641,6 +643,17 @@ actual class QuickJs private constructor(
             throw exception
         }
     }
+
+    /** Returns whether JNI should install the custom module normalizer. */
+    @Suppress("unused")
+    private fun hasModuleNormalizer(): Boolean = moduleNormalizer != null
+
+    /** Resolves an import specifier to its canonical module name for JNI. */
+    @Suppress("unused")
+    private fun normalizeModule(baseName: String, requestedName: String): String =
+        requireNotNull(moduleNormalizer) {
+            "A module normalizer is not configured."
+        }.normalize(baseName, requestedName)
 
     /** Loads module content synchronously for the JNI bridge. */
     @Suppress("unused")

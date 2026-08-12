@@ -96,6 +96,7 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
     globals->evaluate_result_promises = NULL;
     globals->evaluate_result_active = NULL;
     globals->module_loader_host = NULL;
+    globals->normalize_module_method = NULL;
     globals->load_module_method = NULL;
     globals->get_module_source_method = NULL;
     globals->get_module_bytecode_method = NULL;

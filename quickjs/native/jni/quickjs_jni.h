@@ -14,6 +14,8 @@ typedef struct {
      * The owning QuickJs instance used by the synchronous module loader.
      */
     jobject module_loader_host;
+    /** QuickJs.normalizeModule(String, String) method used by the module normalizer. */
+    jmethodID normalize_module_method;
     /** QuickJs.loadModule(String) method used by the module loader. */
     jmethodID load_module_method;
     /** QuickJs.getModuleSource(Object) content accessor. */

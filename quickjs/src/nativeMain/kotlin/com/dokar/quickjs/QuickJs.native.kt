@@ -79,6 +79,8 @@ actual class QuickJs private constructor(
     private val jobDispatcher: CoroutineDispatcher,
     private val moduleLoader: ModuleLoader?,
 ) {
+    private val moduleNormalizer = moduleLoader?.normalizer
+
     private val runtime: CPointer<JSRuntime> = JS_NewRuntime()
         ?: qjsError("Failed to create js runtime.")
 
@@ -613,6 +615,15 @@ actual class QuickJs private constructor(
             runtimeProgress.first { it != observedProgress }
         }
     }
+
+    /** Returns whether the native bridge should install the custom module normalizer. */
+    internal fun hasModuleNormalizer(): Boolean = moduleNormalizer != null
+
+    /** Resolves an import specifier to its canonical module name for the native bridge. */
+    internal fun normalizeModule(baseName: String, requestedName: String): String =
+        requireNotNull(moduleNormalizer) {
+            "A module normalizer is not configured."
+        }.normalize(baseName, requestedName)
 
     /** Loads content from the runtime-scoped module loader. */
     internal fun loadModule(name: String): ModuleContent? {
