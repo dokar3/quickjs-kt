@@ -12,9 +12,8 @@
 
 #define GLOBAL_THIS_HANDLE -1
 
-void set_eval_exception_to_caller(JNIEnv *env, jobject call_host, jthrowable exception) {
-    jmethodID set_exception_method = method_quick_js_set_eval_exception(env);
-    (*env)->CallVoidMethod(env, call_host, set_exception_method, exception);
+static JSValue throw_java_exception(JNIEnv *env, JSContext *context, jthrowable exception) {
+    return JS_Throw(context, java_throwable_to_js_error(env, context, exception));
 }
 
 JSValue jni_invoke_getter(JSContext *context, jobject call_host, int64_t object_handle,
@@ -32,9 +31,9 @@ JSValue jni_invoke_getter(JSContext *context, jobject call_host, int64_t object_
     // Check java exceptions
     jthrowable exception = try_catch_java_exceptions(env);
     if (exception != NULL) {
-        set_eval_exception_to_caller(env, call_host, exception);
+        JSValue js_exception = throw_java_exception(env, context, exception);
         (*env)->DeleteLocalRef(env, exception);
-        return JS_EXCEPTION;
+        return js_exception;
     }
     if (result == NULL) {
         return JS_NULL;
@@ -55,10 +54,10 @@ JSValue jni_invoke_setter(JSContext *context, jobject call_host, int64_t object_
     // Check mapping exceptions
     jthrowable mapping_exception = try_catch_java_exceptions(env);
     if (mapping_exception != NULL) {
-        set_eval_exception_to_caller(env, call_host, mapping_exception);
+        JSValue js_exception = throw_java_exception(env, context, mapping_exception);
         (*env)->DeleteLocalRef(env, value);
         (*env)->DeleteLocalRef(env, mapping_exception);
-        return JS_EXCEPTION;
+        return js_exception;
     }
     // Don't release
     jstring java_name = (*env)->NewStringUTF(env, property_name);
@@ -68,9 +67,9 @@ JSValue jni_invoke_setter(JSContext *context, jobject call_host, int64_t object_
     // Check java exceptions
     jthrowable exception = try_catch_java_exceptions(env);
     if (exception != NULL) {
-        set_eval_exception_to_caller(env, call_host, exception);
+        JSValue js_exception = throw_java_exception(env, context, exception);
         (*env)->DeleteLocalRef(env, exception);
-        return JS_EXCEPTION;
+        return js_exception;
     }
     return JS_UNDEFINED;
 }
@@ -87,10 +86,10 @@ JSValue jni_invoke_function(JSContext *context, jobject call_host, int64_t objec
         // Check mapping exceptions
         jthrowable exception = try_catch_java_exceptions(env);
         if (exception != NULL) {
-            set_eval_exception_to_caller(env, call_host, exception);
+            JSValue js_exception = throw_java_exception(env, context, exception);
             (*env)->DeleteLocalRef(env, arg);
             (*env)->DeleteLocalRef(env, exception);
-            return JS_EXCEPTION;
+            return js_exception;
         }
         (*env)->SetObjectArrayElement(env, args, i, arg);
         (*env)->DeleteLocalRef(env, arg);
@@ -106,9 +105,9 @@ JSValue jni_invoke_function(JSContext *context, jobject call_host, int64_t objec
     // Check java exceptions
     jthrowable exception = try_catch_java_exceptions(env);
     if (exception != NULL) {
-        set_eval_exception_to_caller(env, call_host, exception);
+        JSValue js_exception = throw_java_exception(env, context, exception);
         (*env)->DeleteLocalRef(env, exception);
-        return JS_EXCEPTION;
+        return js_exception;
     }
     return jobject_to_js_value(env, context, NULL, result);
 }
@@ -134,10 +133,10 @@ JSValue jni_invoke_async_function(JSContext *context, jobject call_host,
         // Check mapping exceptions
         jthrowable exception = try_catch_java_exceptions(env);
         if (exception != NULL) {
-            set_eval_exception_to_caller(env, call_host, exception);
+            JSValue js_exception = throw_java_exception(env, context, exception);
             (*env)->DeleteLocalRef(env, arg);
             (*env)->DeleteLocalRef(env, exception);
-            return JS_EXCEPTION;
+            return js_exception;
         }
         (*env)->SetObjectArrayElement(env, args, i + (args_len - argc), arg);
         (*env)->DeleteLocalRef(env, arg);
@@ -153,9 +152,9 @@ JSValue jni_invoke_async_function(JSContext *context, jobject call_host,
     // Check java exceptions
     jthrowable exception = try_catch_java_exceptions(env);
     if (exception != NULL) {
-        set_eval_exception_to_caller(env, call_host, exception);
+        JSValue js_exception = throw_java_exception(env, context, exception);
         (*env)->DeleteLocalRef(env, exception);
-        return JS_EXCEPTION;
+        return js_exception;
     }
     // No return value needs to handle
     return JS_UNDEFINED;

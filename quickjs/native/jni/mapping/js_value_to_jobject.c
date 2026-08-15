@@ -91,26 +91,31 @@ jthrowable js_error_to_java_error(JNIEnv *env, JSContext *context, JSValue error
     if (original_name != NULL) {
         JS_FreeCString(context, original_name);
     }
-    if (original_message != NULL) {
-        JS_FreeCString(context, original_message);
-    }
     JS_FreeValue(context, js_name);
-    JS_FreeValue(context, js_message);
 
     if (java_error_cls != NULL) {
         jmethodID constructor = (*env)->GetMethodID(env, java_error_cls, "<init>",
                                                     "(Ljava/lang/String;)V");
         jthrowable e = try_catch_java_exceptions(env);
         if (e == NULL && constructor != NULL) {
-            jstring java_message = (*env)->NewStringUTF(env, full_message);
+            jstring java_message = (*env)->NewStringUTF(env, message);
             jthrowable java_error = (*env)->NewObject(env, java_error_cls, constructor,
                                                       java_message);
             (*env)->DeleteLocalRef(env, java_message);
+            if (original_message != NULL) {
+                JS_FreeCString(context, original_message);
+            }
+            JS_FreeValue(context, js_message);
             free(full_message);
             free(stack);
             return java_error;
         }
     }
+
+    if (original_message != NULL) {
+        JS_FreeCString(context, original_message);
+    }
+    JS_FreeValue(context, js_message);
 
     // Fallback to the default error class
     jthrowable java_error = new_js_error_exception(env, context, error, full_message, stack);
