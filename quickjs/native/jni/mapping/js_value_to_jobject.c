@@ -102,7 +102,7 @@ jthrowable js_error_to_java_error(JNIEnv *env, JSContext *context, JSValue error
                                                     "(Ljava/lang/String;)V");
         jthrowable e = try_catch_java_exceptions(env);
         if (e == NULL && constructor != NULL) {
-            jstring java_message = (*env)->NewStringUTF(env, full_message);
+            jstring java_message = (*env)->NewStringUTF(env, message);
             jthrowable java_error = (*env)->NewObject(env, java_error_cls, constructor,
                                                       java_message);
             (*env)->DeleteLocalRef(env, java_message);

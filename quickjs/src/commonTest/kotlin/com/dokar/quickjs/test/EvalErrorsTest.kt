@@ -1,6 +1,7 @@
 package com.dokar.quickjs.test
 
 import com.dokar.quickjs.QuickJsException
+import com.dokar.quickjs.binding.asyncFunction
 import com.dokar.quickjs.binding.define
 import com.dokar.quickjs.binding.function
 import com.dokar.quickjs.quickJs
@@ -9,8 +10,10 @@ import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class EvalErrorsTest {
     @Test
@@ -119,6 +122,55 @@ class EvalErrorsTest {
             }
         }.also {
             assertContains(it.message!!, "Something wrong")
+        }
+    }
+
+    @Test
+    fun syncBindingExceptionAfterAwaitPreservesTypeAndMessage() = runTest {
+        quickJs {
+            asyncFunction("doNothing") {}
+            function("throwError") { throw IllegalArgumentException("boom") }
+
+            val exception = assertFailsWith<IllegalArgumentException> {
+                evaluate<Any?>(
+                    "await doNothing(); throwError()",
+                    filename = "test.js",
+                    asModule = true,
+                )
+            }
+
+            assertEquals(IllegalArgumentException::class, exception::class)
+            assertEquals("boom", exception.message)
+        }
+    }
+
+    @Test
+    fun syncBindingExceptionAfterAwaitCanBeCaughtByJavaScript() = runTest {
+        quickJs {
+            var caughtName: String? = null
+            var caughtMessage: String? = null
+            asyncFunction("doNothing") {}
+            function("throwError") { throw IllegalArgumentException("boom") }
+            function("capture") { args ->
+                caughtName = args[0] as String
+                caughtMessage = args[1] as String
+            }
+
+            evaluate<Any?>(
+                """
+                    await doNothing();
+                    try {
+                        throwError();
+                    } catch (e) {
+                        capture(e.name, e.message);
+                    }
+                """.trimIndent(),
+                filename = "test.js",
+                asModule = true,
+            )
+
+            assertTrue(caughtName.orEmpty().endsWith("IllegalArgumentException"))
+            assertEquals("boom", caughtMessage)
         }
     }
 

@@ -211,30 +211,30 @@ private fun joinStackFrames(context: CPointer<JSContext>, stack: CValue<JSValue>
 }
 
 private fun newKtError(name: String, message: String?, stack: String?): Throwable {
-    val m = if (!stack.isNullOrEmpty()) "$message\n$stack" else message
+    val messageWithStack = if (!stack.isNullOrEmpty()) "$message\n$stack" else message
     // Try to restore the error class from the js error name
     @Suppress("DEPRECATION")
     return when (name) {
-        Throwable::class.qualifiedName -> Throwable(m)
-        Error::class.qualifiedName -> Error(m)
-        Exception::class.qualifiedName -> Exception(m)
-        RuntimeException::class.qualifiedName -> RuntimeException(m)
-        NullPointerException::class.qualifiedName -> NullPointerException(m)
-        NoSuchElementException::class.qualifiedName -> NoSuchElementException(m)
-        IllegalArgumentException::class.qualifiedName -> IllegalStateException(m)
-        IllegalStateException::class.qualifiedName -> IllegalStateException(m)
-        UnsupportedOperationException::class.qualifiedName -> UnsupportedOperationException(m)
-        IndexOutOfBoundsException::class.qualifiedName -> IndexOutOfBoundsException(m)
-        ClassCastException::class.qualifiedName -> ClassCastException(m)
-        ArithmeticException::class.qualifiedName -> ArithmeticException(m)
-        AssertionError::class.qualifiedName -> AssertionError(m)
-        OutOfMemoryError::class.qualifiedName -> OutOfMemoryError(m)
-        NumberFormatException::class.qualifiedName -> NumberFormatException(m)
-        ConcurrentModificationException::class.qualifiedName -> ConcurrentModificationException(m)
-        NotImplementedError::class.qualifiedName -> NotImplementedError(m ?: "")
-        QuickJsException::class.qualifiedName -> QuickJsException(m, stack)
+        Throwable::class.qualifiedName -> Throwable(message)
+        Error::class.qualifiedName -> Error(message)
+        Exception::class.qualifiedName -> Exception(message)
+        RuntimeException::class.qualifiedName -> RuntimeException(message)
+        NullPointerException::class.qualifiedName -> NullPointerException(message)
+        NoSuchElementException::class.qualifiedName -> NoSuchElementException(message)
+        IllegalArgumentException::class.qualifiedName -> IllegalArgumentException(message)
+        IllegalStateException::class.qualifiedName -> IllegalStateException(message)
+        UnsupportedOperationException::class.qualifiedName -> UnsupportedOperationException(message)
+        IndexOutOfBoundsException::class.qualifiedName -> IndexOutOfBoundsException(message)
+        ClassCastException::class.qualifiedName -> ClassCastException(message)
+        ArithmeticException::class.qualifiedName -> ArithmeticException(message)
+        AssertionError::class.qualifiedName -> AssertionError(message)
+        OutOfMemoryError::class.qualifiedName -> OutOfMemoryError(message)
+        NumberFormatException::class.qualifiedName -> NumberFormatException(message)
+        ConcurrentModificationException::class.qualifiedName -> ConcurrentModificationException(message)
+        NotImplementedError::class.qualifiedName -> NotImplementedError(message ?: "")
+        QuickJsException::class.qualifiedName -> QuickJsException(messageWithStack, stack)
         // Unknown error, add the name back
-        else -> QuickJsException("$name: $m", stack)
+        else -> QuickJsException("$name: $messageWithStack", stack)
     }
 }
 
