@@ -4,6 +4,7 @@
 #include "jni_globals_generated.h"
 #include "log_util.h"
 #include "js_value_util.h"
+#include "jni_string_util.h"
 
 jthrowable new_qjs_exception(JNIEnv *env, const char *format, ...) {
     va_list args;
@@ -17,7 +18,11 @@ jthrowable new_qjs_exception(JNIEnv *env, const char *format, ...) {
     vsnprintf(result, length + 1, format, args);
     va_end(args);
 
-    jstring message = (*env)->NewStringUTF(env, result);
+    jstring message = jni_string_from_utf8(env, result, (size_t) length);
+    if (message == NULL) {
+        free(result);
+        return NULL;
+    }
     jthrowable exception = (*env)->NewObject(env, cls_quick_js_exception(env),
                                              method_quick_js_exception_init(env), message);
     (*env)->DeleteLocalRef(env, message);
@@ -42,8 +47,12 @@ jthrowable new_js_error_exception(JNIEnv *env,
     }
     const char *js_stack = stack != NULL ? stack : read_stack;
 
-    jstring j_message = message != NULL ? (*env)->NewStringUTF(env, message) : NULL;
-    jstring j_stack = js_stack != NULL ? (*env)->NewStringUTF(env, js_stack) : NULL;
+    jstring j_message = message != NULL
+                        ? jni_string_from_utf8_c_string(env, message)
+                        : NULL;
+    jstring j_stack = js_stack != NULL
+                      ? jni_string_from_utf8_c_string(env, js_stack)
+                      : NULL;
     free(read_stack);
 
     jthrowable exception = (*env)->NewObject(env, cls_quick_js_exception(env),
@@ -66,7 +75,19 @@ void jni_throw_qjs_exception(JNIEnv *env, const char *format, ...) {
     vsnprintf(result, length + 1, format, args);
     va_end(args);
 
-    (*env)->ThrowNew(env, cls_quick_js_exception(env), result);
+    jstring message = jni_string_from_utf8(env, result, (size_t) length);
+    if (message != NULL) {
+        jthrowable exception = (*env)->NewObject(
+                env,
+                cls_quick_js_exception(env),
+                method_quick_js_exception_init(env),
+                message);
+        if (exception != NULL) {
+            (*env)->Throw(env, exception);
+            (*env)->DeleteLocalRef(env, exception);
+        }
+        (*env)->DeleteLocalRef(env, message);
+    }
     free(result);
 }
 

@@ -6,9 +6,11 @@
 #include "exception_util.h"
 #include "log_util.h"
 #include "jni_types_util.h"
+#include "jni_string_util.h"
 
-jobject to_java_string(JNIEnv *env, const char *str) {
-    return str != NULL ? (*env)->NewStringUTF(env, str) : NULL;
+/** Creates a Java string with the shared UTF-8/WTF-8 decoding rules. */
+static jobject to_java_string(JNIEnv *env, const char *str, size_t length) {
+    return str != NULL ? jni_string_from_utf8(env, str, length) : NULL;
 }
 
 void replace_dots_with_slashes(char *str) {
@@ -98,7 +100,7 @@ jthrowable js_error_to_java_error(JNIEnv *env, JSContext *context, JSValue error
                                                     "(Ljava/lang/String;)V");
         jthrowable e = try_catch_java_exceptions(env);
         if (e == NULL && constructor != NULL) {
-            jstring java_message = (*env)->NewStringUTF(env, message);
+            jstring java_message = jni_string_from_utf8_c_string(env, message);
             jthrowable java_error = (*env)->NewObject(env, java_error_cls, constructor,
                                                       java_message);
             (*env)->DeleteLocalRef(env, java_message);
@@ -278,11 +280,15 @@ jobject object_to_java_js_object(JNIEnv *env, JSContext *context, JSValue value)
         if (JS_VALUE_GET_TAG(val) == value_tag &&
             JS_VALUE_GET_PTR(val) == value_ptr) {
             // Avoid infinite recursion
-            const char *val_str = JS_ToCString(context, val);
-            java_val = to_java_string(env, val_str);
-            JS_FreeCString(context, val_str);
+            size_t val_length = 0;
+            const char *val_str = JS_ToCStringLen(context, &val_length, val);
+            java_val = to_java_string(env, val_str, val_length);
+            if (val_str != NULL) {
+                JS_FreeCString(context, val_str);
+            }
         } else if (JS_IsFunction(context, val)) {
-            java_val = to_java_string(env, "[Function]");
+            const char *function_label = "[Function]";
+            java_val = to_java_string(env, function_label, strlen(function_label));
         } else {
             java_val = js_value_to_jobject(env, context, val);
             if (try_catch_java_exceptions(env) != NULL) {
@@ -383,9 +389,12 @@ jobject js_value_to_jobject(JNIEnv *env, JSContext *context, JSValue value) {
     }
 
     if (JS_IsString(value)) {
-        const char *str = JS_ToCString(context, value);
-        jobject result = to_java_string(env, str);
-        JS_FreeCString(context, str);
+        size_t length = 0;
+        const char *str = JS_ToCStringLen(context, &length, value);
+        jobject result = to_java_string(env, str, length);
+        if (str != NULL) {
+            JS_FreeCString(context, str);
+        }
         return result;
     }
 
