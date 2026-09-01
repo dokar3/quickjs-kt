@@ -334,6 +334,19 @@ jobject object_to_java_js_object(JNIEnv *env, JSContext *context, JSValue value)
             }
         }
 
+        if (java_val == NULL && (*env)->ExceptionCheck(env)) {
+            (*env)->DeleteLocalRef(env, java_key);
+            JS_FreeValue(context, key);
+            JS_FreeValue(context, val);
+            JS_FreeAtom(context, prop_atom);
+            for (uint32_t remaining = i + 1; remaining < prop_len; remaining++) {
+                JS_FreeAtom(context, props[remaining].atom);
+            }
+            js_free(context, props);
+            (*env)->DeleteLocalRef(env, java_map);
+            return NULL;
+        }
+
         // Map.put(k, v)
         (*env)->CallObjectMethod(env, java_map, put_method, java_key, java_val);
 
