@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include "js_value_to_jobject.h"
 #include "js_value_util.h"
@@ -41,86 +42,106 @@ jthrowable js_error_to_java_error(JNIEnv *env, JSContext *context, JSValue error
         return java_error;
     }
 
-    const char *original_name = JS_ToCString(context, js_name);
+    size_t original_name_length = 0;
+    const char *original_name = JS_ToCStringLen(context, &original_name_length, js_name);
     const char *name = original_name != NULL ? original_name : "<UNKNOWN_ERROR>";
+    size_t name_length = original_name != NULL
+                         ? original_name_length
+                         : sizeof("<UNKNOWN_ERROR>") - 1;
 
     jclass java_error_cls = NULL;
-    if (original_name != NULL) {
-        char *maybe_cls_name = malloc(strlen(original_name) + 1);
-        strcpy(maybe_cls_name, original_name);
-        replace_dots_with_slashes(maybe_cls_name);
-        java_error_cls = (*env)->FindClass(env, maybe_cls_name);
-        jthrowable exception = try_catch_java_exceptions(env);
-        if (exception != NULL) {
-            java_error_cls = NULL;
+    if (original_name != NULL &&
+        memchr(original_name, '\0', original_name_length) == NULL &&
+        original_name_length < SIZE_MAX) {
+        char *maybe_cls_name = malloc(original_name_length + 1);
+        if (maybe_cls_name != NULL) {
+            memcpy(maybe_cls_name, original_name, original_name_length);
+            maybe_cls_name[original_name_length] = '\0';
+            replace_dots_with_slashes(maybe_cls_name);
+            java_error_cls = (*env)->FindClass(env, maybe_cls_name);
+            jthrowable exception = try_catch_java_exceptions(env);
+            if (exception != NULL) {
+                java_error_cls = NULL;
+                (*env)->DeleteLocalRef(env, exception);
+            }
+            free(maybe_cls_name);
         }
-        free(maybe_cls_name);
     }
 
     // Get message
     JSValue js_message = JS_GetPropertyStr(context, error, "message");
-    const char *original_message = JS_ToCString(context, js_message);
+    size_t original_message_length = 0;
+    const char *original_message = JS_ToCStringLen(
+            context,
+            &original_message_length,
+            js_message);
     const char *message = original_message != NULL ? original_message : "<NO_MESSAGE>";
-
-    int name_len = strlen(name);
-    int msg_len = strlen(message);
+    size_t message_length = original_message != NULL
+                            ? original_message_length
+                            : sizeof("<NO_MESSAGE>") - 1;
 
     // Get stack trace
     char *stack = NULL;
     js_error_stack(context, error, &stack);
-
-    char *full_message;
-    if (stack != NULL) {
-        // Join
-        if (java_error_cls == NULL) {
-            // Add error name to the message
-            full_message = (char *) malloc(name_len + msg_len + strlen(stack) + 4);
-            sprintf(full_message, "%s: %s\n%s", name, message, stack);
-        } else {
-            full_message = (char *) malloc(msg_len + strlen(stack) + 2);
-            sprintf(full_message, "%s\n%s", message, stack);
-        }
-    } else {
-        if (java_error_cls == NULL) {
-            full_message = malloc(name_len + msg_len + 3);
-            sprintf(full_message, "%s: %s", name, message);
-        } else {
-            full_message = malloc(msg_len + 1);
-            strcpy(full_message, message);
-        }
-    }
-
-    if (original_name != NULL) {
-        JS_FreeCString(context, original_name);
-    }
-    JS_FreeValue(context, js_name);
 
     if (java_error_cls != NULL) {
         jmethodID constructor = (*env)->GetMethodID(env, java_error_cls, "<init>",
                                                     "(Ljava/lang/String;)V");
         jthrowable e = try_catch_java_exceptions(env);
         if (e == NULL && constructor != NULL) {
-            jstring java_message = jni_string_from_utf8_c_string(env, message);
+            jstring java_message = jni_string_from_utf8(env, message, message_length);
             jthrowable java_error = (*env)->NewObject(env, java_error_cls, constructor,
                                                       java_message);
             (*env)->DeleteLocalRef(env, java_message);
             if (original_message != NULL) {
                 JS_FreeCString(context, original_message);
             }
+            if (original_name != NULL) {
+                JS_FreeCString(context, original_name);
+            }
+            JS_FreeValue(context, js_name);
             JS_FreeValue(context, js_message);
-            free(full_message);
+            (*env)->DeleteLocalRef(env, java_error_cls);
             free(stack);
             return java_error;
+        } else if (e != NULL) {
+            (*env)->DeleteLocalRef(env, e);
         }
     }
 
+    size_t full_message_length = 0;
+    char *full_message = js_error_message_join(
+            name,
+            name_length,
+            message,
+            message_length,
+            stack,
+            java_error_cls == NULL,
+            &full_message_length);
+
+    // Fallback to the default error class
+    const char *fallback_message = full_message != NULL ? full_message : message;
+    size_t fallback_message_length = full_message != NULL
+                                     ? full_message_length
+                                     : message_length;
+    jthrowable java_error = new_js_error_exception(
+            env,
+            context,
+            error,
+            fallback_message,
+            fallback_message_length,
+            stack);
     if (original_message != NULL) {
         JS_FreeCString(context, original_message);
     }
+    if (original_name != NULL) {
+        JS_FreeCString(context, original_name);
+    }
+    JS_FreeValue(context, js_name);
     JS_FreeValue(context, js_message);
-
-    // Fallback to the default error class
-    jthrowable java_error = new_js_error_exception(env, context, error, full_message, stack);
+    if (java_error_cls != NULL) {
+        (*env)->DeleteLocalRef(env, java_error_cls);
+    }
     free(full_message);
     free(stack);
     return java_error;
