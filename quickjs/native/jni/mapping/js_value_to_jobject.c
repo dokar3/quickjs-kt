@@ -90,6 +90,19 @@ jthrowable js_error_to_java_error(JNIEnv *env, JSContext *context, JSValue error
         jthrowable e = try_catch_java_exceptions(env);
         if (e == NULL && constructor != NULL) {
             jstring java_message = jni_string_from_utf8(env, message, message_length);
+            if (java_message == NULL) {
+                if (original_message != NULL) {
+                    JS_FreeCString(context, original_message);
+                }
+                if (original_name != NULL) {
+                    JS_FreeCString(context, original_name);
+                }
+                JS_FreeValue(context, js_name);
+                JS_FreeValue(context, js_message);
+                (*env)->DeleteLocalRef(env, java_error_cls);
+                free(stack);
+                return NULL;
+            }
             jthrowable java_error = (*env)->NewObject(env, java_error_cls, constructor,
                                                       java_message);
             (*env)->DeleteLocalRef(env, java_message);
@@ -256,7 +269,11 @@ jobject object_to_java_js_object(JNIEnv *env, JSContext *context, JSValue value)
     if (JS_IsException(json)) {
         JSValue js_err = JS_GetException(context);
         if (!JS_IsNull(js_err)) {
-            (*env)->Throw(env, js_error_to_java_error(env, context, js_err));
+            jthrowable java_error = js_error_to_java_error(env, context, js_err);
+            if (java_error != NULL) {
+                (*env)->Throw(env, java_error);
+                (*env)->DeleteLocalRef(env, java_error);
+            }
         }
         JS_FreeValue(context, js_err);
         JS_FreeValue(context, json);
@@ -384,7 +401,10 @@ jobject js_value_to_jobject(JNIEnv *env, JSContext *context, JSValue value) {
         JSValue exception = JS_GetException(context);
         jobject java_error = js_error_to_java_error(env, context, exception);
         JS_FreeValue(context, exception);
-        (*env)->Throw(env, java_error);
+        if (java_error != NULL) {
+            (*env)->Throw(env, java_error);
+            (*env)->DeleteLocalRef(env, java_error);
+        }
         return NULL;
     }
 

@@ -116,9 +116,18 @@ jthrowable new_js_error_exception(JNIEnv *env,
     jstring j_message = message != NULL
                         ? jni_string_from_utf8(env, message, message_length)
                         : NULL;
+    if (message != NULL && j_message == NULL) {
+        free(read_stack);
+        return NULL;
+    }
     jstring j_stack = js_stack != NULL
                       ? jni_string_from_utf8_c_string(env, js_stack)
                       : NULL;
+    if (js_stack != NULL && j_stack == NULL) {
+        delete_local_ref(env, j_message);
+        free(read_stack);
+        return NULL;
+    }
     free(read_stack);
 
     jthrowable exception = (*env)->NewObject(env, cls_quick_js_exception(env),
