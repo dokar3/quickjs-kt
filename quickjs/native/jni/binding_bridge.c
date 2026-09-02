@@ -7,6 +7,7 @@
 #include "jobject_to_js_value.h"
 #include "js_value_util.h"
 #include "jni_types_util.h"
+#include "jni_string_util.h"
 
 #define COMMON_FUNC_DATA_LEN 2
 
@@ -17,13 +18,16 @@ static JSValue throw_java_exception(JNIEnv *env, JSContext *context, jthrowable 
 }
 
 JSValue jni_invoke_getter(JSContext *context, jobject call_host, int64_t object_handle,
-                          const char *property_name) {
+                          const char *property_name, size_t property_name_length) {
     JNIEnv *env = get_jni_env();
     if (env == NULL) {
         return JS_EXCEPTION;
     }
-    // Don't release
-    jstring java_name = (*env)->NewStringUTF(env, property_name);
+    // QuickJS returns standard UTF-8, so decode its explicit length instead of using Modified UTF-8.
+    jstring java_name = jni_string_from_utf8(env, property_name, property_name_length);
+    if (java_name == NULL) {
+        return JS_EXCEPTION;
+    }
     jobject result = (*env)->CallObjectMethod(env, call_host,
                                               method_quick_js_on_call_getter(env),
                                               object_handle, java_name);
@@ -42,7 +46,8 @@ JSValue jni_invoke_getter(JSContext *context, jobject call_host, int64_t object_
 }
 
 JSValue jni_invoke_setter(JSContext *context, jobject call_host, int64_t object_handle,
-                          const char *property_name, int argc, JSValueConst *argv) {
+                          const char *property_name, size_t property_name_length,
+                          int argc, JSValueConst *argv) {
     JNIEnv *env = get_jni_env();
     if (env == NULL) {
         return JS_EXCEPTION;
@@ -59,8 +64,11 @@ JSValue jni_invoke_setter(JSContext *context, jobject call_host, int64_t object_
         (*env)->DeleteLocalRef(env, mapping_exception);
         return js_exception;
     }
-    // Don't release
-    jstring java_name = (*env)->NewStringUTF(env, property_name);
+    jstring java_name = jni_string_from_utf8(env, property_name, property_name_length);
+    if (java_name == NULL) {
+        (*env)->DeleteLocalRef(env, value);
+        return JS_EXCEPTION;
+    }
     (*env)->CallVoidMethod(env, call_host, method_quick_js_on_call_setter(env),
                            object_handle, java_name, value);
     (*env)->DeleteLocalRef(env, java_name);
@@ -75,7 +83,8 @@ JSValue jni_invoke_setter(JSContext *context, jobject call_host, int64_t object_
 }
 
 JSValue jni_invoke_function(JSContext *context, jobject call_host, int64_t object_handle,
-                            const char *function_name, int argc, JSValueConst *argv) {
+                            const char *function_name, size_t function_name_length,
+                            int argc, JSValueConst *argv) {
     JNIEnv *env = get_jni_env();
     if (env == NULL) {
         return JS_EXCEPTION;
@@ -94,8 +103,11 @@ JSValue jni_invoke_function(JSContext *context, jobject call_host, int64_t objec
         (*env)->SetObjectArrayElement(env, args, i, arg);
         (*env)->DeleteLocalRef(env, arg);
     }
-    // Don't release
-    jstring java_name = (*env)->NewStringUTF(env, function_name);
+    jstring java_name = jni_string_from_utf8(env, function_name, function_name_length);
+    if (java_name == NULL) {
+        (*env)->DeleteLocalRef(env, args);
+        return JS_EXCEPTION;
+    }
     jobject result = (*env)->CallObjectMethod(env, call_host,
                                               method_quick_js_on_call_function(env),
                                               object_handle,
@@ -114,7 +126,7 @@ JSValue jni_invoke_function(JSContext *context, jobject call_host, int64_t objec
 
 JSValue jni_invoke_async_function(JSContext *context, jobject call_host,
                                   int64_t object_handle,
-                                  const char *function_name,
+                                  const char *function_name, size_t function_name_length,
                                   uint64_t resolve_handle,
                                   uint64_t reject_handle,
                                   int argc, JSValueConst *argv) {
@@ -141,8 +153,11 @@ JSValue jni_invoke_async_function(JSContext *context, jobject call_host,
         (*env)->SetObjectArrayElement(env, args, i + (args_len - argc), arg);
         (*env)->DeleteLocalRef(env, arg);
     }
-    // Don't release
-    jstring java_name = (*env)->NewStringUTF(env, function_name);
+    jstring java_name = jni_string_from_utf8(env, function_name, function_name_length);
+    if (java_name == NULL) {
+        (*env)->DeleteLocalRef(env, args);
+        return JS_EXCEPTION;
+    }
     (*env)->CallObjectMethod(env, call_host,
                              method_quick_js_on_call_function(env),
                              object_handle,
@@ -168,9 +183,14 @@ property_getter(JSContext *context, JSValueConst this_val, int argc, JSValueCons
     jobject call_host = (jobject) host_address;
     int64_t object_handle;
     JS_ToInt64Ext(context, &object_handle, func_data[1]);
-    const char *prop_name = JS_ToCString(context, func_data[2]);
+    size_t prop_name_length;
+    const char *prop_name = JS_ToCStringLen(context, &prop_name_length, func_data[2]);
+    if (prop_name == NULL) {
+        return JS_EXCEPTION;
+    }
 
-    JSValue result = jni_invoke_getter(context, call_host, object_handle, prop_name);
+    JSValue result = jni_invoke_getter(
+            context, call_host, object_handle, prop_name, prop_name_length);
 
     JS_FreeCString(context, prop_name);
 
@@ -185,9 +205,14 @@ property_setter(JSContext *context, JSValueConst this_val, int argc, JSValueCons
     jobject call_host = (jobject) host_address;
     int64_t object_handle;
     JS_ToInt64Ext(context, &object_handle, func_data[1]);
-    const char *prop_name = JS_ToCString(context, func_data[2]);
+    size_t prop_name_length;
+    const char *prop_name = JS_ToCStringLen(context, &prop_name_length, func_data[2]);
+    if (prop_name == NULL) {
+        return JS_EXCEPTION;
+    }
 
-    JSValue result = jni_invoke_setter(context, call_host, object_handle, prop_name, argc, argv);
+    JSValue result = jni_invoke_setter(
+            context, call_host, object_handle, prop_name, prop_name_length, argc, argv);
 
     JS_FreeCString(context, prop_name);
 
@@ -202,9 +227,14 @@ function_invoke(JSContext *context, JSValueConst this_val, int argc, JSValueCons
     jobject call_host = (jobject) host_address;
     int64_t object_handle;
     JS_ToInt64Ext(context, &object_handle, func_data[1]);
-    const char *func_name = JS_ToCString(context, func_data[2]);
+    size_t func_name_length;
+    const char *func_name = JS_ToCStringLen(context, &func_name_length, func_data[2]);
+    if (func_name == NULL) {
+        return JS_EXCEPTION;
+    }
 
-    JSValue result = jni_invoke_function(context, call_host, object_handle, func_name, argc, argv);
+    JSValue result = jni_invoke_function(
+            context, call_host, object_handle, func_name, func_name_length, argc, argv);
 
     JS_FreeCString(context, func_name);
 
@@ -229,7 +259,12 @@ JSValue async_function_invoke(JSContext *context, JSValueConst this_val,
     JS_ToInt64Ext(context, &object_handle, func_data[1]);
 
     // Get the function name
-    const char *function_name = JS_ToCString(context, func_data[2]);
+    size_t function_name_length;
+    const char *function_name = JS_ToCStringLen(
+            context, &function_name_length, func_data[2]);
+    if (function_name == NULL) {
+        return JS_EXCEPTION;
+    }
 
     // Get globals
     int64_t globals_address_low;
@@ -252,7 +287,8 @@ JSValue async_function_invoke(JSContext *context, JSValueConst this_val,
 
     // Call java function
     JSValue result = jni_invoke_async_function(context, call_host, object_handle,
-                                               function_name, resolve_handle, reject_handle,
+                                               function_name, function_name_length,
+                                               resolve_handle, reject_handle,
                                                argc, argv);
 
     JS_FreeCString(context, function_name);
@@ -274,6 +310,7 @@ void define_async_js_function_on(JSContext *context,
                                  Globals *globals,
                                  JSValue parent,
                                  const char *name,
+                                 size_t name_length,
                                  int func_data_len,
                                  JSValue *func_data) {
     // Append the globals pointer to the function data
@@ -297,7 +334,7 @@ void define_async_js_function_on(JSContext *context,
                                          async_func_data_len,
                                          async_func_data);
     int flags = JS_PROP_CONFIGURABLE;
-    JSAtom prop = JS_NewAtom(context, name);
+    JSAtom prop = JS_NewAtomLen(context, name, name_length);
     // Define async function
     JS_DefinePropertyValue(context, parent, prop, invoke, flags);
     JS_FreeAtom(context, prop);
@@ -306,11 +343,12 @@ void define_async_js_function_on(JSContext *context,
 void define_js_function_on(JSContext *context,
                            JSValue parent,
                            const char *name,
+                           size_t name_length,
                            int func_data_len,
                            JSValue *func_data) {
     JSValue invoke = JS_NewCFunctionData(context, function_invoke, 0, 0, func_data_len, func_data);
     int flags = JS_PROP_CONFIGURABLE;
-    JSAtom prop = JS_NewAtom(context, name);
+    JSAtom prop = JS_NewAtomLen(context, name, name_length);
     // Define function
     JS_DefinePropertyValue(context, parent, prop, invoke, flags);
     JS_FreeAtom(context, prop);
@@ -331,7 +369,12 @@ void define_js_functions_on(JNIEnv *env,
     for (jsize i = 0; i < func_size; i++) {
         jobject j_fun = (*env)->GetObjectArrayElement(env, functions, i);
         jstring j_fun_name = (*env)->GetObjectField(env, j_fun, field_name);
-        const char *func_name = (*env)->GetStringUTFChars(env, j_fun_name, NULL);
+        JniUtf8String func_name;
+        if (!jni_string_to_utf8(env, j_fun_name, &func_name)) {
+            (*env)->DeleteLocalRef(env, j_fun_name);
+            (*env)->DeleteLocalRef(env, j_fun);
+            return;
+        }
         jboolean is_async = (*env)->GetBooleanField(env, j_fun, field_is_async);
 
         // Function data
@@ -340,18 +383,22 @@ void define_js_functions_on(JNIEnv *env,
         for (int j = 0; j < data_len - 1; j++) {
             func_data[j] = common_func_data[j];
         }
-        JSValue js_func_name = JS_NewString(context, func_name);
+        JSValue js_func_name = JS_NewStringLen(context, func_name.data, func_name.length);
         cvector_push_back(globals->managed_js_values, js_func_name);
         func_data[data_len - 1] = js_func_name;
 
         if (is_async) {
-            define_async_js_function_on(context, globals, parent, func_name, data_len, func_data);
+            define_async_js_function_on(
+                    context, globals, parent, func_name.data, func_name.length,
+                    data_len, func_data);
         } else {
-            define_js_function_on(context, parent, func_name, data_len, func_data);
+            define_js_function_on(
+                    context, parent, func_name.data, func_name.length, data_len, func_data);
         }
 
-        (*env)->ReleaseStringUTFChars(env, j_fun_name, func_name);
+        jni_utf8_string_release(&func_name);
         (*env)->DeleteLocalRef(env, j_fun_name);
+        (*env)->DeleteLocalRef(env, j_fun);
     }
 }
 
@@ -385,7 +432,13 @@ JSValue define_js_object(JNIEnv *env, JSContext *context,
         jobject element = (*env)->GetObjectArrayElement(env, properties, i);
 
         jstring j_prop_name = (*env)->GetObjectField(env, element, field_js_property_name(env));
-        const char *prop_name = (*env)->GetStringUTFChars(env, j_prop_name, NULL);
+        JniUtf8String prop_name;
+        if (!jni_string_to_utf8(env, j_prop_name, &prop_name)) {
+            (*env)->DeleteLocalRef(env, j_prop_name);
+            (*env)->DeleteLocalRef(env, element);
+            JS_FreeValue(context, object);
+            return JS_EXCEPTION;
+        }
         jboolean configurable = (*env)->GetBooleanField(env, element,
                                                         field_js_property_configurable(env));
         jboolean writable = (*env)->GetBooleanField(env, element, field_js_property_writable(env));
@@ -398,7 +451,7 @@ JSValue define_js_object(JNIEnv *env, JSContext *context,
         for (int j = 0; j < data_len - 1; j++) {
             func_data[j] = common_func_data[j];
         }
-        JSValue js_prop_name = JS_NewString(context, prop_name);
+        JSValue js_prop_name = JS_NewStringLen(context, prop_name.data, prop_name.length);
         cvector_push_back(globals->managed_js_values, js_prop_name);
         func_data[data_len - 1] = js_prop_name;
 
@@ -414,7 +467,7 @@ JSValue define_js_object(JNIEnv *env, JSContext *context,
             flags = flags & ~JS_PROP_ENUMERABLE;
         }
 
-        JSAtom prop = JS_NewAtom(context, prop_name);
+        JSAtom prop = JS_NewAtomLen(context, prop_name.data, prop_name.length);
 
         // Define property
         if (writable == JNI_FALSE) {
@@ -427,7 +480,7 @@ JSValue define_js_object(JNIEnv *env, JSContext *context,
 
         JS_FreeAtom(context, prop);
 
-        (*env)->ReleaseStringUTFChars(env, j_prop_name, prop_name);
+        jni_utf8_string_release(&prop_name);
         (*env)->DeleteLocalRef(env, j_prop_name);
         (*env)->DeleteLocalRef(env, element);
     }
@@ -435,21 +488,27 @@ JSValue define_js_object(JNIEnv *env, JSContext *context,
     // Add functions
     define_js_functions_on(env, context, globals, object, functions, common_func_data);
 
-    const char *c_name = (*env)->GetStringUTFChars(env, name, NULL);
+    JniUtf8String c_name;
+    if (!jni_string_to_utf8(env, name, &c_name)) {
+        JS_FreeValue(context, object);
+        return JS_EXCEPTION;
+    }
     JSValue retained_object = JS_DupValue(context, object);
     int define_result;
+    JSAtom object_name = JS_NewAtomLen(context, c_name.data, c_name.length);
 
     if (parent == NULL) {
         JSValue global_this = JS_GetGlobalObject(context);
         // Attach object to globalThis
-        define_result = JS_DefinePropertyValueStr(context, global_this, c_name, object, 0);
+        define_result = JS_DefinePropertyValue(context, global_this, object_name, object, 0);
         JS_FreeValue(context, global_this);
     } else {
         // Attach object to parent
-        define_result = JS_DefinePropertyValueStr(context, *parent, c_name, object, 0);
+        define_result = JS_DefinePropertyValue(context, *parent, object_name, object, 0);
     }
 
-    (*env)->ReleaseStringUTFChars(env, name, c_name);
+    JS_FreeAtom(context, object_name);
+    jni_utf8_string_release(&c_name);
 
     if (define_result < 0) {
         JS_FreeValue(context, retained_object);
@@ -467,14 +526,17 @@ void define_js_function(JNIEnv *env, JSContext *context,
     jobject global_host = (*env)->NewGlobalRef(env, host);
     cvector_push_back(globals->global_object_refs, global_host);
 
-    const char *func_name = (*env)->GetStringUTFChars(env, name, NULL);
+    JniUtf8String func_name;
+    if (!jni_string_to_utf8(env, name, &func_name)) {
+        return;
+    }
 
     // Function data
     uint32_t data_len = COMMON_FUNC_DATA_LEN + 1;
     JSValue func_data[3] = {
             JS_NewBigInt64(context, (int64_t) global_host), // host address
             JS_NewBigInt64(context, GLOBAL_THIS_HANDLE), // parent object handle
-            JS_NewString(context, func_name), // function name
+            JS_NewStringLen(context, func_name.data, func_name.length), // function name
     };
 
     for (uint32_t i = 0; i < data_len; i++) {
@@ -483,12 +545,14 @@ void define_js_function(JNIEnv *env, JSContext *context,
 
     JSValue global_this = JS_GetGlobalObject(context);
     if (is_async) {
-        define_async_js_function_on(context, globals, global_this, func_name,
-                                    data_len, func_data);
+        define_async_js_function_on(
+                context, globals, global_this, func_name.data, func_name.length,
+                data_len, func_data);
     } else {
-        define_js_function_on(context, global_this, func_name, data_len, func_data);
+        define_js_function_on(
+                context, global_this, func_name.data, func_name.length, data_len, func_data);
     }
     JS_FreeValue(context, global_this);
 
-    (*env)->ReleaseStringUTFChars(env, name, func_name);
+    jni_utf8_string_release(&func_name);
 }

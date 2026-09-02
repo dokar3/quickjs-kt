@@ -1,11 +1,23 @@
 #include <string.h>
 #include <stdlib.h>
 #include "jobject_to_js_value.h"
+#include "jni_string_util.h"
 #include "js_value_util.h"
 #include "exception_util.h"
 #include "log_util.h"
 #include "jni_globals.h"
 #include "jni_globals_generated.h"
+
+/** Converts a Java string to a QuickJS string with the shared UTF-8/WTF-8 rules. */
+static JSValue java_string_to_js_string(JNIEnv *env, JSContext *context, jstring value) {
+    JniUtf8String utf8;
+    if (!jni_string_to_utf8(env, value, &utf8)) {
+        return JS_EXCEPTION;
+    }
+    JSValue result = JS_NewStringLen(context, utf8.data, utf8.length);
+    jni_utf8_string_release(&utf8);
+    return result;
+}
 
 void throw_circular_ref_error(JSContext *context) {
     const char *msg = "Unable to map objects with circular reference.";
@@ -282,23 +294,19 @@ JSValue java_throwable_to_js_error(JNIEnv *env, JSContext *context, jthrowable t
     // Get class js_name
     jstring j_cls_name = (jstring) (*env)->CallObjectMethod(env, exceptionClass,
                                                             method_class_get_name(env));
-    const char *cls_name = (*env)->GetStringUTFChars(env, j_cls_name, NULL);
-
     // Set error name
-    JSValue js_name = JS_NewString(context, cls_name);
+    JSValue js_name = java_string_to_js_string(env, context, j_cls_name);
     JS_SetPropertyStr(context, error, "name", js_name);
-
-    (*env)->ReleaseStringUTFChars(env, j_cls_name, cls_name);
+    (*env)->DeleteLocalRef(env, j_cls_name);
 
     // Get message
     jstring j_message = (jstring) (*env)->CallObjectMethod(env, throwable,
                                                            method_throwable_get_message(env));
     if (j_message != NULL) {
-        const char *message = (*env)->GetStringUTFChars(env, j_message, NULL);
         // Set message name
-        JSValue js_message = JS_NewString(context, message);
+        JSValue js_message = java_string_to_js_string(env, context, j_message);
         JS_SetPropertyStr(context, error, "message", js_message);
-        (*env)->ReleaseStringUTFChars(env, j_message, message);
+        (*env)->DeleteLocalRef(env, j_message);
     } else {
         JSValue js_message = JS_NewString(context, "");
         JS_SetPropertyStr(context, error, "message", js_message);
@@ -316,13 +324,11 @@ JSValue java_throwable_to_js_error(JNIEnv *env, JSContext *context, jthrowable t
     for (int i = 0; i < stack_trace_line_count; i++) {
         jobject element = (*env)->GetObjectArrayElement(env, j_stack_trace, i);
         jstring j_string = (jstring) (*env)->CallObjectMethod(env, element, to_string);
-        const char *line_string = (*env)->GetStringUTFChars(env, j_string, NULL);
 
         // Set stack trace line
-        JSValue line = JS_NewString(context, line_string);
+        JSValue line = java_string_to_js_string(env, context, j_string);
         JS_SetPropertyUint32(context, stack_trace, i, line);
 
-        (*env)->ReleaseStringUTFChars(env, j_string, line_string);
         (*env)->DeleteLocalRef(env, j_string);
         (*env)->DeleteLocalRef(env, element);
     }
@@ -386,14 +392,23 @@ JSValue java_map_to_js_object(JNIEnv *env, JSContext *context,
             JS_Throw(context, new_js_error(context, "TypeMappingError", message, 0, NULL));
             return JS_EXCEPTION;
         }
-        const char *str_key = (*env)->GetStringUTFChars(env, key, NULL);
+        JniUtf8String str_key;
+        if (!jni_string_to_utf8(env, (jstring) key, &str_key)) {
+            JS_FreeValue(context, js_object);
+            (*env)->DeleteLocalRef(env, entry);
+            (*env)->DeleteLocalRef(env, key);
+            if (delete_global_visited_ref) {
+                (*env)->DeleteGlobalRef(env, visited_set);
+            }
+            return JS_EXCEPTION;
+        }
 
         jobject value = (*env)->CallObjectMethod(env, entry, method_get_val);
 
         // Check circular refs
         if (visit_or_circular_ref_error(env, context, visited_set, value)) {
             JS_FreeValue(context, js_object);
-            (*env)->ReleaseStringUTFChars(env, key, str_key);
+            jni_utf8_string_release(&str_key);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
             (*env)->DeleteLocalRef(env, value);
@@ -403,11 +418,11 @@ JSValue java_map_to_js_object(JNIEnv *env, JSContext *context,
             return JS_EXCEPTION;
         }
 
-        JSAtom js_key = JS_NewAtom(context, str_key);
+        JSAtom js_key = JS_NewAtomLen(context, str_key.data, str_key.length);
         JSValue js_value = jobject_to_js_value(env, context, visited_set, value);
         if (JS_IsException(js_value)) {
             JS_FreeValue(context, js_object);
-            (*env)->ReleaseStringUTFChars(env, key, str_key);
+            jni_utf8_string_release(&str_key);
             (*env)->DeleteLocalRef(env, entry);
             (*env)->DeleteLocalRef(env, key);
             (*env)->DeleteLocalRef(env, value);
@@ -419,7 +434,7 @@ JSValue java_map_to_js_object(JNIEnv *env, JSContext *context,
         JS_SetProperty(context, js_object, js_key, js_value);
         JS_FreeAtom(context, js_key);
 
-        (*env)->ReleaseStringUTFChars(env, key, str_key);
+        jni_utf8_string_release(&str_key);
         (*env)->DeleteLocalRef(env, entry);
         (*env)->DeleteLocalRef(env, key);
         (*env)->DeleteLocalRef(env, value);
@@ -509,10 +524,7 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject visited_set
         result = JS_NewFloat64(context, unboxed);
     } else if ((*env)->IsInstanceOf(env, value, cls_string(env))) {
         // String
-        const char *c_str = (*env)->GetStringUTFChars(env, value, NULL);
-        JSValue js_value = JS_NewString(context, c_str);
-        (*env)->ReleaseStringUTFChars(env, value, c_str);
-        result = js_value;
+        result = java_string_to_js_string(env, context, (jstring) value);
     } else if ((*env)->IsInstanceOf(env, value, cls_list(env))) {
         // List
         result = java_list_to_js_array(env, context, visited_set, value);
@@ -539,14 +551,19 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject visited_set
 
     jclass cls = (*env)->GetObjectClass(env, value);
     jstring j_cls_name = (jstring) (*env)->CallObjectMethod(env, cls, method_class_get_name(env));
-    const char *cls_name = (*env)->GetStringUTFChars(env, j_cls_name, NULL);
+    JniUtf8String cls_name;
+    if (!jni_string_to_utf8(env, j_cls_name, &cls_name)) {
+        (*env)->DeleteLocalRef(env, j_cls_name);
+        (*env)->DeleteLocalRef(env, cls);
+        return JS_EXCEPTION;
+    }
 
     // Try by the class name
     if ((*env)->IsInstanceOf(env, value, cls_unit(env))) {
         result = JS_UNDEFINED;
-    } else if (strcmp("[B", cls_name) == 0) {
+    } else if (strcmp("[B", cls_name.data) == 0) {
         result = byte_array_to_js_int8array(env, context, value);
-    } else if (strcmp("[Z", cls_name) == 0) {
+    } else if (strcmp("[Z", cls_name.data) == 0) {
         // boolean array
         int size = (*env)->GetArrayLength(env, value);
         jboolean *arr = (*env)->GetBooleanArrayElements(env, value, NULL);
@@ -557,7 +574,7 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject visited_set
         }
         result = js_array;
         (*env)->ReleaseBooleanArrayElements(env, value, arr, 0);
-    } else if (strcmp("[I", cls_name) == 0) {
+    } else if (strcmp("[I", cls_name.data) == 0) {
         // int array
         int size = (*env)->GetArrayLength(env, value);
         jint *arr = (*env)->GetIntArrayElements(env, value, NULL);
@@ -568,7 +585,7 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject visited_set
         }
         result = js_array;
         (*env)->ReleaseIntArrayElements(env, value, arr, 0);
-    } else if (strcmp("[J", cls_name) == 0) {
+    } else if (strcmp("[J", cls_name.data) == 0) {
         // long array
         int size = (*env)->GetArrayLength(env, value);
         jlong *arr = (*env)->GetLongArrayElements(env, value, NULL);
@@ -579,7 +596,7 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject visited_set
         }
         result = js_array;
         (*env)->ReleaseLongArrayElements(env, value, arr, 0);
-    } else if (strcmp("[F", cls_name) == 0) {
+    } else if (strcmp("[F", cls_name.data) == 0) {
         // float array
         int size = (*env)->GetArrayLength(env, value);
         jfloat *arr = (*env)->GetFloatArrayElements(env, value, NULL);
@@ -590,7 +607,7 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject visited_set
         }
         result = js_array;
         (*env)->ReleaseFloatArrayElements(env, value, arr, 0);
-    } else if (strcmp("[D", cls_name) == 0) {
+    } else if (strcmp("[D", cls_name.data) == 0) {
         // double array
         int size = (*env)->GetArrayLength(env, value);
         jdouble *arr = (*env)->GetDoubleArrayElements(env, value, NULL);
@@ -601,7 +618,7 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject visited_set
         }
         result = js_array;
         (*env)->ReleaseDoubleArrayElements(env, value, arr, 0);
-    } else if ('[' == cls_name[0]) {
+    } else if ('[' == cls_name.data[0]) {
         // Object array
         int size = (*env)->GetArrayLength(env, value);
         JSValue js_array = JS_NewArray(context);
@@ -626,13 +643,13 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject visited_set
             result = js_array;
         }
     } else {
-        char message[100];
-        sprintf(message, "Cannot convert java type '%s' to a js value.", cls_name);
-        JS_Throw(context, new_js_error(context, "TypeError", message, 0, NULL));
+        JS_ThrowTypeError(context, "Cannot convert java type '%s' to a js value.", cls_name.data);
         result = JS_EXCEPTION;
     }
 
-    (*env)->ReleaseStringUTFChars(env, j_cls_name, cls_name);
+    jni_utf8_string_release(&cls_name);
+    (*env)->DeleteLocalRef(env, j_cls_name);
+    (*env)->DeleteLocalRef(env, cls);
 
     return result;
 }

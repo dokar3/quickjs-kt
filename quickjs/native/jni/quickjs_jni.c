@@ -14,6 +14,7 @@
 #include "quickjs_interrupt.h"
 #include "promise_rejection_handler.h"
 #include "module_loader.h"
+#include "jni_string_util.h"
 
 JSRuntime *runtime_from_ptr(JNIEnv *env, jlong ptr) {
     if (ptr == 0) {
@@ -605,25 +606,34 @@ jobject eval(JNIEnv *env, jlong context_ptr,
              jstring jfilename,
              jstring jcode,
              int eval_flags) {
-    const char *filename = (*env)->GetStringUTFChars(env, jfilename, NULL);
-    if (filename == NULL) {
-        jni_throw_qjs_exception(env, "Cannot read filename.");
+    JniUtf8String filename;
+    if (!jni_string_to_utf8(env, jfilename, &filename)) {
+        if (!(*env)->ExceptionCheck(env)) {
+            jni_throw_qjs_exception(env, "Cannot read filename.");
+        }
         return NULL;
     }
 
-    const char *code = (*env)->GetStringUTFChars(env, jcode, NULL);
-    if (code == NULL) {
-        jni_throw_qjs_exception(env, "Cannot read code.");
+    JniUtf8String code;
+    if (!jni_string_to_utf8(env, jcode, &code)) {
+        jni_utf8_string_release(&filename);
+        if (!(*env)->ExceptionCheck(env)) {
+            jni_throw_qjs_exception(env, "Cannot read code.");
+        }
         return NULL;
     }
 
     JSContext *context = context_from_ptr(env, context_ptr);
     if (context == NULL) {
+        jni_utf8_string_release(&code);
+        jni_utf8_string_release(&filename);
         return NULL;
     }
 
     Globals *globals = globals_from_ptr(env, globals_ptr);
     if (globals == NULL) {
+        jni_utf8_string_release(&code);
+        jni_utf8_string_release(&filename);
         return NULL;
     }
 
@@ -635,11 +645,16 @@ jobject eval(JNIEnv *env, jlong context_ptr,
     JS_UpdateStackTop(JS_GetRuntime(context));
 
     // Run code
-    JSValue value = JS_Eval(context, code, strlen(code), filename, eval_flags);
+    JSValue value = JS_Eval(
+            context,
+            code.data,
+            code.length,
+            filename.data,
+            eval_flags);
 
-    // Free strings
-    (*env)->ReleaseStringUTFChars(env, jfilename, filename);
-    (*env)->ReleaseStringUTFChars(env, jcode, code);
+    // QuickJS does not retain these conversion buffers after JS_Eval returns.
+    jni_utf8_string_release(&code);
+    jni_utf8_string_release(&filename);
 
     int async = (eval_flags & JS_EVAL_FLAG_ASYNC) != 0;
 
@@ -741,7 +756,7 @@ Java_com_dokar_quickjs_QuickJs_resolveModuleGraphBytecode(JNIEnv *env,
         return NULL;
     }
 
-    jstring result = (*env)->NewStringUTF(env, module_name);
+    jstring result = jni_string_from_utf8_c_string(env, module_name);
     JS_FreeCString(context, module_name);
     if (result == NULL) {
         JS_FreeValue(context, entry);
@@ -780,32 +795,41 @@ Java_com_dokar_quickjs_QuickJs_evaluate(JNIEnv *env,
                                         jboolean as_module) {
     int eval_flags = JS_EVAL_FLAG_ASYNC;
     eval_flags |= as_module ? JS_EVAL_TYPE_MODULE : JS_EVAL_TYPE_GLOBAL;
-    const char *filename = (*env)->GetStringUTFChars(env, jfilename, NULL);
-    if (filename == NULL) {
-        jni_throw_qjs_exception(env, "Cannot read filename.");
+    JniUtf8String filename;
+    if (!jni_string_to_utf8(env, jfilename, &filename)) {
+        if (!(*env)->ExceptionCheck(env)) {
+            jni_throw_qjs_exception(env, "Cannot read filename.");
+        }
         return -1;
     }
-    const char *code = (*env)->GetStringUTFChars(env, jcode, NULL);
-    if (code == NULL) {
-        (*env)->ReleaseStringUTFChars(env, jfilename, filename);
-        jni_throw_qjs_exception(env, "Cannot read code.");
+    JniUtf8String code;
+    if (!jni_string_to_utf8(env, jcode, &code)) {
+        jni_utf8_string_release(&filename);
+        if (!(*env)->ExceptionCheck(env)) {
+            jni_throw_qjs_exception(env, "Cannot read code.");
+        }
         return -1;
     }
     JSContext *context = context_from_ptr(env, context_ptr);
     Globals *globals = globals_from_ptr(env, globals_ptr);
     if (context == NULL || globals == NULL) {
-        (*env)->ReleaseStringUTFChars(env, jfilename, filename);
-        (*env)->ReleaseStringUTFChars(env, jcode, code);
+        jni_utf8_string_release(&code);
+        jni_utf8_string_release(&filename);
         return -1;
     }
 
     pthread_mutex_lock(&globals->js_mutex);
     JS_UpdateStackTop(JS_GetRuntime(context));
-    JSValue value = JS_Eval(context, code, strlen(code), filename, eval_flags);
+    JSValue value = JS_Eval(
+            context,
+            code.data,
+            code.length,
+            filename.data,
+            eval_flags);
     pthread_mutex_unlock(&globals->js_mutex);
 
-    (*env)->ReleaseStringUTFChars(env, jfilename, filename);
-    (*env)->ReleaseStringUTFChars(env, jcode, code);
+    jni_utf8_string_release(&code);
+    jni_utf8_string_release(&filename);
     return store_evaluate_result(env, context, globals, value);
 }
 

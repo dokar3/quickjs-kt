@@ -11,15 +11,35 @@
 char *js_array_join(JSContext *context, JSValue array, const char *separator);
 
 /**
+ * Join an error name, message, and optional stack using explicit byte lengths.
+ *
+ * @param include_name Whether to prepend the name and a colon.
+ * @param out_length The resulting byte length, excluding the trailing NUL.
+ * @return An owned NUL-terminated buffer, or NULL if allocation fails.
+ */
+char *js_error_message_join(const char *name,
+                            size_t name_length,
+                            const char *message,
+                            size_t message_length,
+                            const char *stack,
+                            int include_name,
+                            size_t *out_length);
+
+/**
  * Join the js error message and stack trace (if any).
  *
  * @param context The js context.
  * @param error The error js value.
  * @param out Destination string pointer.
+ * @param out_length Destination for the message byte length.
  * @param out_stack Optional destination for the stack trace, pass NULL to
  * discard it, free() is required otherwise.
  */
-void js_error_to_string(JSContext *context, JSValue error, char **out, char **out_stack);
+void js_error_to_string(JSContext *context,
+                        JSValue error,
+                        char **out,
+                        size_t *out_length,
+                        char **out_stack);
 
 /**
  * Read the stack trace of a js error.

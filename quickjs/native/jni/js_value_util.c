@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include "js_value_util.h"
 #include "log_util.h"
@@ -65,7 +66,59 @@ char *js_array_join(JSContext *context, JSValue array, const char *separator) {
     return result;
 }
 
-void js_error_to_string(JSContext *context, JSValue error, char **out, char **out_stack) {
+char *js_error_message_join(const char *name,
+                            size_t name_length,
+                            const char *message,
+                            size_t message_length,
+                            const char *stack,
+                            int include_name,
+                            size_t *out_length) {
+    size_t stack_length = stack != NULL ? strlen(stack) : 0;
+    size_t length = message_length;
+    if (include_name) {
+        if (name_length > SIZE_MAX - 2 || name_length + 2 > SIZE_MAX - length) {
+            return NULL;
+        }
+        length += name_length + 2;
+    }
+    if (stack != NULL) {
+        if (length == SIZE_MAX || stack_length > SIZE_MAX - length - 1) {
+            return NULL;
+        }
+        length += stack_length + 1;
+    }
+
+    char *result = (char *) malloc(length + 1);
+    if (result == NULL) {
+        return NULL;
+    }
+
+    size_t position = 0;
+    if (include_name) {
+        memcpy(result + position, name, name_length);
+        position += name_length;
+        memcpy(result + position, ": ", 2);
+        position += 2;
+    }
+    memcpy(result + position, message, message_length);
+    position += message_length;
+    if (stack != NULL) {
+        result[position++] = '\n';
+        memcpy(result + position, stack, stack_length);
+        position += stack_length;
+    }
+    result[position] = '\0';
+    *out_length = length;
+    return result;
+}
+
+void js_error_to_string(JSContext *context,
+                        JSValue error,
+                        char **out,
+                        size_t *out_length,
+                        char **out_stack) {
+    *out = NULL;
+    *out_length = 0;
     if (out_stack != NULL) {
         *out_stack = NULL;
     }
@@ -75,11 +128,21 @@ void js_error_to_string(JSContext *context, JSValue error, char **out, char **ou
 
     if (JS_IsUndefined(js_name)) {
         // Could be arbitrary types
-        const char *c_str = JS_ToCString(context, error);
+        size_t c_str_length = 0;
+        const char *c_str = JS_ToCStringLen(context, &c_str_length, error);
         const char *str = c_str != NULL ? c_str : "<UNSUPPORTED_ERROR>";
-        char *copy = malloc(strlen(str) + 1);
-        strcpy(copy, str);
-        *out = copy;
+        size_t str_length = c_str != NULL
+                            ? c_str_length
+                            : sizeof("<UNSUPPORTED_ERROR>") - 1;
+        if (str_length < SIZE_MAX) {
+            char *copy = malloc(str_length + 1);
+            if (copy != NULL) {
+                memcpy(copy, str, str_length);
+                copy[str_length] = '\0';
+                *out = copy;
+                *out_length = str_length;
+            }
+        }
         if (c_str != NULL) {
             JS_FreeCString(context, c_str);
         }
@@ -87,29 +150,33 @@ void js_error_to_string(JSContext *context, JSValue error, char **out, char **ou
         return;
     }
 
-    const char *c_name = JS_ToCString(context, js_name);
+    size_t c_name_length = 0;
+    const char *c_name = JS_ToCStringLen(context, &c_name_length, js_name);
     const char *name = c_name != NULL ? c_name : "<UNKNOWN_ERROR>";
+    size_t name_length = c_name != NULL
+                         ? c_name_length
+                         : sizeof("<UNKNOWN_ERROR>") - 1;
 
     // Get message
     JSValue js_message = JS_GetPropertyStr(context, error, "message");
-    const char *c_message = JS_ToCString(context, js_message);
+    size_t c_message_length = 0;
+    const char *c_message = JS_ToCStringLen(context, &c_message_length, js_message);
     const char *message = c_message != NULL ? c_message : "<NO_MESSAGE>";
-
-    int name_len = strlen(name);
-    int msg_len = strlen(message);
+    size_t message_length = c_message != NULL
+                            ? c_message_length
+                            : sizeof("<NO_MESSAGE>") - 1;
 
     // Get stack trace
     char *stack = NULL;
     js_error_stack(context, error, &stack);
-    if (stack != NULL) {
-        char *full_message = (char *) malloc(name_len + msg_len + strlen(stack) + 4);
-        sprintf(full_message, "%s: %s\n%s", name, message, stack);
-        *out = full_message;
-    } else {
-        char *str = (char *) malloc(name_len + msg_len + 3);
-        sprintf(str, "%s: %s", name, message);
-        *out = str;
-    }
+    *out = js_error_message_join(
+            name,
+            name_length,
+            message,
+            message_length,
+            stack,
+            1,
+            out_length);
 
     // Hand the stack over to the caller, so it doesn't have to read it again
     if (out_stack != NULL) {

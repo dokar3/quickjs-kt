@@ -120,7 +120,7 @@ list(APPEND all_sources ${quickjs_sources})
 
 if (BUILD_WITH_JNI)
     # Bridge sources
-    file(GLOB_RECURSE bridge_sources
+    file(GLOB_RECURSE bridge_sources CONFIGURE_DEPENDS
             "jni/*.c"
             "jni/mapping/*.c")
     list(APPEND all_sources ${bridge_sources})

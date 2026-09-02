@@ -4,6 +4,7 @@
 #include "mapping/jobject_to_js_value.h"
 #include "exception_util.h"
 #include "jni_globals.h"
+#include "jni_string_util.h"
 
 /**
  * Converts a pending Java callback failure to a JavaScript error so it follows
@@ -181,7 +182,7 @@ static char *normalize_module(JSContext *context,
         return NULL;
     }
 
-    jstring java_base_name = (*env)->NewStringUTF(env, base_name);
+    jstring java_base_name = jni_string_from_utf8_c_string(env, base_name);
     if (java_base_name == NULL) {
         if (!forward_java_exception(
                 env, context,
@@ -191,7 +192,7 @@ static char *normalize_module(JSContext *context,
         }
         return NULL;
     }
-    jstring java_requested_name = (*env)->NewStringUTF(env, requested_name);
+    jstring java_requested_name = jni_string_from_utf8_c_string(env, requested_name);
     if (java_requested_name == NULL) {
         if (!forward_java_exception(
                 env, context,
@@ -222,8 +223,8 @@ static char *normalize_module(JSContext *context,
         return NULL;
     }
 
-    const char *normalized_name = (*env)->GetStringUTFChars(env, java_normalized_name, NULL);
-    if (normalized_name == NULL) {
+    JniUtf8String normalized_name;
+    if (!jni_string_to_utf8(env, java_normalized_name, &normalized_name)) {
         if (!forward_java_exception(
                 env, context,
                 "Cannot read normalized module name for '%s'.", requested_name)) {
@@ -233,12 +234,18 @@ static char *normalize_module(JSContext *context,
         (*env)->DeleteLocalRef(env, java_normalized_name);
         return NULL;
     }
-    size_t normalized_length = strlen(normalized_name);
-    char *result = js_malloc(context, normalized_length + 1);
-    if (result != NULL) {
-        memcpy(result, normalized_name, normalized_length + 1);
+    // The QuickJS module-loader ABI uses C strings and cannot represent NUL in module names.
+    if (memchr(normalized_name.data, '\0', normalized_name.length) != NULL) {
+        JS_ThrowTypeError(context, "Normalized module name cannot contain NUL.");
+        jni_utf8_string_release(&normalized_name);
+        (*env)->DeleteLocalRef(env, java_normalized_name);
+        return NULL;
     }
-    (*env)->ReleaseStringUTFChars(env, java_normalized_name, normalized_name);
+    char *result = js_malloc(context, normalized_name.length + 1);
+    if (result != NULL) {
+        memcpy(result, normalized_name.data, normalized_name.length + 1);
+    }
+    jni_utf8_string_release(&normalized_name);
     (*env)->DeleteLocalRef(env, java_normalized_name);
     return result;
 }
@@ -255,7 +262,7 @@ static JSModuleDef *load_module(JSContext *context, const char *module_name, voi
         return NULL;
     }
 
-    jstring java_name = (*env)->NewStringUTF(env, module_name);
+    jstring java_name = jni_string_from_utf8_c_string(env, module_name);
     if (java_name == NULL) {
         if (!forward_java_exception(
                 env, context,
@@ -295,8 +302,8 @@ static JSModuleDef *load_module(JSContext *context, const char *module_name, voi
 
     JSValue module = JS_UNDEFINED;
     if (java_source != NULL) {
-        const char *source = (*env)->GetStringUTFChars(env, java_source, NULL);
-        if (source == NULL) {
+        JniUtf8String source;
+        if (!jni_string_to_utf8(env, java_source, &source)) {
             if (!forward_java_exception(
                     env, context,
                     "Cannot read module source '%s'.", module_name)) {
@@ -307,11 +314,11 @@ static JSModuleDef *load_module(JSContext *context, const char *module_name, voi
         }
         module = JS_Eval(
                 context,
-                source,
-                strlen(source),
+                source.data,
+                source.length,
                 module_name,
                 JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-        (*env)->ReleaseStringUTFChars(env, java_source, source);
+        jni_utf8_string_release(&source);
         (*env)->DeleteLocalRef(env, java_source);
         if (!JS_IsException(module) && JS_VALUE_GET_TAG(module) == JS_TAG_MODULE &&
             !notify_module_compiled(
