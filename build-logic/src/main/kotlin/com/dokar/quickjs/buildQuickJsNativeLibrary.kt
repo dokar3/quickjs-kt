@@ -85,9 +85,13 @@ internal fun Project.buildQuickJsNativeLibrary(
         }
     }
 
+    // The Xcode generator is multi-config and ignores CMAKE_BUILD_TYPE when choosing
+    // what to build, so pass the config to cmake (before '--') or it silently builds Debug.
     val buildArgs = when (platform) {
         Platform.ios_aarch64 -> arrayOf(
             commonArgs[1],
+            "--config",
+            buildType,
             "--",
             "-sdk",
             "iphoneos"
@@ -96,6 +100,8 @@ internal fun Project.buildQuickJsNativeLibrary(
         Platform.ios_x64,
         Platform.ios_simulator_aarch64 -> arrayOf(
             commonArgs[1],
+            "--config",
+            buildType,
             "--",
             "-sdk",
             "iphonesimulator"

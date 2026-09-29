@@ -74,7 +74,7 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
                     platform = platform,
                     sharedLib = false,
                     withJni = false,
-                    release = false,
+                    release = true,
                     outputDir = nativeStaticLibOutDir,
                     withPlatformSuffixIfCopy = true,
                 )
