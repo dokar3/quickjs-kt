@@ -13,6 +13,11 @@ private val jniLibraryPlatforms = listOf(
     Platform.macos_aarch64,
 )
 
+/**
+ * Registers the tasks that build the native QuickJS libraries with CMake (the JNI shared libraries
+ * and the Kotlin/Native static libraries) and wires them into the JVM compile, cinterop and link
+ * tasks.
+ */
 fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
     val nativeBuildDir = File(projectDir, "/native/build")
     val jniLibOutDir = File(nativeBuildDir, "/jni_libs")
@@ -74,7 +79,7 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
                     platform = platform,
                     sharedLib = false,
                     withJni = false,
-                    release = false,
+                    release = true,
                     outputDir = nativeStaticLibOutDir,
                     withPlatformSuffixIfCopy = true,
                 )
