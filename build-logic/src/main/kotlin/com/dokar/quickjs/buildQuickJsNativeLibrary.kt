@@ -6,6 +6,11 @@ import org.gradle.process.ExecOperations
 import java.io.File
 import java.util.Properties
 
+/**
+ * Configures and builds the native QuickJS library for [platform] with CMake - shared or static,
+ * with or without the JNI bridge, in [release] (MinSizeRel) or debug (Debug) - and, when [outputDir]
+ * is given, copies the built library there.
+ */
 internal fun Project.buildQuickJsNativeLibrary(
     cmakeFile: File,
     platform: Platform,
