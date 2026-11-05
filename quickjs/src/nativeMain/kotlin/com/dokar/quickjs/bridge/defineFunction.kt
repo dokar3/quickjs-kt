@@ -106,6 +106,9 @@ private fun invokeFunction(
     funcData ?: return@memScoped JsException()
 
     val (funcName, quickJs, objectHandle) = BindingFunctionData.fromJsValues(ctx, funcData)
+    if (quickJs.checkInterruptOrThrow(ctx)) {
+        return@memScoped JsException()
+    }
 
     try {
         val invokeArgs = Array(argc) { argv!![it].readValue().toKtValue(ctx) }
@@ -136,6 +139,9 @@ private fun invokeAsyncFunction(
     funcData ?: return@memScoped JsException()
 
     val (funcName, quickJs, objectHandle) = BindingFunctionData.fromJsValues(ctx, funcData)
+    if (quickJs.checkInterruptOrThrow(ctx)) {
+        return@memScoped JsException()
+    }
 
     val functions = allocArray<JSValue>(2)
     val promise = JS_NewPromiseCapability(ctx, functions)

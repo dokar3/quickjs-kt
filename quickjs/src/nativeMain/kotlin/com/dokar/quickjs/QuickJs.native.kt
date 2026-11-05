@@ -42,6 +42,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -59,10 +60,15 @@ import quickjs.JS_NewRuntime
 import quickjs.JS_RunGC
 import quickjs.JS_SetMaxStackSize
 import quickjs.JS_SetMemoryLimit
+import quickjs.JS_SetHostPromiseRejectionTracker
+import quickjs.JS_SetModuleLoaderFunc
 import quickjs.JS_UpdateStackTop
+import quickjs.qjs_interrupt_check_or_throw
+import quickjs.qjs_interrupt_clear_pending_jobs
 import quickjs.qjs_interrupt_fired
 import quickjs.qjs_interrupt_free
 import quickjs.qjs_interrupt_install
+import quickjs.qjs_interrupt_poll
 import quickjs.qjs_interrupt_request
 import quickjs.qjs_interrupt_reset
 import quickjs.quickjs_version
@@ -174,6 +180,7 @@ actual class QuickJs private constructor(
             ensureNotClosed()
             qjs_interrupt_request(interruptState)
         }
+        signalRuntimeProgress()
     }
 
     @ExperimentalQuickJsApi
@@ -430,7 +437,7 @@ actual class QuickJs private constructor(
             try {
                 val result = block(args.sliceArray(2..<args.size))
                 jsMutex.withLock {
-                    if (isClosed) return@withLock
+                    if (isClosed || !isActive || pollInterrupt()) return@withLock
                     withEvaluationSession(session) {
                         context.invokeJsFunction(resolveFunc, arrayOf(result))
                     }
@@ -438,7 +445,7 @@ actual class QuickJs private constructor(
                 signalRuntimeProgress()
             } catch (e: Throwable) {
                 jsMutex.withLock {
-                    if (isClosed) return@withLock
+                    if (isClosed || !isActive || pollInterrupt()) return@withLock
                     withEvaluationSession(session) {
                         context.invokeJsFunction(rejectFunc, arrayOf(e))
                     }
@@ -460,7 +467,16 @@ actual class QuickJs private constructor(
         ensureNotClosed()
         val inheritedSession = coroutineContext[EvaluationSession]
         if (inheritedSession != null) {
-            return evalInSession(inheritedSession, isRoot = false, block)
+            return try {
+                evalInSession(inheritedSession, isRoot = false, block)
+            } catch (e: QuickJsException) {
+                coroutineContext.ensureActive()
+                if (isClosed) throw CancellationException("Already closed.")
+                if (pollInterrupt()) {
+                    throw QuickJsInterruptedException(e.message)
+                }
+                throw e
+            }
         }
         return rootEvaluationMutex.withLock {
             evalException = null
@@ -480,7 +496,7 @@ actual class QuickJs private constructor(
                 coroutineContext.ensureActive()
                 // close() interrupts too, report it like the other close paths
                 if (isClosed) throw CancellationException("Already closed.")
-                if (wasInterrupted()) {
+                if (pollInterrupt()) {
                     throw QuickJsInterruptedException(e.message)
                 }
                 throw e
@@ -506,6 +522,15 @@ actual class QuickJs private constructor(
     private fun wasInterrupted(): Boolean = interruptMutex.withLockSync {
         interruptState?.let { qjs_interrupt_fired(it) != 0 } ?: false
     }
+
+    private fun pollInterrupt(): Boolean = interruptMutex.withLockSync {
+        interruptState?.let { qjs_interrupt_poll(it) != 0 } ?: false
+    }
+
+    internal fun checkInterruptOrThrow(ctx: CPointer<JSContext>): Boolean =
+        interruptMutex.withLockSync {
+            interruptState?.let { qjs_interrupt_check_or_throw(ctx, it) != 0 } ?: false
+        }
 
     private inline fun <T> withJsLockSync(block: () -> T): T {
         if (isInBindingCallback(this)) return block()
@@ -549,14 +574,38 @@ actual class QuickJs private constructor(
             }
         } finally {
             val promise = resultPromise
-            if (promise != null) {
+            val clearJobs = isRoot && pollInterrupt()
+            if (promise != null || isRoot) {
                 withContext(NonCancellable) {
-                    jobsMutex.withLock {
-                        evaluation?.let { session.evaluations.remove(it.promiseId) }
-                        activePromises.remove(promise)
+                    val jobsToCancel = jobsMutex.withLock {
+                        if (promise != null) {
+                            evaluation?.let { session.evaluations.remove(it.promiseId) }
+                            activePromises.remove(promise)
+                        }
+                        if (isRoot) {
+                            asyncJobs.filter { it.session === session && it.job.isActive }
+                                .map { it.job }
+                        } else {
+                            emptyList()
+                        }
                     }
-                    jsMutex.withLock {
-                        if (!isClosed) promise.free(context)
+                    jobsToCancel.forEach { it.cancel() }
+                    if (promise != null || clearJobs) {
+                        jsMutex.withLock {
+                            if (!isClosed) {
+                                promise?.free(context)
+                                if (clearJobs) {
+                                    JS_SetHostPromiseRejectionTracker(runtime, null, null)
+                                    qjs_interrupt_clear_pending_jobs(runtime, maxStackSize)
+                                    if (moduleLoader != null) {
+                                        setModuleLoader(ref, runtime)
+                                    } else {
+                                        JS_SetModuleLoaderFunc(runtime, null, null, null)
+                                    }
+                                    setPromiseRejectionHandler(ref, runtime)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -575,18 +624,23 @@ actual class QuickJs private constructor(
                 if (isClosed) throw CancellationException("Already closed.")
                 withEvaluationSession(session) {
                     var executedAny = false
-                    do {
+                    while (!pollInterrupt() &&
+                        evaluation.exception == null &&
+                        session.unhandledRejections.isEmpty()
+                    ) {
                         val execResult = executePendingJob(runtime)
                         if (execResult is ExecuteJobResult.Failure) {
                             throw execResult.error
                         }
                         val executed = execResult == ExecuteJobResult.Success
                         executedAny = executedAny || executed
-                    } while (executed)
+                        if (!executed || pollInterrupt()) break
+                    }
                     resultPromise.isPending(context) to executedAny
                 }
             }
 
+            val interrupted = pollInterrupt()
             var hasUnhandledException = false
             val activeJobs = if (isRoot) {
                 jobsMutex.withLock {
@@ -598,7 +652,7 @@ actual class QuickJs private constructor(
             } else {
                 emptyList()
             }
-            if (hasUnhandledException) {
+            if (interrupted || hasUnhandledException) {
                 activeJobs.forEach { it.cancel() }
                 return
             }
@@ -674,6 +728,10 @@ actual class QuickJs private constructor(
                     null
                 }
                 ?: evalException.also { evalException = null }
+        } ?: if (pollInterrupt()) {
+            QuickJsException("InternalError: interrupted")
+        } else {
+            null
         }
         if (exception != null) throw exception
     }
@@ -687,6 +745,7 @@ actual class QuickJs private constructor(
         name: String,
     ): Any? = withBindingCallback(this) {
         ensureNotClosed()
+        if (pollInterrupt()) throw QuickJsInterruptedException("Evaluation was interrupted.")
         val binding = objectBindings[parentHandle] ?: qjsError("Parent not found.")
         binding.getter(name)
     }
@@ -697,6 +756,7 @@ actual class QuickJs private constructor(
         value: Any?
     ) = withBindingCallback(this) {
         ensureNotClosed()
+        if (pollInterrupt()) throw QuickJsInterruptedException("Evaluation was interrupted.")
         val binding = objectBindings[parentHandle] ?: qjsError("Parent not found.")
         binding.setter(name, value)
     }
@@ -707,6 +767,7 @@ actual class QuickJs private constructor(
         args: Array<Any?>,
     ): Any? = withBindingCallback(this) {
         ensureNotClosed()
+        if (pollInterrupt()) throw QuickJsInterruptedException("Evaluation was interrupted.")
         if (parentHandle == JsObjectHandle.globalThis.nativeHandle) {
             val binding = globalFunctions[name] ?: qjsError("Global function '$name' not found.")
             when (binding) {

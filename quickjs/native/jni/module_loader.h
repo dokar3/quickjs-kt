@@ -13,4 +13,9 @@
  */
 int install_module_loader(JNIEnv *env, JSRuntime *runtime, Globals *globals, jobject call_host);
 
+/**
+ * Restores the runtime's module loader hooks from cached Globals state.
+ */
+void restore_module_loader(JSRuntime *runtime, Globals *globals);
+
 #endif //QJS_KT_MODULE_LOADER_H

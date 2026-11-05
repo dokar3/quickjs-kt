@@ -154,6 +154,9 @@ private fun normalizeModule(
             ?: qjsError("Missing ES module requested name.")
         val quickJs = opaque?.asStableRef<QuickJs>()?.get()
             ?: qjsError("Missing QuickJs module normalizer state.")
+        if (quickJs.checkInterruptOrThrow(jsContext)) {
+            return null
+        }
         val normalized = quickJs.normalizeModule(base, requested)
         val bytes = normalized.encodeToByteArray()
         val result = js_malloc(jsContext, (bytes.size + 1).toULong())
@@ -182,6 +185,9 @@ private fun loadModule(
     val resolvedName = moduleName?.toKStringFromUtf8()
       ?: qjsError("Missing ES module name.")
     val resolvedOwner = quickJs ?: qjsError("Missing QuickJs module loader state.")
+    if (resolvedOwner.checkInterruptOrThrow(jsContext)) {
+      return null
+    }
     resolvedName to resolvedOwner
   } catch (error: Throwable) {
     JS_Throw(jsContext, ktErrorToJsError(jsContext, error))

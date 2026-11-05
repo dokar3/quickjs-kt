@@ -175,6 +175,9 @@ private fun invokeGetter(
     funcData ?: return@memScoped JsException()
 
     val (propName, quickJs, objectHandle) = BindingFunctionData.fromJsValues(ctx, funcData)
+    if (quickJs.checkInterruptOrThrow(ctx)) {
+        return@memScoped JsException()
+    }
 
     try {
         quickJs
@@ -204,6 +207,9 @@ private fun invokeSetter(
     }
 
     val (propName, quickJs, objectHandle) = BindingFunctionData.fromJsValues(ctx, funcData)
+    if (quickJs.checkInterruptOrThrow(ctx)) {
+        return@memScoped JsException()
+    }
 
     val value = argv!![0].readValue().toKtValue(ctx)
 

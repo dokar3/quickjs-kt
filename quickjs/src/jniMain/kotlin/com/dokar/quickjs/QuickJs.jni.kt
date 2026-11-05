@@ -26,6 +26,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -228,6 +229,7 @@ actual class QuickJs private constructor(
             ensureNotClosed()
             requestInterrupt(interruptState)
         }
+        signalRuntimeProgress()
     }
 
     @ExperimentalQuickJsApi
@@ -261,6 +263,7 @@ actual class QuickJs private constructor(
             // exceptions outside the QuickJsException hierarchy.
             globals = initGlobals(
                 runtime,
+                interruptState,
                 arrayOf(Unit::class.java, UByteArray::class.java),
                 moduleLoader != null,
             )
@@ -407,7 +410,14 @@ actual class QuickJs private constructor(
         ensureNotClosed()
         val inheritedSession = coroutineContext[EvaluationSession]
         if (inheritedSession != null) {
-            return evalInSession(inheritedSession, isRoot = false, evalBlock)
+            return try {
+                evalInSession(inheritedSession, isRoot = false, evalBlock)
+            } catch (e: QuickJsException) {
+                coroutineContext.ensureActive()
+                if (isClosed) throw CancellationException("Already closed.")
+                if (pollInterrupt()) throw QuickJsInterruptedException(e.message)
+                throw e
+            }
         }
         return rootEvaluationMutex.withLock {
             evalException = null
@@ -427,7 +437,7 @@ actual class QuickJs private constructor(
                 coroutineContext.ensureActive()
                 // close() interrupts too, report it like the other close paths
                 if (isClosed) throw CancellationException("Already closed.")
-                if (wasInterrupted()) throw QuickJsInterruptedException(e.message)
+                if (pollInterrupt()) throw QuickJsInterruptedException(e.message)
                 throw e
             } finally {
                 interruptOnCancel.complete()
@@ -465,6 +475,9 @@ actual class QuickJs private constructor(
                 handle
             }
             awaitEvaluateResult(session, evaluation, isRoot)
+            if (pollInterrupt()) {
+                handleException(session, evaluation, isRoot)
+            }
             val result = jsMutex.withLock {
                 if (isClosed) throw CancellationException("Already closed.")
                 withEvaluation(session, evaluation) {
@@ -475,14 +488,33 @@ actual class QuickJs private constructor(
             return result
         } finally {
             val handle = resultHandle
-            if (handle != null) {
+            val clearJobs = isRoot && pollInterrupt()
+            if (handle != null || isRoot) {
                 withContext(NonCancellable) {
-                    jobsMutex.withLock {
-                        session.evaluations.remove(evaluation.promiseId)
-                        activeEvaluateResults.remove(handle)
+                    val jobsToCancel = jobsMutex.withLock {
+                        if (handle != null) {
+                            session.evaluations.remove(evaluation.promiseId)
+                            activeEvaluateResults.remove(handle)
+                        }
+                        if (isRoot) {
+                            asyncJobs.filter { it.session === session && it.job.isActive }
+                                .map { it.job }
+                        } else {
+                            emptyList()
+                        }
                     }
-                    jsMutex.withLock {
-                        if (!isClosed) releaseEvaluateResult(context, globals, handle)
+                    jobsToCancel.forEach { it.cancel() }
+                    if (handle != null || clearJobs) {
+                        jsMutex.withLock {
+                            if (!isClosed) {
+                                if (handle != null) {
+                                    releaseEvaluateResult(context, globals, handle)
+                                }
+                                if (clearJobs) {
+                                    clearPendingJobs(runtime, globals, maxStackSize)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -570,6 +602,10 @@ actual class QuickJs private constructor(
         interruptState != 0L && wasInterrupted(interruptState)
     }
 
+    private fun pollInterrupt(): Boolean = interruptMutex.withLockSync {
+        interruptState != 0L && pollInterrupt(interruptState)
+    }
+
     private inline fun <T> withJsLockSync(block: () -> T): T {
         if (isInBindingCallback(this)) return block()
         return jsMutex.withLockSync(block)
@@ -586,14 +622,19 @@ actual class QuickJs private constructor(
                 if (isClosed) throw CancellationException("Already closed.")
                 withEvaluationSession(session) {
                     var executedAny = false
-                    do {
+                    while (!pollInterrupt() &&
+                        evaluation.exception == null &&
+                        session.unhandledRejections.isEmpty()
+                    ) {
                         val executed = executePendingJob(context, globals)
                         executedAny = executedAny || executed
-                    } while (executed)
+                        if (!executed || pollInterrupt()) break
+                    }
                     isEvaluateResultPending(context, globals, evaluation.handle) to executedAny
                 }
             }
 
+            val interrupted = pollInterrupt()
             var hasUnhandledException = false
             val activeJobs = if (isRoot) {
                 jobsMutex.withLock {
@@ -605,7 +646,7 @@ actual class QuickJs private constructor(
             } else {
                 emptyList()
             }
-            if (hasUnhandledException) {
+            if (interrupted || hasUnhandledException) {
                 activeJobs.forEach { it.cancel() }
                 return
             }
@@ -638,6 +679,10 @@ actual class QuickJs private constructor(
                     null
                 }
                 ?: evalException.also { evalException = null }
+        } ?: if (pollInterrupt()) {
+            QuickJsException("InternalError: interrupted")
+        } else {
+            null
         }
         if (exception != null) {
             throw exception
@@ -708,7 +753,7 @@ actual class QuickJs private constructor(
             try {
                 val result = block(args.sliceArray(2..<args.size))
                 jsMutex.withLock {
-                    if (isClosed) return@withLock
+                    if (isClosed || !isActive || pollInterrupt()) return@withLock
                     withEvaluationSession(session) {
                         // Call resolve() on JNI side
                         invokeJsFunction(
@@ -722,7 +767,7 @@ actual class QuickJs private constructor(
                 signalRuntimeProgress()
             } catch (e: Throwable) {
                 jsMutex.withLock {
-                    if (isClosed) return@withLock
+                    if (isClosed || !isActive || pollInterrupt()) return@withLock
                     withEvaluationSession(session) {
                         // Call reject() on JNI side
                         invokeJsFunction(
@@ -769,6 +814,7 @@ actual class QuickJs private constructor(
         name: String,
     ): Any? = withBindingCallback(this) {
         ensureNotClosed()
+        if (pollInterrupt()) throw QuickJsInterruptedException("Evaluation was interrupted.")
         val binding = objectBindings[handle] ?: throw QuickJsException(
             "JavaScript called getter of '$name' on an unknown binding"
         )
@@ -784,6 +830,7 @@ actual class QuickJs private constructor(
         value: Any?,
     ) = withBindingCallback(this) {
         ensureNotClosed()
+        if (pollInterrupt()) throw QuickJsInterruptedException("Evaluation was interrupted.")
         val binding = objectBindings[handle] ?: throw QuickJsException(
             "JavaScript called setter of '$name' on an unknown binding"
         )
@@ -799,6 +846,7 @@ actual class QuickJs private constructor(
         args: Array<Any?>,
     ): Any? = withBindingCallback(this) {
         ensureNotClosed()
+        if (pollInterrupt()) throw QuickJsInterruptedException("Evaluation was interrupted.")
         if (handle == JsObjectHandle.globalThis.nativeHandle) {
             val binding = globalFunctions[name] ?: throw QuickJsException(
                 "'$name()' does not found in global functions."
@@ -912,6 +960,7 @@ actual class QuickJs private constructor(
 
     private external fun initGlobals(
         runtime: Long,
+        interruptState: Long,
         classes: Array<Class<*>>,
         enableModuleLoader: Boolean,
     ): Long
@@ -966,6 +1015,14 @@ actual class QuickJs private constructor(
     private external fun resetInterrupt(state: Long, timeoutMillis: Long)
 
     private external fun wasInterrupted(state: Long): Boolean
+
+    private external fun pollInterrupt(state: Long): Boolean
+
+    private external fun clearPendingJobs(
+        runtime: Long,
+        globals: Long,
+        maxStackSize: Long,
+    )
 
     @Throws(QuickJsException::class)
     private external fun getMemoryUsage(runtime: Long, globals: Long): MemoryUsage

@@ -78,6 +78,7 @@ static void release_failed_globals_init(JNIEnv *env,
 JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
                                                                    jobject this,
                                                                    jlong runtime_ptr,
+                                                                   jlong interrupt_state_ptr,
                                                                    jobjectArray classes,
                                                                    jboolean enable_module_loader) {
     // Suppress lint: We will free it in releaseGlobals()
@@ -104,6 +105,8 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
     globals->on_module_compiled_method = NULL;
     globals->on_module_load_failed_method = NULL;
     globals->module_load_failure_version = 0;
+    globals->has_module_normalizer = 0;
+    globals->interrupt_state = (void *) (intptr_t) interrupt_state_ptr;
 
     pthread_mutexattr_t mutex_attributes;
     pthread_mutexattr_init(&mutex_attributes);
@@ -488,6 +491,42 @@ Java_com_dokar_quickjs_QuickJs_resetInterrupt(JNIEnv *env, jobject this, jlong s
 JNIEXPORT jboolean JNICALL
 Java_com_dokar_quickjs_QuickJs_wasInterrupted(JNIEnv *env, jobject this, jlong state_ptr) {
     return qjs_interrupt_fired((void *) state_ptr) ? JNI_TRUE : JNI_FALSE;
+}
+
+/**
+ * Poll whether the current evaluation should be interrupted, latching the
+ * fired flag when a request or deadline is due.
+ */
+JNIEXPORT jboolean JNICALL
+Java_com_dokar_quickjs_QuickJs_pollInterrupt(JNIEnv *env, jobject this, jlong state_ptr) {
+    return qjs_interrupt_poll((void *) state_ptr) ? JNI_TRUE : JNI_FALSE;
+}
+
+/**
+ * Drain queued jobs left behind by an interrupted evaluation without executing
+ * their JavaScript callbacks.
+ */
+JNIEXPORT void JNICALL
+Java_com_dokar_quickjs_QuickJs_clearPendingJobs(JNIEnv *env,
+                                                jobject this,
+                                                jlong runtime_ptr,
+                                                jlong globals_ptr,
+                                                jlong max_stack_size) {
+    JSRuntime *runtime = runtime_from_ptr(env, runtime_ptr);
+    Globals *globals = globals_from_ptr(env, globals_ptr);
+    if (runtime == NULL || globals == NULL) {
+        return;
+    }
+    pthread_mutex_lock(&globals->js_mutex);
+    JS_SetHostPromiseRejectionTracker(runtime, NULL, NULL);
+    qjs_interrupt_clear_pending_jobs(runtime, max_stack_size);
+    restore_module_loader(runtime, globals);
+    if (globals->global_object_refs != NULL && cvector_size(globals->global_object_refs) > 0) {
+        JS_SetHostPromiseRejectionTracker(runtime,
+                                          promise_rejection_handler,
+                                          globals->global_object_refs[0]);
+    }
+    pthread_mutex_unlock(&globals->js_mutex);
 }
 
 /**

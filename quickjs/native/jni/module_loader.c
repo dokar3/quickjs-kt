@@ -5,6 +5,7 @@
 #include "exception_util.h"
 #include "jni_globals.h"
 #include "jni_string_util.h"
+#include "quickjs_interrupt.h"
 
 /**
  * Converts a pending Java callback failure to a JavaScript error so it follows
@@ -173,6 +174,9 @@ static char *normalize_module(JSContext *context,
                               const char *requested_name,
                               void *opaque) {
     Globals *globals = (Globals *) opaque;
+    if (globals != NULL && qjs_interrupt_check_or_throw(context, globals->interrupt_state)) {
+        return NULL;
+    }
     JNIEnv *env = get_jni_env();
     if (env == NULL) {
         JS_ThrowInternalError(
@@ -256,6 +260,9 @@ static char *normalize_module(JSContext *context,
  */
 static JSModuleDef *load_module(JSContext *context, const char *module_name, void *opaque) {
     Globals *globals = (Globals *) opaque;
+    if (globals != NULL && qjs_interrupt_check_or_throw(context, globals->interrupt_state)) {
+        return NULL;
+    }
     JNIEnv *env = get_jni_env();
     if (env == NULL) {
         JS_ThrowInternalError(context, "Cannot access JNI while loading module '%s'.", module_name);
@@ -436,16 +443,28 @@ int install_module_loader(JNIEnv *env, JSRuntime *runtime, Globals *globals, job
     }
 
     globals->module_loader_host = call_host;
+    globals->has_module_normalizer = has_module_normalizer == JNI_TRUE;
     globals->normalize_module_method = normalize_module_method;
     globals->load_module_method = load_module_method;
     globals->get_module_source_method = get_module_source_method;
     globals->get_module_bytecode_method = get_module_bytecode_method;
     globals->on_module_compiled_method = on_module_compiled_method;
     globals->on_module_load_failed_method = on_module_load_failed_method;
-    JS_SetModuleLoaderFunc(
-            runtime,
-            has_module_normalizer ? normalize_module : NULL,
-            load_module,
-            globals);
+    restore_module_loader(runtime, globals);
     return 1;
+}
+
+void restore_module_loader(JSRuntime *runtime, Globals *globals) {
+    if (runtime == NULL || globals == NULL) {
+        return;
+    }
+    if (globals->module_loader_host != NULL) {
+        JS_SetModuleLoaderFunc(
+                runtime,
+                globals->has_module_normalizer ? normalize_module : NULL,
+                load_module,
+                globals);
+    } else {
+        JS_SetModuleLoaderFunc(runtime, NULL, NULL, NULL);
+    }
 }
