@@ -5,8 +5,11 @@ import com.dokar.quickjs.QuickJsInterruptedException
 import com.dokar.quickjs.binding.function
 import com.dokar.quickjs.quickJs
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
@@ -86,6 +89,41 @@ class EvaluationInterruptTest {
                 assertEquals(2, quickJs.evaluate<Int>("1 + 1"))
             } finally {
                 quickJs.close()
+            }
+        }
+    }
+
+    @Test
+    fun interruptEvaluationWithNonStopJobQueuing() = runTest {
+        withContext(Dispatchers.Default) {
+            val jsScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val quickJs = QuickJs.create(Dispatchers.Default)
+            try {
+                val started = CompletableDeferred<Unit>()
+                quickJs.function("started") { started.complete(Unit) }
+                val evalJob = jsScope.async {
+                    assertFailsWith<QuickJsInterruptedException> {
+                        quickJs.evaluate<Unit>(
+                            """
+                            function f() {
+                                Promise.resolve().then(f);
+                                while (true) {}
+                            }
+                            started();
+                            f();
+                            """.trimIndent()
+                        )
+                    }
+                }
+                started.await()
+                quickJs.interruptEvaluation()
+                withTimeout(5_000) { evalJob.await() }
+                assertEquals(2, quickJs.evaluate<Int>("1 + 1"))
+            } finally {
+                // Skip potential dead blockings
+                withTimeout(1_000) {
+                    jsScope.async { quickJs.close() }.await()
+                }
             }
         }
     }

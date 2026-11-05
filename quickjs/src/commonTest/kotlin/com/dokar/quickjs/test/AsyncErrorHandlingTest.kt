@@ -2,6 +2,7 @@ package com.dokar.quickjs.test
 
 import com.dokar.quickjs.binding.asyncFunction
 import com.dokar.quickjs.quickJs
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -168,6 +169,17 @@ class AsyncErrorHandlingTest {
                 assertContains(it.message!!, "Cannot find the kotlin type of object")
             }
             assertFalse(delayed)
+        }
+    }
+
+    @Test
+    fun evaluateAfterUnhandledAsyncRejection() = runTest {
+        quickJs(Dispatchers.Default) {
+            asyncFunction("alwaysFails") { error("Expected rejection") }
+            assertFails {
+                evaluate<Any?>("alwaysFails()")
+            }
+            assertEquals(2, evaluate<Int>("1 + 1"))
         }
     }
 }

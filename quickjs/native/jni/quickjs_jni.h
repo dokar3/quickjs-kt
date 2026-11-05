@@ -28,6 +28,10 @@ typedef struct {
     jmethodID on_module_load_failed_method;
     /** Monotonic counter used to suppress parent notifications after a nested failure. */
     uint64_t module_load_failure_version;
+    /** Whether the configured module loader has a custom normalizer. */
+    int has_module_normalizer;
+    /** Opaque pointer to the runtime QjsInterruptState. */
+    void *interrupt_state;
     /**
      * Some JS values, used by C functions.
      */

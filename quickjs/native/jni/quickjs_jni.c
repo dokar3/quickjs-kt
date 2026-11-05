@@ -78,6 +78,7 @@ static void release_failed_globals_init(JNIEnv *env,
 JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
                                                                    jobject this,
                                                                    jlong runtime_ptr,
+                                                                   jlong interrupt_state_ptr,
                                                                    jobjectArray classes,
                                                                    jboolean enable_module_loader) {
     // Suppress lint: We will free it in releaseGlobals()
@@ -104,6 +105,8 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
     globals->on_module_compiled_method = NULL;
     globals->on_module_load_failed_method = NULL;
     globals->module_load_failure_version = 0;
+    globals->has_module_normalizer = 0;
+    globals->interrupt_state = (void *) (intptr_t) interrupt_state_ptr;
 
     pthread_mutexattr_t mutex_attributes;
     pthread_mutexattr_init(&mutex_attributes);
@@ -491,6 +494,42 @@ Java_com_dokar_quickjs_QuickJs_wasInterrupted(JNIEnv *env, jobject this, jlong s
 }
 
 /**
+ * Poll whether the current evaluation should be interrupted, latching the
+ * fired flag when a request or deadline is due.
+ */
+JNIEXPORT jboolean JNICALL
+Java_com_dokar_quickjs_QuickJs_pollInterrupt(JNIEnv *env, jobject this, jlong state_ptr) {
+    return qjs_interrupt_poll((void *) state_ptr) ? JNI_TRUE : JNI_FALSE;
+}
+
+/**
+ * Drain queued jobs left behind by an interrupted evaluation without executing
+ * their JavaScript callbacks.
+ */
+JNIEXPORT void JNICALL
+Java_com_dokar_quickjs_QuickJs_clearPendingJobs(JNIEnv *env,
+                                                jobject this,
+                                                jlong runtime_ptr,
+                                                jlong globals_ptr,
+                                                jlong max_stack_size) {
+    JSRuntime *runtime = runtime_from_ptr(env, runtime_ptr);
+    Globals *globals = globals_from_ptr(env, globals_ptr);
+    if (runtime == NULL || globals == NULL) {
+        return;
+    }
+    pthread_mutex_lock(&globals->js_mutex);
+    JS_SetHostPromiseRejectionTracker(runtime, NULL, NULL);
+    qjs_interrupt_clear_pending_jobs(runtime, max_stack_size);
+    restore_module_loader(runtime, globals);
+    if (globals->global_object_refs != NULL && cvector_size(globals->global_object_refs) > 0) {
+        JS_SetHostPromiseRejectionTracker(runtime,
+                                          promise_rejection_handler,
+                                          globals->global_object_refs[0]);
+    }
+    pthread_mutex_unlock(&globals->js_mutex);
+}
+
+/**
  * Get the runtime memory usage.
  */
 JNIEXPORT jobject JNICALL
@@ -567,21 +606,27 @@ jlong store_evaluate_result(JNIEnv *env,
                             JSContext *context,
                             Globals *globals,
                             JSValue value) {
+    pthread_mutex_lock(&globals->js_mutex);
+    JS_UpdateStackTop(JS_GetRuntime(context));
     if (check_js_context_exception(env, context)) {
         JS_FreeValue(context, value);
+        pthread_mutex_unlock(&globals->js_mutex);
         return -1;
     }
     if (JS_IsException(value)) {
         JS_FreeValue(context, value);
+        pthread_mutex_unlock(&globals->js_mutex);
         return -1;
     }
     if (!js_is_promise(context, value)) {
-        jni_throw_qjs_exception(env, "Require the async eval flag.");
+        if (!check_js_context_exception(env, context)) {
+            jni_throw_qjs_exception(env, "Require the async eval flag.");
+        }
         JS_FreeValue(context, value);
+        pthread_mutex_unlock(&globals->js_mutex);
         return -1;
     }
 
-    pthread_mutex_lock(&globals->js_mutex);
     size_t size = cvector_size(globals->evaluate_result_promises);
     jlong handle = -1;
     for (uint32_t i = 0; i < size; i++) {
@@ -1037,6 +1082,7 @@ Java_com_dokar_quickjs_QuickJs_isEvaluateResultPending(JNIEnv *env,
     }
 
     pthread_mutex_lock(&globals->js_mutex);
+    JS_UpdateStackTop(JS_GetRuntime(context));
     if (handle < 0 || (uint64_t) handle >= cvector_size(globals->evaluate_result_promises) ||
         !globals->evaluate_result_active[handle]) {
         jni_throw_qjs_exception(env, "Invalid evaluation handle: %ld", handle);
@@ -1046,7 +1092,9 @@ Java_com_dokar_quickjs_QuickJs_isEvaluateResultPending(JNIEnv *env,
 
     JSValue result_promise = globals->evaluate_result_promises[handle];
     if (!js_is_promise(context, result_promise)) {
-        jni_throw_qjs_exception(env, "Invalid result promise object.");
+        if (!check_js_context_exception(env, context)) {
+            jni_throw_qjs_exception(env, "Invalid result promise object.");
+        }
         pthread_mutex_unlock(&globals->js_mutex);
         return JNI_FALSE;
     }
@@ -1193,6 +1241,7 @@ Java_com_dokar_quickjs_QuickJs_releaseEvaluateResult(JNIEnv *env,
     }
 
     pthread_mutex_lock(&globals->js_mutex);
+    JS_FreeValue(context, JS_GetException(context));
     if (handle >= 0 && (uint64_t) handle < cvector_size(globals->evaluate_result_promises)) {
         JSValue value = globals->evaluate_result_promises[handle];
         if (!JS_IsUndefined(value)) {
