@@ -84,6 +84,12 @@ elseif (TARGET_PLATFORM STREQUAL "android")
     add_compile_definitions(CONFIG_ANDROID)
 endif ()
 
+# The iOS branches above set the system and arch but not the minimum deployment
+# target, so the compiler defaults to the SDK's own version. Pin a stable one.
+if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "Minimum iOS deployment target")
+endif ()
+
 project(quickjs)
 
 set(CMAKE_C_STANDARD 99)
