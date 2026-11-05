@@ -143,6 +143,66 @@ suspend fun <T> QuickJs.evaluate(
     }
 }
 
+/**
+ * JVM/Android implementation of [QuickJs] backed by JNI native pointers (`runtime`, `context`, `globals`).
+ *
+ * Concurrency & Architecture:
+ * - **Threads**: QuickJS is single-threaded; any thread holding [jsMutex] updates the native stack top
+ *   before JS execution. Async bindings execute concurrently on [jobDispatcher].
+ * - **Mutexes**:
+ *   - [rootEvaluationMutex]: Serializes top-level evaluations while allowing nested calls in the same session.
+ *   - [jsMutex]: Guards all native runtime/context access across threads (eval, microtasks, bindings, GC, close).
+ *   - [jobsMutex]: Protects session state, active result handles, and tracked [asyncJobs].
+ *   - [interruptMutex]: Synchronizes native interrupt requests and polling independently of [jsMutex].
+ * - **Sessions**: [EvaluationSession] scopes an evaluation tree (root eval + child evals triggered by async bindings),
+ *   tracking active evaluations, unhandled promise rejections, and background coroutine cancellation.
+ *
+ * Execution Flow (Vertical):
+ * ```
+ * ┌──────────────────────────────────────────────┐
+ * │ evaluate(code / bytecode)                    │
+ * └──────────────────────┬───────────────────────┘
+ *                        │
+ *                        ▼
+ * ┌──────────────────────────────────────────────┐
+ * │ evalAndAwait                                 │
+ * │ • Lock rootEvaluationMutex (if root)         │
+ * │ • Setup interrupt deadline & cancel hook     │
+ * └──────────────────────┬───────────────────────┘
+ *                        │
+ *                        ▼
+ * ┌──────────────────────────────────────────────┐
+ * │ evalInSession                                │
+ * │ • Load queued ES modules                     │
+ * │ • Evaluate via JS_EVAL_FLAG_ASYNC -> Promise │
+ * └──────────────────────┬───────────────────────┘
+ *                        │
+ *                        ▼
+ * ┌──────────────────────────────────────────────┐
+ * │ awaitEvaluateResult                          │◄───┐
+ * │ • Drain microtasks (executePendingJob)       │    │
+ * │ • Check interrupt & unhandled rejections     │    │ progress
+ * └──────────────────────┬───────────────────────┘    │ signal
+ *                        │                            │
+ *                        ▼                            │
+ *               [Result completed & ]──── No ─────────┘
+ *               [no active asyncJobs] (suspend on runtimeProgress)
+ *                        │
+ *                       Yes
+ *                        ▼
+ * ┌──────────────────────────────────────────────┐
+ * │ handleException                              │
+ * │ • Extract resolved result or throw failure   │
+ * └──────────────────────┬───────────────────────┘
+ *                        │
+ *                        ▼
+ * ┌──────────────────────────────────────────────┐
+ * │ finally                                      │
+ * │ • Release result handle                      │
+ * │ • Cancel active jobs & clear pending queue   │
+ * └──────────────────────────────────────────────┘
+ * ```
+ */
 @OptIn(ExperimentalUnsignedTypes::class, ExperimentalAtomicApi::class)
 actual class QuickJs private constructor(
     private val jobDispatcher: CoroutineDispatcher,
@@ -406,6 +466,7 @@ actual class QuickJs private constructor(
         evaluate(context, globals, filename, code, asModule)
     }
 
+    /** Coordinates evaluation, root-level locking, and interrupt/cancellation translation. */
     private suspend fun evalAndAwait(evalBlock: suspend () -> Long): Any? {
         ensureNotClosed()
         val inheritedSession = coroutineContext[EvaluationSession]
@@ -446,6 +507,7 @@ actual class QuickJs private constructor(
         }
     }
 
+    /** Runs evaluation within [session], awaiting the result and cleaning up in `finally`. */
     private suspend fun evalInSession(
         session: EvaluationSession,
         isRoot: Boolean,
@@ -611,6 +673,7 @@ actual class QuickJs private constructor(
         return jsMutex.withLockSync(block)
     }
 
+    /** Drives the event loop by draining pending microtasks and awaiting async jobs. */
     private suspend fun awaitEvaluateResult(
         session: EvaluationSession,
         evaluation: EvaluationState,
@@ -741,6 +804,7 @@ actual class QuickJs private constructor(
         }
     }
 
+    /** Bridges a JS async binding call to a Kotlin coroutine, signaling progress on completion. */
     internal actual fun invokeAsyncFunction(
         args: Array<Any?>,
         block: suspend (bindingArgs: Array<Any?>) -> Any?,
