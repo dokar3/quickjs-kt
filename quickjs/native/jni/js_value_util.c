@@ -273,7 +273,7 @@ int js_is_instance_of(JSContext *context, JSValue global_this, JSValue value,
     }
     int result = JS_IsInstanceOf(context, value, constructor);
     JS_FreeValue(context, constructor);
-    return result;
+    return result == 1;
 }
 
 int js_is_promise(JSContext *context, JSValue value) {

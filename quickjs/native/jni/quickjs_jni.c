@@ -606,21 +606,27 @@ jlong store_evaluate_result(JNIEnv *env,
                             JSContext *context,
                             Globals *globals,
                             JSValue value) {
+    pthread_mutex_lock(&globals->js_mutex);
+    JS_UpdateStackTop(JS_GetRuntime(context));
     if (check_js_context_exception(env, context)) {
         JS_FreeValue(context, value);
+        pthread_mutex_unlock(&globals->js_mutex);
         return -1;
     }
     if (JS_IsException(value)) {
         JS_FreeValue(context, value);
+        pthread_mutex_unlock(&globals->js_mutex);
         return -1;
     }
     if (!js_is_promise(context, value)) {
-        jni_throw_qjs_exception(env, "Require the async eval flag.");
+        if (!check_js_context_exception(env, context)) {
+            jni_throw_qjs_exception(env, "Require the async eval flag.");
+        }
         JS_FreeValue(context, value);
+        pthread_mutex_unlock(&globals->js_mutex);
         return -1;
     }
 
-    pthread_mutex_lock(&globals->js_mutex);
     size_t size = cvector_size(globals->evaluate_result_promises);
     jlong handle = -1;
     for (uint32_t i = 0; i < size; i++) {
@@ -1076,6 +1082,7 @@ Java_com_dokar_quickjs_QuickJs_isEvaluateResultPending(JNIEnv *env,
     }
 
     pthread_mutex_lock(&globals->js_mutex);
+    JS_UpdateStackTop(JS_GetRuntime(context));
     if (handle < 0 || (uint64_t) handle >= cvector_size(globals->evaluate_result_promises) ||
         !globals->evaluate_result_active[handle]) {
         jni_throw_qjs_exception(env, "Invalid evaluation handle: %ld", handle);
@@ -1085,7 +1092,9 @@ Java_com_dokar_quickjs_QuickJs_isEvaluateResultPending(JNIEnv *env,
 
     JSValue result_promise = globals->evaluate_result_promises[handle];
     if (!js_is_promise(context, result_promise)) {
-        jni_throw_qjs_exception(env, "Invalid result promise object.");
+        if (!check_js_context_exception(env, context)) {
+            jni_throw_qjs_exception(env, "Invalid result promise object.");
+        }
         pthread_mutex_unlock(&globals->js_mutex);
         return JNI_FALSE;
     }
@@ -1232,6 +1241,7 @@ Java_com_dokar_quickjs_QuickJs_releaseEvaluateResult(JNIEnv *env,
     }
 
     pthread_mutex_lock(&globals->js_mutex);
+    JS_FreeValue(context, JS_GetException(context));
     if (handle >= 0 && (uint64_t) handle < cvector_size(globals->evaluate_result_promises)) {
         JSValue value = globals->evaluate_result_promises[handle];
         if (!JS_IsUndefined(value)) {

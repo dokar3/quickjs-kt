@@ -54,6 +54,7 @@ import quickjs.JSValue
 import quickjs.JS_FreeContext
 import quickjs.JS_FreeRuntime
 import quickjs.JS_FreeValue
+import quickjs.JS_GetException
 import quickjs.JS_GetRuntime
 import quickjs.JS_NewContext
 import quickjs.JS_NewRuntime
@@ -593,6 +594,7 @@ actual class QuickJs private constructor(
                     if (promise != null || clearJobs) {
                         jsMutex.withLock {
                             if (!isClosed) {
+                                JS_FreeValue(context, JS_GetException(context))
                                 promise?.free(context)
                                 if (clearJobs) {
                                     JS_SetHostPromiseRejectionTracker(runtime, null, null)
