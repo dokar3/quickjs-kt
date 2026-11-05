@@ -20,7 +20,7 @@ kotlin {
         binaries {
             executable {
                 disableNativeCache(
-                    version = DisableCacheInKotlinVersion.`2_4_10`,
+                    version = DisableCacheInKotlinVersion.`2_4_21`,
                     reason = "Kotlin/Native cache produces duplicate Clikt symbols"
                 )
             }
