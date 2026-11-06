@@ -13,12 +13,12 @@ kotlin {
 
     mingwX64 {
         binaries {
-            executable()
+            executable(listOf(DEBUG))
         }
     }
     linuxX64 {
         binaries {
-            executable {
+            executable(listOf(DEBUG)) {
                 disableNativeCache(
                     version = DisableCacheInKotlinVersion.`2_4_21`,
                     reason = "Kotlin/Native cache produces duplicate Clikt symbols"
@@ -28,7 +28,7 @@ kotlin {
     }
     macosArm64 {
         binaries {
-            executable()
+            executable(listOf(DEBUG))
         }
     }
 

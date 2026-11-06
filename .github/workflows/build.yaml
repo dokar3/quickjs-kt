@@ -16,7 +16,6 @@ jobs:
           - name: ubuntu-latest
             os: ubuntu-latest
             setup_graalvm: true
-            setup_multi_jdks: true
             run: |
               ./gradlew publishToMavenLocal
               ./gradlew build
@@ -24,30 +23,38 @@ jobs:
           - name: windows-latest
             os: windows-latest
             setup_graalvm: true
-            setup_multi_jdks: true
             run: |
-              ./gradlew publishToMavenLocal
-              ./gradlew build
+              ./gradlew :quickjs:publishKotlinMultiplatformPublicationToMavenLocal \
+                        :quickjs:publishJvmPublicationToMavenLocal \
+                        :quickjs:publishMingwX64PublicationToMavenLocal
+              ./gradlew jvmTest mingwX64Test \
+                        :samples:repl:linkDebugExecutableMingwX64 \
+                        :integration-test:general:check \
+                        :integration-test:native-access:check
 
           - name: macos-latest - macOS
             os: macos-latest
             setup_graalvm: true
-            setup_multi_jdks: true
             run: |
-              ./gradlew publishToMavenLocal -Pquickjs.targetGroup=macos
-              ./gradlew build -Pquickjs.targetGroup=macos
+              ./gradlew :quickjs:publishKotlinMultiplatformPublicationToMavenLocal \
+                        :quickjs:publishJvmPublicationToMavenLocal \
+                        :quickjs:publishMacosArm64PublicationToMavenLocal \
+                        -Pquickjs.targetGroup=macos
+              ./gradlew jvmTest macosArm64Test \
+                        :samples:repl:linkDebugExecutableMacosArm64 \
+                        :integration-test:general:check \
+                        :integration-test:native-access:check \
+                        -Pquickjs.targetGroup=macos
 
           - name: macos-latest - iOS
             os: macos-latest
             setup_graalvm: false
-            setup_multi_jdks: false
             run: |
               ./gradlew iosSimulatorArm64Test compileKotlinIosArm64 -Pquickjs.targetGroup=ios
 
           - name: macos-latest - tvOS
             os: macos-latest
             setup_graalvm: false
-            setup_multi_jdks: false
             run: |
               ./gradlew tvosSimulatorArm64Test compileKotlinTvosArm64 -Pquickjs.targetGroup=tvos
 
@@ -94,17 +101,6 @@ jobs:
         uses: goto-bus-stop/setup-zig@v2
         with:
           version: 0.12.0
-
-      # Run js/ts scripts
-      - name: Set Bun.js
-        if: matrix.setup_multi_jdks
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install multiplatform JDKs
-        if: matrix.setup_multi_jdks
-        run: bun scripts/setupMultiplatformJdks.ts
 
       - uses: gradle/actions/setup-gradle@v6
 
