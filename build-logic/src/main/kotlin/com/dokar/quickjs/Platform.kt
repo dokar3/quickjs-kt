@@ -11,6 +11,8 @@ enum class Platform(
     ios_x64("ios", "x64"),
     ios_aarch64("ios", "aarch64"),
     ios_simulator_aarch64("ios_simulator", "aarch64"),
+    tvos_aarch64("tvos", "aarch64"),
+    tvos_simulator_aarch64("tvos_simulator", "aarch64"),
     windows_x64("windows", "x64");
 }
 

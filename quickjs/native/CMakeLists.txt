@@ -62,6 +62,12 @@ elseif (TARGET_PLATFORM STREQUAL "ios_aarch64")
 elseif (TARGET_PLATFORM STREQUAL "ios_simulator_aarch64")
     set(CMAKE_SYSTEM_NAME "iOS")
     set(CMAKE_OSX_ARCHITECTURES "arm64")
+elseif (TARGET_PLATFORM STREQUAL "tvos_aarch64")
+    set(CMAKE_SYSTEM_NAME "tvOS")
+    set(CMAKE_OSX_ARCHITECTURES "arm64")
+elseif (TARGET_PLATFORM STREQUAL "tvos_simulator_aarch64")
+    set(CMAKE_SYSTEM_NAME "tvOS")
+    set(CMAKE_OSX_ARCHITECTURES "arm64")
 elseif (TARGET_PLATFORM STREQUAL "windows_x64")
     if (BUILD_WITH_JNI)
         configure_jni("win32")
@@ -84,10 +90,10 @@ elseif (TARGET_PLATFORM STREQUAL "android")
     add_compile_definitions(CONFIG_ANDROID)
 endif ()
 
-# The iOS branches above set the system and arch but not the minimum deployment
+# The iOS and tvOS branches above set the system and arch but not the minimum deployment
 # target, so the compiler defaults to the SDK's own version. Pin a stable one.
-if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "Minimum iOS deployment target")
+if (CMAKE_SYSTEM_NAME STREQUAL "iOS" OR CMAKE_SYSTEM_NAME STREQUAL "tvOS")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "Minimum iOS and tvOS deployment target")
 endif ()
 
 project(quickjs)

@@ -8,6 +8,8 @@ staticLibraries.macos_arm64 = libquickjs_macos_aarch64.a
 staticLibraries.ios_x64 = libquickjs_ios_x64.a
 staticLibraries.ios_arm64 = libquickjs_ios_aarch64.a
 staticLibraries.ios_simulator_arm64 = libquickjs_ios_simulator_aarch64.a
+staticLibraries.tvos_arm64 = libquickjs_tvos_aarch64.a
+staticLibraries.tvos_simulator_arm64 = libquickjs_tvos_simulator_aarch64.a
 
 libraryPaths = native/build/static_libs/
 

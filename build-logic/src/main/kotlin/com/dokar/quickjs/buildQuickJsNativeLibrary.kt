@@ -86,7 +86,9 @@ internal fun Project.buildQuickJsNativeLibrary(
 
             Platform.ios_aarch64,
             Platform.ios_x64,
-            Platform.ios_simulator_aarch64 -> commonArgs + xcode
+            Platform.ios_simulator_aarch64,
+            Platform.tvos_aarch64,
+            Platform.tvos_simulator_aarch64 -> commonArgs + xcode
         }
     }
 
@@ -110,6 +112,24 @@ internal fun Project.buildQuickJsNativeLibrary(
             "--",
             "-sdk",
             "iphonesimulator"
+        )
+
+        Platform.tvos_aarch64 -> arrayOf(
+            commonArgs[1],
+            "--config",
+            buildType,
+            "--",
+            "-sdk",
+            "appletvos"
+        )
+
+        Platform.tvos_simulator_aarch64 -> arrayOf(
+            commonArgs[1],
+            "--config",
+            buildType,
+            "--",
+            "-sdk",
+            "appletvsimulator"
         )
 
         else -> arrayOf(commonArgs[1])
@@ -206,6 +226,10 @@ internal fun Project.buildQuickJsNativeLibrary(
                 Platform.ios_x64 -> "$buildType-iphonesimulator/" to "a"
 
                 Platform.ios_simulator_aarch64 -> "$buildType-iphonesimulator/" to "a"
+
+                Platform.tvos_aarch64 -> "$buildType-appletvos/" to "a"
+
+                Platform.tvos_simulator_aarch64 -> "$buildType-appletvsimulator/" to "a"
 
                 else -> "" to "a"
             }

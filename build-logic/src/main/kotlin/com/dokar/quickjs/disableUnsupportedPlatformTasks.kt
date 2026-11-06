@@ -18,6 +18,8 @@ fun Project.disableUnsupportedPlatformTasks() {
             taskName.contains("iosx64") -> Platform.ios_x64
             taskName.contains("iosarm64") -> Platform.ios_aarch64
             taskName.contains("iossimulatorarm64") -> Platform.ios_simulator_aarch64
+            taskName.contains("tvosarm64") -> Platform.tvos_aarch64
+            taskName.contains("tvossimulatorarm64") -> Platform.tvos_simulator_aarch64
             else -> null
         } ?: return@configureEach
 
@@ -44,7 +46,9 @@ fun Project.disableUnsupportedPlatformTasks() {
                 Platform.macos_aarch64 -> currentPlatform == Platform.macos_aarch64
                 Platform.ios_x64 -> currentPlatform == Platform.macos_x64
                 Platform.ios_aarch64,
-                Platform.ios_simulator_aarch64 -> currentPlatform == Platform.macos_aarch64
+                Platform.ios_simulator_aarch64,
+                Platform.tvos_aarch64,
+                Platform.tvos_simulator_aarch64 -> currentPlatform == Platform.macos_aarch64
             }
         }
     }
