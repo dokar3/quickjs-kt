@@ -690,10 +690,8 @@ actual class QuickJs private constructor(
                 if (isClosed) throw CancellationException("Already closed.")
                 withEvaluationSession(session) {
                     var executedAny = false
-                    while (!pollInterrupt() &&
-                        evaluation.exception == null &&
-                        session.unhandledRejections.isEmpty()
-                    ) {
+                    // Not stopped by an unhandled rejection: one can be handled by a job still queued.
+                    while (!pollInterrupt() && evaluation.exception == null) {
                         val execResult = executePendingJob(runtime)
                         if (execResult is ExecuteJobResult.Failure) {
                             throw execResult.error
