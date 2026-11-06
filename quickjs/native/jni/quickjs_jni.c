@@ -161,8 +161,7 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
     cvector_push_back(globals->global_object_refs, global_host_ref);
 
     // Handle unhandled promise rejections
-    JS_SetHostPromiseRejectionTracker(runtime, promise_rejection_handler,
-                                      global_host_ref);
+    JS_SetHostPromiseRejectionTracker(runtime, promise_rejection_handler, globals);
     if (enable_module_loader == JNI_TRUE &&
         !install_module_loader(env, runtime, globals, global_host_ref)) {
         jthrowable exception = try_catch_java_exceptions(env);
@@ -522,9 +521,7 @@ Java_com_dokar_quickjs_QuickJs_clearPendingJobs(JNIEnv *env,
     qjs_interrupt_clear_pending_jobs(runtime, max_stack_size);
     restore_module_loader(runtime, globals);
     if (globals->global_object_refs != NULL && cvector_size(globals->global_object_refs) > 0) {
-        JS_SetHostPromiseRejectionTracker(runtime,
-                                          promise_rejection_handler,
-                                          globals->global_object_refs[0]);
+        JS_SetHostPromiseRejectionTracker(runtime, promise_rejection_handler, globals);
     }
     pthread_mutex_unlock(&globals->js_mutex);
 }

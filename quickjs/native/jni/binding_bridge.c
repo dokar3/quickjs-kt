@@ -202,7 +202,8 @@ property_getter(JSContext *context, JSValueConst this_val, int argc, JSValueCons
 
     JS_FreeCString(context, prop_name);
 
-    return result;
+    return qjs_interrupt_check_result(context, globals != NULL ? globals->interrupt_state : NULL,
+                                      result);
 }
 
 JSValue
@@ -231,7 +232,8 @@ property_setter(JSContext *context, JSValueConst this_val, int argc, JSValueCons
 
     JS_FreeCString(context, prop_name);
 
-    return result;
+    return qjs_interrupt_check_result(context, globals != NULL ? globals->interrupt_state : NULL,
+                                      result);
 }
 
 JSValue
@@ -260,7 +262,8 @@ function_invoke(JSContext *context, JSValueConst this_val, int argc, JSValueCons
 
     JS_FreeCString(context, func_name);
 
-    return result;
+    return qjs_interrupt_check_result(context, globals != NULL ? globals->interrupt_state : NULL,
+                                      result);
 }
 
 JSValue async_function_invoke(JSContext *context, JSValueConst this_val,
@@ -317,7 +320,7 @@ JSValue async_function_invoke(JSContext *context, JSValueConst this_val,
 
     if (JS_IsException(result)) {
         // Error!
-        return result;
+        return qjs_interrupt_check_result(context, globals->interrupt_state, result);
     } else {
         // Ignore the async return
         JS_FreeValue(context, result);
@@ -325,7 +328,8 @@ JSValue async_function_invoke(JSContext *context, JSValueConst this_val,
 
     // Return the promise directly will cause a GC error:
     // void gc_decref_child(JSRuntime *, JSGCObjectHeader *): assertion "p->ref_count > 0" failed
-    return JS_DupValue(context, promise);
+    return qjs_interrupt_check_result(context, globals->interrupt_state,
+                                      JS_DupValue(context, promise));
 }
 
 void define_async_js_function_on(JSContext *context,
