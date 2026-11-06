@@ -809,7 +809,7 @@ actual class QuickJs private constructor(
         ensureNotClosed()
         withEvaluationSession(session) {
             while (modules.isNotEmpty()) {
-                val module = modules.removeFirst()
+                val module = modules.removeAt(0)
                 val handle = evaluateBytecode(context = context, globals = globals, buffer = module)
                 releaseEvaluateResult(context, globals, handle)
             }
