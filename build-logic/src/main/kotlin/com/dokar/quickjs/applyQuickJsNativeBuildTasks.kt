@@ -33,9 +33,14 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
 
         outputs.dir(jniLibOutDir)
 
+        val taskNames = gradle.startParameter.taskNames
+        val isPublishing = taskNames.any {
+            it.contains("publish", ignoreCase = true) &&
+                    !it.contains("MavenLocal", ignoreCase = true)
+        }
+        inputs.property("isPublishing", isPublishing)
+
         doLast {
-            val taskNames = gradle.startParameter.taskNames
-            val isPublishing = taskNames.any { it.contains("publish", ignoreCase = true) }
             if (isPublishing) {
                 for (platform in jniLibraryPlatforms) {
                     buildQuickJsNativeLibrary(
@@ -177,8 +182,31 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
 
 private fun Project.findBuildPlatformsFromStartTaskNames(): List<Platform> {
     val taskNames = gradle.startParameter.taskNames
+    val targetGroup = providers.gradleProperty("quickjs.targetGroup").orNull?.lowercase()
 
-    val isPublishing = taskNames.any { it.contains("publish", ignoreCase = true) }
+    fun List<Platform>.filterByTargetGroup(): List<Platform> {
+        if (targetGroup == null) return this
+        return filter { platform ->
+            when (targetGroup) {
+                "macos" -> platform == Platform.macos_x64 || platform == Platform.macos_aarch64
+                "ios" -> platform == Platform.ios_x64 ||
+                        platform == Platform.ios_aarch64 ||
+                        platform == Platform.ios_simulator_aarch64
+                "tvos" -> platform == Platform.tvos_aarch64 ||
+                        platform == Platform.tvos_simulator_aarch64
+                else -> error("Unknown quickjs.targetGroup: '$targetGroup'")
+            }
+        }
+    }
+
+    val isPublishingToMavenLocal = taskNames.any {
+        it.contains("publish", ignoreCase = true) &&
+                it.contains("MavenLocal", ignoreCase = true)
+    }
+    val isPublishing = taskNames.any {
+        it.contains("publish", ignoreCase = true) &&
+                !it.contains("MavenLocal", ignoreCase = true)
+    }
     if (isPublishing) {
         val allPlatforms = Platform.values().toList()
         return when (currentPlatform) {
@@ -190,17 +218,17 @@ private fun Project.findBuildPlatformsFromStartTaskNames(): List<Platform> {
             Platform.macos_x64,
             Platform.macos_aarch64 -> allPlatforms
             else -> allPlatforms
-        }
+        }.filterByTargetGroup()
     }
 
     val isBuild = taskNames.any { it.contains("build", ignoreCase = true) }
     val isAssemble = taskNames.any { it.contains("assemble", ignoreCase = true) }
     val isCheck = taskNames.any { it.contains("check", ignoreCase = true) }
 
-    if (isBuild || isAssemble || isCheck) {
+    if (isBuild || isAssemble || isCheck || isPublishingToMavenLocal) {
         when (currentPlatform) {
             Platform.linux_x64 -> {
-                return listOf(Platform.linux_x64)
+                return listOf(Platform.linux_x64).filterByTargetGroup()
             }
 
             Platform.macos_x64,
@@ -213,52 +241,55 @@ private fun Project.findBuildPlatformsFromStartTaskNames(): List<Platform> {
                     Platform.ios_simulator_aarch64,
                     Platform.tvos_aarch64,
                     Platform.tvos_simulator_aarch64,
-                )
+                ).filterByTargetGroup()
             }
 
             Platform.windows_x64 -> {
-                return listOf(Platform.windows_x64)
+                return listOf(Platform.windows_x64).filterByTargetGroup()
             }
 
             else -> {} // Not supported yet
         }
     }
 
-    var platform: Platform? = null
+    val matchedPlatforms = LinkedHashSet<Platform>()
     for (taskName in taskNames) {
         val name = taskName.lowercase()
         if (name.contains("mingwx64")) {
-            platform = Platform.windows_x64
-            break
-        } else if (name.contains("linuxx64")) {
-            platform = Platform.linux_x64
-            break
-        } else if (name.contains("linuxarm64")) {
-            platform = Platform.linux_aarch64
-            break
-        } else if (name.contains("macosx64")) {
-            platform = Platform.macos_x64
-            break
-        } else if (name.contains("macosarm64")) {
-            platform = Platform.macos_aarch64
-            break
-        } else if (name.contains("iosx64")) {
-            platform = Platform.ios_x64
-            break
-        } else if (name.contains("iosarm64")) {
-            platform = Platform.ios_aarch64
-            break
-        } else if (name.contains("iossimulatorarm64")) {
-            platform = Platform.ios_simulator_aarch64
-            break
-        } else if (name.contains("tvosarm64")) {
-            platform = Platform.tvos_aarch64
-            break
-        } else if (name.contains("tvossimulatorarm64")) {
-            platform = Platform.tvos_simulator_aarch64
-            break
+            matchedPlatforms.add(Platform.windows_x64)
+        }
+        if (name.contains("linuxx64")) {
+            matchedPlatforms.add(Platform.linux_x64)
+        }
+        if (name.contains("linuxarm64")) {
+            matchedPlatforms.add(Platform.linux_aarch64)
+        }
+        if (name.contains("macosx64")) {
+            matchedPlatforms.add(Platform.macos_x64)
+        }
+        if (name.contains("macosarm64")) {
+            matchedPlatforms.add(Platform.macos_aarch64)
+        }
+        if (name.contains("iosx64")) {
+            matchedPlatforms.add(Platform.ios_x64)
+        }
+        if (name.contains("iosarm64")) {
+            matchedPlatforms.add(Platform.ios_aarch64)
+        }
+        if (name.contains("iossimulatorarm64")) {
+            matchedPlatforms.add(Platform.ios_simulator_aarch64)
+        }
+        if (name.contains("tvosarm64")) {
+            matchedPlatforms.add(Platform.tvos_aarch64)
+        }
+        if (name.contains("tvossimulatorarm64")) {
+            matchedPlatforms.add(Platform.tvos_simulator_aarch64)
         }
     }
 
-    return listOf(platform ?: currentPlatform)
+    if (matchedPlatforms.isNotEmpty()) {
+        return matchedPlatforms.toList().filterByTargetGroup()
+    }
+
+    return listOf(currentPlatform).filterByTargetGroup()
 }
