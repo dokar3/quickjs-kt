@@ -85,13 +85,13 @@ fun <T> QuickJs.define(
         }
 
         private fun invokeNormal(method: Method, args: Array<Any?>): Any? {
-            if (method.parameterCount != args.size) {
+            val parameterTypes = method.parameterTypes
+            if (parameterTypes.size != args.size) {
                 qjsError(
                     "Parameter count mismatched on method '$name', " +
-                            "js: ${args.size}, java: ${method.parameterCount}"
+                            "js: ${args.size}, java: ${parameterTypes.size}"
                 )
             }
-            val parameterTypes = method.parameterTypes
             val parameters = args
                 .mapIndexed { index, param ->
                     val targetType = typeOfClass(typeConverters, parameterTypes[index].kotlin)
@@ -119,17 +119,18 @@ fun <T> QuickJs.define(
                 )
             }
             val funcArgs = args.slice(2..args.lastIndex)
-            if (method.parameterCount != funcArgs.size + 1) {
+            val parameterTypes = method.parameterTypes
+            if (parameterTypes.size != funcArgs.size + 1) {
                 qjsError(
                     "Parameter count mismatched on method '$name', " +
-                            "js: ${funcArgs.size}, java: ${method.parameterCount - 1}"
+                            "js: ${funcArgs.size}, java: ${parameterTypes.size - 1}"
                 )
             }
-            val end = method.parameterTypes.lastIndex - 1
-            val parameterTypes = method.parameterTypes.slice(0..end)
+            val end = parameterTypes.lastIndex - 1
+            val funcParameterTypes = parameterTypes.slice(0..end)
             val parameters = funcArgs
                 .mapIndexed { index, param ->
-                    val targetType = typeOfClass(typeConverters, parameterTypes[index].kotlin)
+                    val targetType = typeOfClass(typeConverters, funcParameterTypes[index].kotlin)
                     castValueOr<Any?>(param, targetType) {
                         typeConverters.convert(
                             source = it,
