@@ -4,13 +4,10 @@ import org.gradle.api.Project
 
 fun Project.disableUnsupportedPlatformTasks() {
     val taskNames = gradle.startParameter.taskNames
-    val isPublishingToMavenLocal = taskNames.any {
-        it.contains("publish", ignoreCase = true) &&
-                it.contains("MavenLocal", ignoreCase = true)
-    }
     val isPublishing = taskNames.any {
-        it.contains("publish", ignoreCase = true)
-    } && !isPublishingToMavenLocal
+        it.contains("publish", ignoreCase = true) &&
+                !it.contains("MavenLocal", ignoreCase = true)
+    }
 
     val targetGroup = providers.gradleProperty("quickjs.targetGroup").orNull?.lowercase()
 

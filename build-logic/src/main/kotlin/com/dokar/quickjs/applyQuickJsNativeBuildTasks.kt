@@ -33,15 +33,14 @@ fun Project.applyQuickJsNativeBuildTasks(cmakeFile: File) {
 
         outputs.dir(jniLibOutDir)
 
+        val taskNames = gradle.startParameter.taskNames
+        val isPublishing = taskNames.any {
+            it.contains("publish", ignoreCase = true) &&
+                    !it.contains("MavenLocal", ignoreCase = true)
+        }
+        inputs.property("isPublishing", isPublishing)
+
         doLast {
-            val taskNames = gradle.startParameter.taskNames
-            val isPublishingToMavenLocal = taskNames.any {
-                it.contains("publish", ignoreCase = true) &&
-                        it.contains("MavenLocal", ignoreCase = true)
-            }
-            val isPublishing = taskNames.any {
-                it.contains("publish", ignoreCase = true)
-            } && !isPublishingToMavenLocal
             if (isPublishing) {
                 for (platform in jniLibraryPlatforms) {
                     buildQuickJsNativeLibrary(
@@ -205,8 +204,9 @@ private fun Project.findBuildPlatformsFromStartTaskNames(): List<Platform> {
                 it.contains("MavenLocal", ignoreCase = true)
     }
     val isPublishing = taskNames.any {
-        it.contains("publish", ignoreCase = true)
-    } && !isPublishingToMavenLocal
+        it.contains("publish", ignoreCase = true) &&
+                !it.contains("MavenLocal", ignoreCase = true)
+    }
     if (isPublishing) {
         val allPlatforms = Platform.values().toList()
         return when (currentPlatform) {
