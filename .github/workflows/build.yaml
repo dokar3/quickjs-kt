@@ -116,4 +116,5 @@ jobs:
           chmod +x quickjs/native/cmake/zig-ranlib.sh
 
       - name: Build
+        shell: bash
         run: ${{ matrix.run }}
