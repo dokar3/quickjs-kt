@@ -257,18 +257,28 @@ internal fun Project.buildQuickJsNativeLibrary(
 
 private fun Project.windowX64JavaHome() =
     envVarOrLocalPropOf("JAVA_HOME_WINDOWS_X64")
+        ?: currentJavaHomeIfMatching(Platform.windows_x64)
 
 private fun Project.linuxX64JavaHome() =
     envVarOrLocalPropOf("JAVA_HOME_LINUX_X64")
+        ?: currentJavaHomeIfMatching(Platform.linux_x64)
 
 private fun Project.linuxAarch64JavaHome() =
     envVarOrLocalPropOf("JAVA_HOME_LINUX_AARCH64")
+        ?: currentJavaHomeIfMatching(Platform.linux_aarch64)
 
 private fun Project.macosX64JavaHome() =
     envVarOrLocalPropOf("JAVA_HOME_MACOS_X64")
+        ?: currentJavaHomeIfMatching(Platform.macos_x64)
 
 private fun Project.macosAarch64JavaHome() =
     envVarOrLocalPropOf("JAVA_HOME_MACOS_AARCH64")
+        ?: currentJavaHomeIfMatching(Platform.macos_aarch64)
+
+private fun Project.currentJavaHomeIfMatching(platform: Platform): String? {
+    if (currentPlatform != platform) return null
+    return envVarOrLocalPropOf("JAVA_HOME") ?: System.getProperty("java.home")
+}
 
 private fun Project.envVarOrLocalPropOf(key: String): String? {
     val localProperties = Properties()
