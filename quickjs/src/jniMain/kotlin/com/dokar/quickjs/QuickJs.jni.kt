@@ -969,8 +969,8 @@ actual class QuickJs private constructor(
                 val evaluation = session.evaluations[promiseId]
                 if (evaluation != null) {
                     if (evaluation.exception == null) evaluation.exception = exception
-                } else {
-                    session.unhandledRejections.putIfAbsent(promiseId, exception)
+                } else if (promiseId !in session.unhandledRejections) {
+                    session.unhandledRejections[promiseId] = exception
                 }
             }
         }
