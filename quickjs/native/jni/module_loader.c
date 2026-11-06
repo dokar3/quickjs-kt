@@ -168,15 +168,10 @@ static int validate_module_name(JSContext *context,
     return matches;
 }
 
-/** Resolves a module specifier through the runtime-scoped Kotlin normalizer. */
-static char *normalize_module(JSContext *context,
-                              const char *base_name,
-                              const char *requested_name,
-                              void *opaque) {
-    Globals *globals = (Globals *) opaque;
-    if (globals != NULL && qjs_interrupt_check_or_throw(context, globals->interrupt_state)) {
-        return NULL;
-    }
+static char *normalize_module_impl(JSContext *context,
+                                   const char *base_name,
+                                   const char *requested_name,
+                                   Globals *globals) {
     JNIEnv *env = get_jni_env();
     if (env == NULL) {
         JS_ThrowInternalError(
@@ -251,6 +246,24 @@ static char *normalize_module(JSContext *context,
     }
     jni_utf8_string_release(&normalized_name);
     (*env)->DeleteLocalRef(env, java_normalized_name);
+    return result;
+}
+
+/** Resolves a module specifier through the runtime-scoped Kotlin normalizer. */
+static char *normalize_module(JSContext *context,
+                              const char *base_name,
+                              const char *requested_name,
+                              void *opaque) {
+    Globals *globals = (Globals *) opaque;
+    void *interrupt_state = globals != NULL ? globals->interrupt_state : NULL;
+    if (qjs_interrupt_check_or_throw(context, interrupt_state)) {
+        return NULL;
+    }
+    char *result = normalize_module_impl(context, base_name, requested_name, globals);
+    // An interrupt raised during the callback must stay uncatchable.
+    if (result == NULL) {
+        qjs_interrupt_check_or_throw(context, interrupt_state);
+    }
     return result;
 }
 
@@ -371,6 +384,10 @@ static JSModuleDef *load_module(JSContext *context, const char *module_name, voi
     goto cleanup_refs;
 
 notify_failure:
+    // An interrupt is not a load failure: keep it uncatchable and don't notify.
+    if (qjs_interrupt_check_or_throw(context, globals->interrupt_state)) {
+        goto cleanup_refs;
+    }
     if (failure_version == globals->module_load_failure_version) {
         notify_module_load_failed(env, globals, context, java_name, module_name);
     }

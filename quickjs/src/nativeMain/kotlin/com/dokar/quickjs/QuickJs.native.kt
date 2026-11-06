@@ -64,6 +64,7 @@ import quickjs.JS_SetMemoryLimit
 import quickjs.JS_SetHostPromiseRejectionTracker
 import quickjs.JS_SetModuleLoaderFunc
 import quickjs.JS_UpdateStackTop
+import quickjs.JsException
 import quickjs.qjs_interrupt_check_or_throw
 import quickjs.qjs_interrupt_clear_pending_jobs
 import quickjs.qjs_interrupt_fired
@@ -543,6 +544,10 @@ actual class QuickJs private constructor(
         }
         return rootEvaluationMutex.withLock {
             evalException = null
+            // A request made between evaluations may have fired in other JS calls.
+            if (wasInterrupted()) {
+                jsMutex.withLock { if (!isClosed) clearInterruptedRuntime() }
+            }
             resetInterruptState(evaluationTimeoutMillis)
             // Cancellation alone can't stop busy JavaScript, so hook it up
             // to a native interrupt.
@@ -586,7 +591,7 @@ actual class QuickJs private constructor(
         interruptState?.let { qjs_interrupt_fired(it) != 0 } ?: false
     }
 
-    private fun pollInterrupt(): Boolean = interruptMutex.withLockSync {
+    internal fun pollInterrupt(): Boolean = interruptMutex.withLockSync {
         interruptState?.let { qjs_interrupt_poll(it) != 0 } ?: false
     }
 
@@ -594,6 +599,19 @@ actual class QuickJs private constructor(
         interruptMutex.withLockSync {
             interruptState?.let { qjs_interrupt_check_or_throw(ctx, it) != 0 } ?: false
         }
+
+    /**
+     * Post-callback interrupt check: an interrupt raised while a host callback ran replaces
+     * its result (or catchable error) with the uncatchable interrupt error.
+     */
+    internal fun checkInterruptResult(
+        ctx: CPointer<JSContext>,
+        result: CValue<JSValue>,
+    ): CValue<JSValue> {
+        if (!checkInterruptOrThrow(ctx)) return result
+        JS_FreeValue(ctx, result)
+        return JsException()
+    }
 
     private inline fun <T> withJsLockSync(block: () -> T): T {
         if (isInBindingCallback(this)) return block()
@@ -659,22 +677,28 @@ actual class QuickJs private constructor(
                             if (!isClosed) {
                                 JS_FreeValue(context, JS_GetException(context))
                                 promise?.free(context)
-                                if (clearJobs) {
-                                    JS_SetHostPromiseRejectionTracker(runtime, null, null)
-                                    qjs_interrupt_clear_pending_jobs(runtime, maxStackSize)
-                                    if (moduleLoader != null) {
-                                        setModuleLoader(ref, runtime)
-                                    } else {
-                                        JS_SetModuleLoaderFunc(runtime, null, null, null)
-                                    }
-                                    setPromiseRejectionHandler(ref, runtime)
-                                }
+                                if (clearJobs) clearInterruptedRuntime()
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    /**
+     * Drops queued jobs and restores the stack size limited by the interrupt handler.
+     * Must be called with [jsMutex] held on an open runtime.
+     */
+    private fun clearInterruptedRuntime() {
+        JS_SetHostPromiseRejectionTracker(runtime, null, null)
+        qjs_interrupt_clear_pending_jobs(runtime, maxStackSize)
+        if (moduleLoader != null) {
+            setModuleLoader(ref, runtime)
+        } else {
+            JS_SetModuleLoaderFunc(runtime, null, null, null)
+        }
+        setPromiseRejectionHandler(ref, runtime)
     }
 
     /** Drives the event loop by draining pending microtasks and awaiting async jobs. */
@@ -764,10 +788,10 @@ actual class QuickJs private constructor(
     private suspend fun loadModules(session: EvaluationSession) = jsMutex.withLock {
         ensureNotClosed()
         withEvaluationSession(session) {
-            for (module in modules) {
+            while (modules.isNotEmpty()) {
+                val module = modules.removeFirst()
                 context.evaluate(module).free(context)
             }
-            modules.clear()
         }
     }
 
@@ -782,6 +806,18 @@ actual class QuickJs private constructor(
         evaluation: EvaluationState,
         isRoot: Boolean,
     ) {
+        // An interrupt (timeout, cancellation, close) wins over pending failures,
+        // which may be unrelated rejections or non-QuickJsException errors.
+        if (pollInterrupt()) {
+            jobsMutex.withLockSync {
+                evaluation.exception = null
+                if (isRoot) {
+                    session.unhandledRejections.clear()
+                    evalException = null
+                }
+            }
+            throw QuickJsException("InternalError: interrupted")
+        }
         val exception = jobsMutex.withLockSync {
             evaluation.exception.also { evaluation.exception = null }
                 ?: if (isRoot) {
@@ -792,10 +828,6 @@ actual class QuickJs private constructor(
                     null
                 }
                 ?: evalException.also { evalException = null }
-        } ?: if (pollInterrupt()) {
-            QuickJsException("InternalError: interrupted")
-        } else {
-            null
         }
         if (exception != null) throw exception
     }

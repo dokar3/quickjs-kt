@@ -110,7 +110,7 @@ private fun invokeFunction(
         return@memScoped JsException()
     }
 
-    try {
+    val result = try {
         val invokeArgs = Array(argc) { argv!![it].readValue().toKtValue(ctx) }
         quickJs
             .onCallBindingFunction(
@@ -123,6 +123,7 @@ private fun invokeFunction(
         JS_Throw(ctx, ktErrorToJsError(ctx, e))
         JsException()
     }
+    quickJs.checkInterruptResult(ctx, result)
 }
 
 @OptIn(ExperimentalForeignApi::class)
@@ -169,8 +170,8 @@ private fun invokeAsyncFunction(
         )
     } catch (e: Throwable) {
         JS_Throw(ctx, ktErrorToJsError(ctx, e))
-        return@memScoped JsException()
+        return@memScoped quickJs.checkInterruptResult(ctx, JsException())
     }
 
-    JS_DupValue(ctx, promise)
+    quickJs.checkInterruptResult(ctx, JS_DupValue(ctx, promise))
 }

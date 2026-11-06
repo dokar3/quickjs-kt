@@ -12,6 +12,8 @@ import kotlinx.cinterop.toLong
 import quickjs.JSContext
 import quickjs.JSRuntime
 import quickjs.JSValue
+import quickjs.JS_FreeValue
+import quickjs.JS_GetException
 import quickjs.JS_SetHostPromiseRejectionTracker
 import quickjs.JsValueGetPtr
 
@@ -24,15 +26,23 @@ private fun promiseRejectionHandler(
     isHandled: Int,
     opaque: COpaquePointer?,
 ) {
-    val quickJs = opaque!!.asStableRef<QuickJs>()
+    val quickJs = opaque!!.asStableRef<QuickJs>().get()
     val promiseId = JsValueGetPtr(promise)!!.toLong()
     if (isHandled != 1) {
-        quickJs.get().setUnhandledPromiseRejection(
-            promiseId = promiseId,
-            reason = reason.toKtValue(context!!),
-        )
+        // An interrupt takes precedence over any rejection, don't run more JS for it.
+        if (quickJs.pollInterrupt()) return
+        val ktReason = try {
+            reason.toKtValue(context!!)
+        } catch (e: Throwable) {
+            // Exceptions must not cross this C callback: report the conversion failure
+            // as the rejection reason and drop any JS exception it left behind.
+            JS_FreeValue(context, JS_GetException(context))
+            e
+        }
+        if (quickJs.pollInterrupt()) return
+        quickJs.setUnhandledPromiseRejection(promiseId = promiseId, reason = ktReason)
     } else {
-        quickJs.get().clearHandledPromiseRejection(promiseId)
+        quickJs.clearHandledPromiseRejection(promiseId)
     }
 }
 

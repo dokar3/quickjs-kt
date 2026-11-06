@@ -147,13 +147,13 @@ private fun normalizeModule(
     opaque: COpaquePointer?,
 ): CPointer<ByteVar>? {
     val jsContext = context ?: return null
+    val owner = opaque?.asStableRef<QuickJs>()?.get()
     return try {
         val base = baseName?.toKStringFromUtf8()
             ?: qjsError("Missing ES module base name.")
         val requested = requestedName?.toKStringFromUtf8()
             ?: qjsError("Missing ES module requested name.")
-        val quickJs = opaque?.asStableRef<QuickJs>()?.get()
-            ?: qjsError("Missing QuickJs module normalizer state.")
+        val quickJs = owner ?: qjsError("Missing QuickJs module normalizer state.")
         if (quickJs.checkInterruptOrThrow(jsContext)) {
             return null
         }
@@ -169,6 +169,8 @@ private fun normalizeModule(
         result
     } catch (error: Throwable) {
         JS_Throw(jsContext, ktErrorToJsError(jsContext, error))
+        // An interrupt raised during the callback must stay uncatchable.
+        owner?.checkInterruptOrThrow(jsContext)
         null
     }
 }
@@ -211,6 +213,8 @@ private fun loadModule(
       )
     }
   } catch (error: Throwable) {
+    // An interrupt is not a load failure: keep it uncatchable and don't notify.
+    if (owner.checkInterruptOrThrow(jsContext)) return null
     return throwModuleLoadFailure(
       context = jsContext,
       quickJs = owner,
@@ -219,6 +223,7 @@ private fun loadModule(
       failureVersion = failureVersion,
     )
   }
+  if (definition == null && owner.checkInterruptOrThrow(jsContext)) return null
   if (definition == null && failureVersion == owner.moduleLoadFailureVersion) {
     try {
       owner.onModuleLoadFailed(name)

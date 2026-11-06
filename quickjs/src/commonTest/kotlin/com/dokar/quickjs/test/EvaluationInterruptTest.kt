@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
@@ -17,6 +18,7 @@ import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class EvaluationInterruptTest {
@@ -124,6 +126,88 @@ class EvaluationInterruptTest {
                 withTimeout(1_000) {
                     jsScope.async { quickJs.close() }.await()
                 }
+            }
+        }
+    }
+
+    @Test
+    fun interruptInsideSyncBindingCannotBeCaughtByJs() = runTest {
+        withContext(Dispatchers.Default) {
+            quickJs {
+                function("interruptMe") { interruptEvaluation() }
+                function("noop") {}
+                assertFailsWith<QuickJsInterruptedException> {
+                    evaluate<Unit>(
+                        """
+                        globalThis.caught = false;
+                        try {
+                            noop({ get a() { interruptMe(); return 1; } });
+                        } catch (e) {
+                            globalThis.caught = true;
+                        }
+                        """.trimIndent()
+                    )
+                }
+                assertFalse(evaluate<Boolean>("globalThis.caught"))
+            }
+        }
+    }
+
+    @Test
+    fun interruptAfterUnhandledRejectionThrowsInterruptedException() = runTest {
+        withContext(Dispatchers.Default) {
+            quickJs {
+                function("fail") { throw IllegalStateException("boom") }
+                function("interruptMe") { interruptEvaluation() }
+                assertFailsWith<QuickJsInterruptedException> {
+                    evaluate<Unit>(
+                        """
+                        Promise.resolve().then(() => fail());
+                        Promise.resolve().then(() => { interruptMe(); while (true) {} });
+                        """.trimIndent()
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun interruptLoopWithInnerAsyncInfiniteLoop() = runTest {
+        withContext(Dispatchers.Default) {
+            val jsScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val quickJs = QuickJs.create(Dispatchers.Default)
+            try {
+                quickJs.evaluationTimeoutMillis = 100
+                val evalJob = jsScope.async {
+                    assertFailsWith<QuickJsInterruptedException> {
+                        quickJs.evaluate<Unit>("while (true) { (async () => { while (true) {} })(); }")
+                    }
+                }
+                withTimeout(1_000) { evalJob.await() }
+            } finally {
+                runCatching {
+                    withTimeout(200) {
+                        jsScope.async { quickJs.close() }.await()
+                    }
+                }
+                jsScope.cancel()
+            }
+        }
+    }
+
+    @Test
+    fun interruptDuringPromiseRejectionReasonConversion() = runTest {
+        withContext(Dispatchers.Default) {
+            quickJs {
+                function("interruptMe") { interruptEvaluation() }
+                assertFailsWith<QuickJsInterruptedException> {
+                    evaluate<Unit>(
+                        """
+                        Promise.reject({ get x() { interruptMe(); while (true) {} } });
+                        """.trimIndent()
+                    )
+                }
+                assertEquals(2, evaluate<Int>("1 + 1"))
             }
         }
     }

@@ -482,6 +482,12 @@ actual class QuickJs private constructor(
         }
         return rootEvaluationMutex.withLock {
             evalException = null
+            // A request made between evaluations may have fired in other JS calls.
+            if (wasInterrupted()) {
+                jsMutex.withLock {
+                    if (!isClosed) clearPendingJobs(runtime, globals, maxStackSize)
+                }
+            }
             resetInterruptState(evaluationTimeoutMillis)
             // Cancellation alone can't stop busy JavaScript, so hook it up
             // to a native interrupt.
@@ -730,6 +736,18 @@ actual class QuickJs private constructor(
         evaluation: EvaluationState,
         isRoot: Boolean,
     ) {
+        // An interrupt (timeout, cancellation, close) wins over pending failures,
+        // which may be unrelated rejections or non-QuickJsException errors.
+        if (pollInterrupt()) {
+            jobsMutex.withLockSync {
+                evaluation.exception = null
+                if (isRoot) {
+                    session.unhandledRejections.clear()
+                    evalException = null
+                }
+            }
+            throw QuickJsException("InternalError: interrupted")
+        }
         val exception = jobsMutex.withLockSync {
             evaluation.exception.also { evaluation.exception = null }
                 ?: if (isRoot) {
@@ -740,10 +758,6 @@ actual class QuickJs private constructor(
                     null
                 }
                 ?: evalException.also { evalException = null }
-        } ?: if (pollInterrupt()) {
-            QuickJsException("InternalError: interrupted")
-        } else {
-            null
         }
         if (exception != null) {
             throw exception
@@ -794,11 +808,11 @@ actual class QuickJs private constructor(
     private suspend fun loadModules(session: EvaluationSession) = jsMutex.withLock {
         ensureNotClosed()
         withEvaluationSession(session) {
-            for (module in modules) {
+            while (modules.isNotEmpty()) {
+                val module = modules.removeFirst()
                 val handle = evaluateBytecode(context = context, globals = globals, buffer = module)
                 releaseEvaluateResult(context, globals, handle)
             }
-            modules.clear()
         }
     }
 
