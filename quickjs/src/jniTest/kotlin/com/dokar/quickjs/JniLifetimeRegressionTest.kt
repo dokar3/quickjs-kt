@@ -1,11 +1,15 @@
 package com.dokar.quickjs
 
+import com.dokar.quickjs.binding.asyncFunction
+import com.dokar.quickjs.binding.define
 import com.dokar.quickjs.binding.function
 import kotlinx.coroutines.test.runTest
+import java.lang.ref.WeakReference
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class JniLifetimeRegressionTest {
     @Test
@@ -58,6 +62,50 @@ class JniLifetimeRegressionTest {
                 }
                 assertEquals(3L, evaluate<Long>("1 + 2"))
             }
+        }
+    }
+
+    // A long-running script never returns from evaluate(), so any local ref a host call
+    // forgets to delete pins its Java objects until the heap runs out.
+    @Test
+    fun hostCallValuesAreReleasedBeforeEvaluationEnds() = runTest {
+        val refs = mutableListOf<WeakReference<Any>>()
+        fun track(value: Any?) {
+            refs += WeakReference(value!!)
+        }
+
+        quickJs {
+            function("call") { args ->
+                track(args[0])
+                "returned ".repeat(100).also(::track)
+            }
+            asyncFunction("callAsync") { args -> track(args[0]) }
+            define("host") {
+                property("value") {
+                    getter { "got ".repeat(100).also(::track) }
+                    setter { track(it) }
+                }
+            }
+            function("allCollected") {
+                repeat(10) {
+                    System.gc()
+                    if (refs.all { it.get() == null }) return@function true
+                    Thread.sleep(10)
+                }
+                false
+            }
+
+            val collected = evaluate<Boolean>(
+                """
+                call('arg '.repeat(100));
+                await callAsync('async '.repeat(100));
+                host.value;
+                host.value = 'set '.repeat(100);
+                allCollected();
+                """.trimIndent()
+            )
+            assertEquals(5, refs.size)
+            assertTrue(collected)
         }
     }
 }
