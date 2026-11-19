@@ -1,6 +1,4 @@
----
-name: Build
-true:
+'on':
   push:
     branches:
     - main
@@ -8,6 +6,7 @@ true:
     branches:
     - main
   workflow_dispatch: 
+name: Build
 jobs:
   build:
     name: build (${{ matrix.name }})
