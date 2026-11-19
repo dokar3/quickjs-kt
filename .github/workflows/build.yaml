@@ -17,7 +17,7 @@ jobs:
           os: ubuntu-latest
           setup_graalvm: true
           run: |
-            ./gradlew :quickjs:publishJvmPublicationToMavenLocal :quickjs:publishAndroidPublicationToMavenLocal jvmTest --no-configuration-cache
+            ./gradlew :quickjs:publishJvmPublicationToMavenLocal :quickjs:publishAndroidPublicationToMavenLocal :quickjs:jvmTest --no-configuration-cache
       fail-fast: false
     runs-on: "${{ matrix.os }}"
     env:
