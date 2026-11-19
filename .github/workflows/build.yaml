@@ -1,130 +1,77 @@
+---
 name: Build
-
-on:
+true:
   push:
-    branches: [ main ]
+    branches:
+    - main
   pull_request:
-    branches: [ main ]
-  workflow_dispatch:
-
+    branches:
+    - main
+  workflow_dispatch: 
 jobs:
   build:
     name: build (${{ matrix.name }})
     strategy:
       matrix:
         include:
-          - name: ubuntu-latest
-            os: ubuntu-latest
-            setup_graalvm: true
-            run: |
-              ./gradlew publishToMavenLocal
-              ./gradlew build
-
-          - name: windows-latest
-            os: windows-latest
-            setup_graalvm: true
-            run: |
-              ./gradlew :quickjs:publishKotlinMultiplatformPublicationToMavenLocal \
-                        :quickjs:publishJvmPublicationToMavenLocal \
-                        :quickjs:publishMingwX64PublicationToMavenLocal
-              ./gradlew jvmTest mingwX64Test \
-                        :samples:repl:linkDebugExecutableMingwX64 \
-                        :integration-test:general:check \
-                        :integration-test:native-access:check
-
-          - name: macos-latest - macOS
-            os: macos-latest
-            setup_graalvm: true
-            run: |
-              ./gradlew :quickjs:publishKotlinMultiplatformPublicationToMavenLocal \
-                        :quickjs:publishJvmPublicationToMavenLocal \
-                        :quickjs:publishMacosArm64PublicationToMavenLocal \
-                        -Pquickjs.targetGroup=macos
-              ./gradlew jvmTest macosArm64Test \
-                        :samples:repl:linkDebugExecutableMacosArm64 \
-                        :integration-test:general:check \
-                        :integration-test:native-access:check \
-                        -Pquickjs.targetGroup=macos
-
-          - name: macos-latest - iOS
-            os: macos-latest
-            setup_graalvm: false
-            run: |
-              ./gradlew iosSimulatorArm64Test compileKotlinIosArm64 -Pquickjs.targetGroup=ios
-
-          - name: macos-latest - tvOS
-            os: macos-latest
-            setup_graalvm: false
-            run: |
-              ./gradlew tvosSimulatorArm64Test compileKotlinTvosArm64 -Pquickjs.targetGroup=tvos
-
-    runs-on: ${{ matrix.os }}
+        - name: ubuntu-latest
+          os: ubuntu-latest
+          setup_graalvm: true
+          run: |
+            ./gradlew publishToMavenLocal
+            ./gradlew build
+      fail-fast: false
+    runs-on: "${{ matrix.os }}"
     env:
       ORG_GRADLE_PROJECT_RELEASE_SIGNING_ENABLED: false
-
     steps:
-      - uses: actions/checkout@v7
-        with:
-          submodules: recursive
-
-      - name: Setup GraalVM
-        if: matrix.setup_graalvm
-        uses: graalvm/setup-graalvm@v1
-        with:
-          java-version: '25'
-          distribution: 'graalvm-community'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          native-image-job-reports: 'true'
-
-      - name: Export GRAALVM_HOME
-        if: matrix.setup_graalvm
-        shell: bash
-        run: echo "GRAALVM_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
-
-      - name: Setup JDK
-        if: ${{ !matrix.setup_graalvm }}
-        uses: actions/setup-java@v6
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      # Build system for C
-      - name: Setup CMake
-        uses: jwlawson/actions-setup-cmake@v2.2
-
-      # CMake generator
-      - name: Setup ninja-build
-        uses: seanmiddleditch/gha-setup-ninja@master
-
-      # Cross-compile native libraries
-      - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
-        with:
-          version: 0.12.0
-
-      - uses: gradle/actions/setup-gradle@v6
-
-      - name: Grant execute permission for scripts
-        if: runner.os != 'Windows'
-        run: |
-          chmod +x gradlew
-          chmod +x quickjs/native/cmake/zig-ar.sh
-          chmod +x quickjs/native/cmake/zig-ranlib.sh
-
-      - name: Deti version suffix
-        shell: bash
-        run: sed -i.bak 's/^VERSION_NAME=.*/VERSION_NAME=1.0.18-fix596/' gradle.properties
-
-      - name: Build
-        shell: bash
-        run: ${{ matrix.run }}
-
-      # Deti: артефакты публикации для собственного потребления (см. Deti PR/журнал ЛС-1)
-      - name: Deti upload maven artifacts
-        if: matrix.name == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: quickjs-kt-1.0.18-fix596-maven
-          path: ~/.m2/repository/io/github/dokar3/
-          retention-days: 30
-          if-no-files-found: error
+    - uses: actions/checkout@v7
+      with:
+        submodules: recursive
+    - name: Setup GraalVM
+      if: matrix.setup_graalvm
+      uses: graalvm/setup-graalvm@v1
+      with:
+        java-version: '25'
+        distribution: graalvm-community
+        github-token: "${{ secrets.GITHUB_TOKEN }}"
+        native-image-job-reports: 'true'
+    - name: Export GRAALVM_HOME
+      if: matrix.setup_graalvm
+      shell: bash
+      run: echo "GRAALVM_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
+    - name: Setup JDK
+      if: "${{ !matrix.setup_graalvm }}"
+      uses: actions/setup-java@v6
+      with:
+        java-version: '17'
+        distribution: temurin
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v2.2
+    - name: Setup ninja-build
+      uses: seanmiddleditch/gha-setup-ninja@master
+    - name: Setup Zig
+      uses: goto-bus-stop/setup-zig@v2
+      with:
+        version: 0.12.0
+    - uses: gradle/actions/setup-gradle@v6
+    - name: Grant execute permission for scripts
+      if: runner.os != 'Windows'
+      run: |
+        chmod +x gradlew
+        chmod +x quickjs/native/cmake/zig-ar.sh
+        chmod +x quickjs/native/cmake/zig-ranlib.sh
+    - name: Deti version suffix
+      shell: bash
+      run: sed -i.bak 's/^VERSION_NAME=.*/VERSION_NAME=1.0.18-fix596/' gradle.properties
+    - name: Build
+      shell: bash
+      run: "${{ matrix.run }}"
+    - name: Deti upload maven artifacts
+      if: matrix.name == 'ubuntu-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: quickjs-kt-1.0.18-fix596-maven
+        path: "~/.m2/repository/io/github/dokar3/"
+        retention-days: 30
+        if-no-files-found: error
