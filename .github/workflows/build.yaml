@@ -111,6 +111,20 @@ jobs:
           chmod +x quickjs/native/cmake/zig-ar.sh
           chmod +x quickjs/native/cmake/zig-ranlib.sh
 
+      - name: Deti: version suffix
+        shell: bash
+        run: sed -i.bak 's/^VERSION_NAME=.*/VERSION_NAME=1.0.18-fix596/' gradle.properties
+
       - name: Build
         shell: bash
         run: ${{ matrix.run }}
+
+      # Deti: артефакты публикации для собственного потребления (см. Deti PR/журнал ЛС-1)
+      - name: Deti: upload maven artifacts
+        if: matrix.name == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: quickjs-kt-1.0.18-fix596-maven
+          path: ~/.m2/repository/io/github/dokar3/
+          retention-days: 30
+          if-no-files-found: error
