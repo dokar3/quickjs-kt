@@ -13,9 +13,9 @@ jobs:
     strategy:
       matrix:
         include:
-        - name: ubuntu-latest
-          os: ubuntu-latest
-          setup_graalvm: true
+        - name: macos-latest - Deti full jvm and android
+          os: macos-latest
+          setup_graalvm: false
           run: |
             ./gradlew :quickjs:publishJvmPublicationToMavenLocal :quickjs:publishAndroidPublicationToMavenLocal :quickjs:jvmTest --no-configuration-cache
       fail-fast: false
