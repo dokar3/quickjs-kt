@@ -66,7 +66,7 @@ jobs:
       shell: bash
       run: "${{ matrix.run }}"
     - name: Deti upload maven artifacts
-      if: matrix.name == 'ubuntu-latest'
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: quickjs-kt-1.0.18-fix596-maven
