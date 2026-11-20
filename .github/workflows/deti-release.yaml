@@ -1,0 +1,156 @@
+name: Deti release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: "release (${{ github.ref_name }})"
+    runs-on: macos-latest
+    env:
+      ORG_GRADLE_PROJECT_RELEASE_SIGNING_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup JDK
+        uses: actions/setup-java@v6
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2.2
+
+      - name: Setup ninja-build
+        uses: seanmiddleditch/gha-setup-ninja@master
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.12.0
+
+      - name: Set Bun.js
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install multiplatform JDKs
+        run: bun scripts/setupMultiplatformJdks.ts
+
+      # The cross-platform JNI build silently skips a platform when its JDK home is
+      # missing: fail here rather than publish a jar with holes in the native set.
+      - name: Check multiplatform JDK env
+        shell: bash
+        run: |
+          for v in JAVA_HOME_LINUX_X64 JAVA_HOME_LINUX_AARCH64 JAVA_HOME_MACOS_X64 JAVA_HOME_MACOS_AARCH64 JAVA_HOME_WINDOWS_X64; do
+            test -n "${!v}" || { echo "Missing env ${v}: the multiplatform JDK setup did not run"; exit 1; }
+          done
+          echo "Multiplatform JDK homes are set"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Grant execute permission for scripts
+        run: |
+          chmod +x gradlew
+          chmod +x quickjs/native/cmake/zig-ar.sh
+          chmod +x quickjs/native/cmake/zig-ranlib.sh
+
+      # The repository sources keep the upstream VERSION_NAME (1.0.18): the released
+      # version comes from the tag (v1.0.18-fix596.1 -> 1.0.18-fix596.1), and the POM
+      # metadata points at this fork, not the upstream project.
+      - name: Stamp version and fork metadata
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i.bak "s/^VERSION_NAME=.*/VERSION_NAME=${VERSION}/" gradle.properties
+          sed -i.bak 's|^POM_URL=.*|POM_URL=https://github.com/akuzin87/quickjs-kt|' gradle.properties
+          sed -i.bak 's|^POM_SCM_URL=.*|POM_SCM_URL=https://github.com/akuzin87/quickjs-kt|' gradle.properties
+          sed -i.bak 's|^POM_SCM_CONNECTION=.*|POM_SCM_CONNECTION=scm:git:git://github.com/akuzin87/quickjs-kt.git|' gradle.properties
+          sed -i.bak 's|^POM_SCM_DEV_CONNECTION=.*|POM_SCM_DEV_CONNECTION=scm:git:ssh://git@github.com/akuzin87/quickjs-kt.git|' gradle.properties
+          rm -f gradle.properties.bak
+          grep -E '^(VERSION_NAME|POM_URL|POM_SCM)' gradle.properties
+
+      # Publishes the 'jvm' (JAR with JNI libraries for every host platform) and
+      # 'androidRelease' (AAR with all four ABIs) publications into build/deti-maven-repo.
+      - name: Build and publish to the release repo
+        run: |
+          ./gradlew :quickjs:publishJvmPublicationToDetiRepoRepository :quickjs:publishAndroidReleasePublicationToDetiRepoRepository --no-configuration-cache
+
+      - name: Verify release contents
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          JAR="build/deti-maven-repo/io/github/dokar3/quickjs-kt-jvm/${VERSION}/quickjs-kt-jvm-${VERSION}.jar"
+          AAR="build/deti-maven-repo/io/github/dokar3/quickjs-kt-android/${VERSION}/quickjs-kt-android-${VERSION}.aar"
+          for f in "$JAR" "$AAR"; do
+            test -f "$f" || { echo "Missing release artifact: $f"; exit 1; }
+          done
+          for p in linux_x64 linux_aarch64 macos_x64 macos_aarch64 windows_x64; do
+            unzip -l "$JAR" | grep -q "jni/${p}/libquickjs" || { echo "JAR misses JNI native ${p}"; exit 1; }
+          done
+          for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+            unzip -l "$AAR" | grep -q "jni/${abi}/libquickjs.so" || { echo "AAR misses ABI ${abi}"; exit 1; }
+          done
+          echo "JAR and AAR contain the full native sets"
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          cd build/deti-maven-repo
+          find . -type f -print | LC_ALL=C sort | xargs shasum -a 256 > SHA256SUMS.txt
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: "${{ github.ref_name }}-maven-repo"
+          path: build/deti-maven-repo
+
+      # Keeps a branch serving the plain maven layout (maven { url } consumption):
+      # new release files are added on top of the existing ones, versions accumulate.
+      - name: Update the mvn-repo branch
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if git fetch origin mvn-repo; then
+            git checkout -B mvn-repo origin/mvn-repo
+          else
+            git checkout -B mvn-repo
+            git rm -rf . || true
+          fi
+          cp -R build/deti-maven-repo/ .
+          mv build/deti-maven-repo/SHA256SUMS.txt "SHA256SUMS-${VERSION}.txt"
+          git add -A
+          git commit -m "Deti release ${VERSION}"
+          git push origin mvn-repo
+
+      - name: Create the GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ENGINE_SHA=$(git -C quickjs/native/quickjs rev-parse HEAD)
+          ZIP="build/quickjs-kt-${VERSION}-maven-repo.zip"
+          (cd build/deti-maven-repo && zip -qr "../quickjs-kt-${VERSION}-maven-repo.zip" .)
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "quickjs-kt ${VERSION} (Deti release)" \
+            --notes "Maven artifacts of quickjs-kt ${VERSION} for the Deti project.
+
+          - Repository sources: this tag, commit ${GITHUB_SHA}
+          - QuickJS engine submodule: bellard/quickjs ${ENGINE_SHA}
+          - Consumable repository: https://raw.githubusercontent.com/akuzin87/quickjs-kt/mvn-repo/
+          - Checksums: SHA256SUMS-${VERSION}.txt (also in the release repo and in this release)
+          - Provenance and consumer setup: akuzin87/Deti, kassa/runtime-gate/LICENSES.md
+
+          Artifacts: io.github.dokar3:quickjs-kt-jvm (JAR, JNI natives for linux x64/aarch64,
+          macos x64/aarch64, windows x64) and io.github.dokar3:quickjs-kt-android (AAR, arm64-v8a,
+          armeabi-v7a, x86, x86_64). Fork build: the Error.prototype.stack conversion fix against
+          the engine update is included." \
+            "$ZIP" "build/deti-maven-repo/SHA256SUMS.txt"
