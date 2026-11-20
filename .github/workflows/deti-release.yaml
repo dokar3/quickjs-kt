@@ -31,7 +31,8 @@ jobs:
         run: |
           export LC_ALL=C
           if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+([.-][a-z0-9]+)*)?$ ||
-                "$GITHUB_REF_NAME" == *-snapshot ]]; then
+                "$GITHUB_REF_NAME" == *-snapshot ||
+                "$GITHUB_REF_NAME" =~ -[0-9]{8}\.[0-9]{6}-[0-9]+$ ]]; then
             echo "Expected a release tag such as v1.0.18-fix596.1" >&2
             exit 1
           fi
@@ -188,11 +189,27 @@ jobs:
             LC_ALL=C sort | xargs shasum -a 256 > SHA256SUMS.txt
           shasum -a 256 -c SHA256SUMS.txt
 
+      # A re-run keeps the event's original SHA, but the remote tag may have been moved:
+      # compare the remote tag against this checkout before anything is published.
+      - name: Verify remote tag
+        shell: bash
+        run: |
+          refs=$(git ls-remote --exit-code origin \
+            "refs/tags/$GITHUB_REF_NAME" "refs/tags/$GITHUB_REF_NAME^{}")
+          tag_source=$(awk 'NR == 1 || /\^\{\}$/ { sha = $1 } END { print sha }' <<< "$refs")
+          test "$tag_source" = "$(git rev-parse HEAD)" || {
+            echo "Remote tag $GITHUB_REF_NAME points to $tag_source, expected $(git rev-parse HEAD)" >&2
+            exit 1
+          }
+
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
           name: "${{ github.ref_name }}-maven-repo-${{ github.run_attempt }}"
-          path: build/deti-maven-repo
+          path: |
+            build/deti-maven-repo/io/github/dokar3/quickjs-kt-jvm/${{ env.VERSION }}
+            build/deti-maven-repo/io/github/dokar3/quickjs-kt-android/${{ env.VERSION }}
+            build/deti-maven-repo/SHA256SUMS.txt
 
       # Keeps a branch serving the plain maven layout (maven { url } consumption): new
       # release files are added on top of the existing ones, versions accumulate. The
@@ -210,7 +227,8 @@ jobs:
             cp -R "$out/io/github/dokar3/$artifact/$VERSION" "$module/"
             now=$(date -u +%Y%m%d%H%M%S)
             versions=$(find "$module" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | LC_ALL=C sort -V)
-            latest=$(printf '%s\n' "$versions" | tail -1)
+            # Maven model: latest/release is the last PUBLISHED version, not the sort-V maximum
+            latest="$VERSION"
             {
               echo '<?xml version="1.0" encoding="UTF-8"?>'
               echo '<metadata>'
@@ -250,7 +268,16 @@ jobs:
           if is_draft=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft); then
             if [[ "$is_draft" == true ]]; then
               gh release upload "$GITHUB_REF_NAME" --clobber "$ZIP" "$SUMS"
-              gh release edit "$GITHUB_REF_NAME" --draft=false
+              gh release edit "$GITHUB_REF_NAME" --tag "$GITHUB_REF_NAME" --verify-tag --draft=false
+            else
+              # A published release must already carry this run's exact files
+              published=$(mktemp -d "$RUNNER_TEMP/deti-release.XXXXXX")
+              gh release download "$GITHUB_REF_NAME" \
+                --pattern "${ZIP##*/}" --pattern SHA256SUMS.txt --dir "$published"
+              cmp "$SUMS" "$published/SHA256SUMS.txt"
+              unzip -q "$published/${ZIP##*/}" -d "$published/tree"
+              cmp "$SUMS" "$published/tree/SHA256SUMS.txt"
+              (cd "$published/tree" && shasum -a 256 -c SHA256SUMS.txt)
             fi
             exit 0
           fi

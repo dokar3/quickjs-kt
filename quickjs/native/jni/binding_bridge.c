@@ -15,7 +15,10 @@
 #define GLOBAL_THIS_HANDLE -1
 
 static JSValue throw_java_exception(JNIEnv *env, JSContext *context, jthrowable exception) {
-    return JS_Throw(context, java_throwable_to_js_error(env, context, exception));
+    // java_throwable_to_js_error may return JS_EXCEPTION with the pending exception
+    // already set (e.g. OOM): JS_Throw would clobber it with a plain JS_EXCEPTION
+    JSValue error = java_throwable_to_js_error(env, context, exception);
+    return JS_IsException(error) ? error : JS_Throw(context, error);
 }
 
 JSValue jni_invoke_getter(JSContext *context, jobject call_host, int64_t object_handle,

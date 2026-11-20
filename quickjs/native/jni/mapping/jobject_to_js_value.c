@@ -289,6 +289,9 @@ JSValue java_map_to_js_map(JNIEnv *env, JSContext *context,
 
 JSValue java_throwable_to_js_error(JNIEnv *env, JSContext *context, jthrowable throwable) {
     JSValue error = JS_NewError(context);
+    if (JS_IsException(error)) {
+        return error;
+    }
 
     jclass exceptionClass = (*env)->GetObjectClass(env, throwable);
 
@@ -302,17 +305,25 @@ JSValue java_throwable_to_js_error(JNIEnv *env, JSContext *context, jthrowable t
     // Repeatedly raised exceptions in one JNI call must not accumulate the class local ref
     (*env)->DeleteLocalRef(env, exceptionClass);
 
-    // Get message
+    // Get message: an overridden getMessage() may itself throw, and JNI calls with a
+    // pending exception are not allowed — resolve the fallback before continuing
     jstring j_message = (jstring) (*env)->CallObjectMethod(env, throwable,
                                                            method_throwable_get_message(env));
-    if (j_message != NULL) {
-        // Set message name
-        JSValue js_message = java_string_to_js_string(env, context, j_message);
-        JS_SetPropertyStr(context, error, "message", js_message);
+    if ((*env)->ExceptionCheck(env)) {
         (*env)->DeleteLocalRef(env, j_message);
-    } else {
-        JSValue js_message = JS_NewString(context, "");
-        JS_SetPropertyStr(context, error, "message", js_message);
+        (*env)->ExceptionClear(env);
+        j_message = NULL;
+    }
+
+    JSValue js_message = j_message != NULL
+            ? java_string_to_js_string(env, context, j_message)
+            : JS_NewString(context, "");
+    (*env)->DeleteLocalRef(env, j_message);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+    } else if (JS_IsException(js_message) ||
+               JS_SetPropertyStr(context, error, "message", js_message) < 0) {
+        JS_FreeValue(context, JS_GetException(context));
     }
 
     // Get stack trace
