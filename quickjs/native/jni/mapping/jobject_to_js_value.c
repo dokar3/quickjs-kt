@@ -322,8 +322,11 @@ JSValue java_throwable_to_js_error(JNIEnv *env, JSContext *context, jthrowable t
 
     // Get message: an overridden getMessage() may itself throw, and JNI calls with a
     // pending exception are not allowed — resolve the fallback before continuing
-    jstring j_message = (jstring) (*env)->CallObjectMethod(env, throwable,
-                                                           method_throwable_get_message(env));
+    jmethodID get_message = method_throwable_get_message(env);
+    jstring j_message = NULL;
+    if (get_message != NULL && !(*env)->ExceptionCheck(env)) {
+        j_message = (jstring) (*env)->CallObjectMethod(env, throwable, get_message);
+    }
     if ((*env)->ExceptionCheck(env)) {
         // The result of a throwing call is not a valid local ref: clear first
         (*env)->ExceptionClear(env);
@@ -341,11 +344,25 @@ JSValue java_throwable_to_js_error(JNIEnv *env, JSContext *context, jthrowable t
         JS_FreeValue(context, JS_GetException(context));
     }
 
-    // Get stack trace
+    // Get stack trace: an overridden getStackTrace() may itself throw — bail out to
+    // the plain error instead of running further JNI calls with a pending exception
     jmethodID get_stack_trace = method_throwable_get_stack_trace(env);
-    jmethodID to_string = method_object_to_string(env);
-    jobjectArray j_stack_trace = (jobjectArray) (*env)->CallObjectMethod(env, throwable,
-                                                                         get_stack_trace);
+    if (get_stack_trace == NULL || (*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        return error;
+    }
+    jobjectArray j_stack_trace = (jobjectArray) (*env)->CallObjectMethod(
+            env, throwable, get_stack_trace);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        return error;
+    }
+    jmethodID to_string = j_stack_trace != NULL ? method_object_to_string(env) : NULL;
+    if (j_stack_trace != NULL && (to_string == NULL || (*env)->ExceptionCheck(env))) {
+        (*env)->ExceptionClear(env);
+        (*env)->DeleteLocalRef(env, j_stack_trace);
+        return error;
+    }
     // Set stack trace: the updated engine's Error.prototype.stack setter only
     // accepts strings, so join the frames into one string instead of assigning
     // the array that older QuickJS builds silently accepted. The frames are
@@ -358,9 +375,18 @@ JSValue java_throwable_to_js_error(JNIEnv *env, JSContext *context, jthrowable t
         jsize count = (*env)->GetArrayLength(env, j_stack_trace);
         for (jsize i = 0; i < count && ok; i++) {
             jobject element = (*env)->GetObjectArrayElement(env, j_stack_trace, i);
+            if ((*env)->ExceptionCheck(env)) {
+                (*env)->ExceptionClear(env);
+                ok = 0;
+                break;
+            }
             jstring text = element != NULL
                     ? (jstring) (*env)->CallObjectMethod(env, element, to_string)
                     : NULL;
+            if ((*env)->ExceptionCheck(env)) {
+                (*env)->ExceptionClear(env);
+                text = NULL;
+            }
             JniUtf8String frame;
             ok = text != NULL && jni_string_to_utf8(env, text, &frame);
             (*env)->DeleteLocalRef(env, text);

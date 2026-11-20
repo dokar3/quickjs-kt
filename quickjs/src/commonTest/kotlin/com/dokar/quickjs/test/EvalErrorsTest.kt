@@ -174,6 +174,47 @@ class EvalErrorsTest {
         }
     }
 
+    /**
+     * Regression for the strict Error.prototype.stack setter era: JNI conversion must
+     * survive a Throwable whose getMessage()/getStackTrace() throw, fall back to an
+     * empty message and keep the engine usable after the catch.
+     */
+    @Test
+    fun throwingMessageAndStackTraceAreConvertedWithoutKillingTheEngine() = runTest {
+        quickJs {
+            var caughtMessage: String? = null
+            var afterCatch: Boolean? = null
+            asyncFunction("doNothing") {}
+            function("throwError") {
+                throw object : Throwable() {
+                    override val message: String?
+                        get() = throw IllegalStateException("msg failed")
+                    override fun getStackTrace(): Array<StackTraceElement> =
+                        throw IllegalStateException("stack failed")
+                }
+            }
+            function("capture") { args -> caughtMessage = args[0] as String }
+            function("markAfterCatch") { afterCatch = true }
+
+            evaluate<Any?>(
+                """
+                    await doNothing();
+                    try {
+                        throwError();
+                    } catch (e) {
+                        capture(e.message);
+                    }
+                    markAfterCatch();
+                """.trimIndent(),
+                filename = "test.js",
+                asModule = true,
+            )
+
+            assertEquals("", caughtMessage)
+            assertEquals(true, afterCatch)
+        }
+    }
+
     @Test
     fun evalWithObjectBindingErrors() = runTest {
         quickJs {
