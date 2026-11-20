@@ -102,6 +102,13 @@ async function downloadAndExtractJdk(jdk: Jdk) {
   }
   if (!downloaded) {
     await downloadFile(jdk.url, filepath);
+    const sha256 = await fileSha256(filepath);
+    if (sha256 !== jdk.sha256) {
+      console.error(`Sha256 mismatch for ${jdkFullName}: '${sha256}'`);
+      await fs.unlink(filepath);
+      throw new Error(`SHA-256 mismatch for ${jdkFullName}`);
+    }
+    console.log(`Sha256 of ${jdkFullName}: '${sha256}' verified`);
   }
 
   console.log(`Extracting ${jdkFullName}...`);

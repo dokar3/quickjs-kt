@@ -1,14 +1,17 @@
-// Deti release: adds a local-file publishing repository named 'DetiRepo' to every project
-// with maven-publish. Publish tasks targeting it keep the release semantics of the native
-// build (buildQuickJsJniLibs compiles the JNI library for all supported platforms), while
-// the *ToMavenLocal tasks only build the host native library.
-gradle.projectsEvaluated { gradle ->
-    gradle.rootProject.allprojects { project ->
-        if (project.plugins.hasPlugin('maven-publish')) {
-            project.extensions.getByType(org.gradle.api.publish.PublishingExtension).repositories.maven { repo ->
-                repo.name = 'DetiRepo'
-                repo.url = project.rootProject.file('build/deti-maven-repo')
-            }
+// Deti release publishing repository for the QuickJS module only: publish tasks targeting
+// it keep the release semantics of the native build (buildQuickJsJniLibs compiles the JNI
+// library for all supported platforms), while the *ToMavenLocal tasks only build the host
+// native library. Not loaded by ordinary builds: only the release workflow passes -I.
+// Included builds (build-logic) have no :quickjs project and are skipped.
+gradle.projectsEvaluated { build ->
+    if (build.parent != null) {
+        return
+    }
+    def project = build.rootProject.findProject(':quickjs')
+    if (project != null && project.plugins.hasPlugin('maven-publish')) {
+        project.extensions.getByType(org.gradle.api.publish.PublishingExtension).repositories.maven { repo ->
+            repo.name = 'DetiRepo'
+            repo.url = project.rootProject.file('build/deti-maven-repo')
         }
     }
 }
