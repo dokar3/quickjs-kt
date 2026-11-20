@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include "cutils.h"
 #include "jobject_to_js_value.h"
 #include "jni_string_util.h"
 #include "js_value_util.h"
@@ -298,6 +299,8 @@ JSValue java_throwable_to_js_error(JNIEnv *env, JSContext *context, jthrowable t
     JSValue js_name = java_string_to_js_string(env, context, j_cls_name);
     JS_SetPropertyStr(context, error, "name", js_name);
     (*env)->DeleteLocalRef(env, j_cls_name);
+    // Repeatedly raised exceptions in one JNI call must not accumulate the class local ref
+    (*env)->DeleteLocalRef(env, exceptionClass);
 
     // Get message
     jstring j_message = (jstring) (*env)->CallObjectMethod(env, throwable,
@@ -317,32 +320,45 @@ JSValue java_throwable_to_js_error(JNIEnv *env, JSContext *context, jthrowable t
     jmethodID to_string = method_object_to_string(env);
     jobjectArray j_stack_trace = (jobjectArray) (*env)->CallObjectMethod(env, throwable,
                                                                          get_stack_trace);
-    size_t stack_trace_line_count = (*env)->GetArrayLength(env, j_stack_trace);
-
-    JSValue stack_trace = JS_NewArray(context);
-
-    for (int i = 0; i < stack_trace_line_count; i++) {
-        jobject element = (*env)->GetObjectArrayElement(env, j_stack_trace, i);
-        jstring j_string = (jstring) (*env)->CallObjectMethod(env, element, to_string);
-
-        // Set stack trace line
-        JSValue line = java_string_to_js_string(env, context, j_string);
-        JS_SetPropertyUint32(context, stack_trace, i, line);
-
-        (*env)->DeleteLocalRef(env, j_string);
-        (*env)->DeleteLocalRef(env, element);
-    }
-
     // Set stack trace: the updated engine's Error.prototype.stack setter only
-    // accepts strings, so join the frames instead of assigning the array that
-    // older QuickJS builds silently accepted
-    char *joined_stack = js_array_join(context, stack_trace, "\n");
-    if (joined_stack != NULL) {
-        JSValue js_stack = JS_NewString(context, joined_stack);
-        JS_SetPropertyStr(context, error, "stack", js_stack);
-        free(joined_stack);
+    // accepts strings, so join the frames into one string instead of assigning
+    // the array that older QuickJS builds silently accepted. The frames are
+    // joined manually (DynBuf) rather than via js_array_join: it leaks its parts
+    // array and this call runs for every converted exception.
+    DynBuf stack;
+    dbuf_init(&stack);
+    int ok = j_stack_trace != NULL;
+    if (ok) {
+        jsize count = (*env)->GetArrayLength(env, j_stack_trace);
+        for (jsize i = 0; i < count && ok; i++) {
+            jobject element = (*env)->GetObjectArrayElement(env, j_stack_trace, i);
+            jstring text = element != NULL
+                    ? (jstring) (*env)->CallObjectMethod(env, element, to_string)
+                    : NULL;
+            JniUtf8String frame;
+            ok = text != NULL && jni_string_to_utf8(env, text, &frame);
+            (*env)->DeleteLocalRef(env, text);
+            (*env)->DeleteLocalRef(env, element);
+            if (ok) {
+                ok = (i == 0 || dbuf_putc(&stack, '\n') == 0) &&
+                     dbuf_put(&stack, (const uint8_t *) frame.data, frame.length) == 0;
+                jni_utf8_string_release(&frame);
+            }
+        }
+        (*env)->DeleteLocalRef(env, j_stack_trace);
     }
-    JS_FreeValue(context, stack_trace);
+    if (!ok && (*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+    }
+    if (ok) {
+        const char *bytes = stack.size == 0 ? "" : (const char *) stack.buf;
+        JSValue js_stack = JS_NewStringLen(context, bytes, stack.size);
+        if (JS_IsException(js_stack) ||
+            JS_SetPropertyStr(context, error, "stack", js_stack) < 0) {
+            JS_FreeValue(context, JS_GetException(context));
+        }
+    }
+    dbuf_free(&stack);
 
     return error;
 }
