@@ -293,24 +293,39 @@ JSValue java_throwable_to_js_error(JNIEnv *env, JSContext *context, jthrowable t
         return error;
     }
 
+    // Get class js_name: every JNI call must run without a pending exception, so
+    // check and clear as we go — a JVM exception left pending here would make the
+    // later getMessage()/getStackTrace() calls invalid
     jclass exceptionClass = (*env)->GetObjectClass(env, throwable);
-
-    // Get class js_name
-    jstring j_cls_name = (jstring) (*env)->CallObjectMethod(env, exceptionClass,
-                                                            method_class_get_name(env));
-    // Set error name
-    JSValue js_name = java_string_to_js_string(env, context, j_cls_name);
-    JS_SetPropertyStr(context, error, "name", js_name);
-    (*env)->DeleteLocalRef(env, j_cls_name);
+    jstring j_cls_name = NULL;
+    if (exceptionClass != NULL && !(*env)->ExceptionCheck(env)) {
+        jmethodID get_name = method_class_get_name(env);
+        if (get_name != NULL && !(*env)->ExceptionCheck(env)) {
+            j_cls_name = (jstring) (*env)->CallObjectMethod(env, exceptionClass, get_name);
+        }
+    }
     // Repeatedly raised exceptions in one JNI call must not accumulate the class local ref
     (*env)->DeleteLocalRef(env, exceptionClass);
+
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+    } else if (j_cls_name != NULL) {
+        JSValue js_name = java_string_to_js_string(env, context, j_cls_name);
+        (*env)->DeleteLocalRef(env, j_cls_name);
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+        } else if (JS_IsException(js_name) ||
+                   JS_SetPropertyStr(context, error, "name", js_name) < 0) {
+            JS_FreeValue(context, JS_GetException(context));
+        }
+    }
 
     // Get message: an overridden getMessage() may itself throw, and JNI calls with a
     // pending exception are not allowed — resolve the fallback before continuing
     jstring j_message = (jstring) (*env)->CallObjectMethod(env, throwable,
                                                            method_throwable_get_message(env));
     if ((*env)->ExceptionCheck(env)) {
-        (*env)->DeleteLocalRef(env, j_message);
+        // The result of a throwing call is not a valid local ref: clear first
         (*env)->ExceptionClear(env);
         j_message = NULL;
     }

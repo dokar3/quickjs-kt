@@ -190,15 +190,22 @@ jobs:
           shasum -a 256 -c SHA256SUMS.txt
 
       # A re-run keeps the event's original SHA, but the remote tag may have been moved:
-      # compare the remote tag against this checkout before anything is published.
+      # compare the remote tag against this checkout before anything is published. The
+      # ref name is matched in full: ls-remote patterns match against the tail of the
+      # ref name, so a branch like refs/heads/archive/refs/tags/<tag> must not count.
       - name: Verify remote tag
         shell: bash
         run: |
-          refs=$(git ls-remote --exit-code origin \
-            "refs/tags/$GITHUB_REF_NAME" "refs/tags/$GITHUB_REF_NAME^{}")
-          tag_source=$(awk 'NR == 1 || /\^\{\}$/ { sha = $1 } END { print sha }' <<< "$refs")
-          test "$tag_source" = "$(git rev-parse HEAD)" || {
-            echo "Remote tag $GITHUB_REF_NAME points to $tag_source, expected $(git rev-parse HEAD)" >&2
+          ref="refs/tags/$GITHUB_REF_NAME"
+          refs=$(git ls-remote --exit-code origin "$ref" "$ref^{}")
+          tag_source=$(awk -v ref="$ref" '
+            $2 == ref { direct = $1 }
+            $2 == ref "^{}" { peeled = $1 }
+            END { print (peeled != "" ? peeled : direct) }
+          ' <<< "$refs")
+          head=$(git rev-parse HEAD)
+          test "$tag_source" = "$head" || {
+            echo "Remote tag $GITHUB_REF_NAME points to ${tag_source:-nothing}, expected $head" >&2
             exit 1
           }
 
@@ -259,9 +266,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           ENGINE_SHA=$(git -C quickjs/native/quickjs rev-parse HEAD)
-          ZIP="build/quickjs-kt-${VERSION}-maven-repo.zip"
+          ZIP="$PWD/build/quickjs-kt-${VERSION}-maven-repo.zip"
           SUMS="build/deti-maven-repo/SHA256SUMS.txt"
-          (cd build/deti-maven-repo && zip -qr "../../quickjs-kt-${VERSION}-maven-repo.zip" \
+          (cd build/deti-maven-repo && zip -qr "$ZIP" \
             "io/github/dokar3/quickjs-kt-jvm/$VERSION" \
             "io/github/dokar3/quickjs-kt-android/$VERSION" SHA256SUMS.txt)
 
@@ -278,6 +285,10 @@ jobs:
               unzip -q "$published/${ZIP##*/}" -d "$published/tree"
               cmp "$SUMS" "$published/tree/SHA256SUMS.txt"
               (cd "$published/tree" && shasum -a 256 -c SHA256SUMS.txt)
+              # The published archive must not carry extra files either
+              expected_files=$(unzip -Z1 "$ZIP" | sed '/\/$/d' | LC_ALL=C sort)
+              published_files=$(unzip -Z1 "$published/${ZIP##*/}" | sed '/\/$/d' | LC_ALL=C sort)
+              diff -u <(printf '%s\n' "$expected_files") <(printf '%s\n' "$published_files")
             fi
             exit 0
           fi
