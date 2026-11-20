@@ -184,7 +184,9 @@ internal fun jsErrorToKtError(context: CPointer<JSContext>, error: CValue<JSValu
             null
         }
 
-        JS_IsString(stackValue) == 1 -> stackValue.use(context) { toKtString(context) }
+        // An empty stack string normalizes to null, matching the pre-2.4.21 array readers
+        JS_IsString(stackValue) == 1 ->
+            stackValue.use(context) { toKtString(context)?.takeIf { it.isNotEmpty() } }
         // Older QuickJS builds expose the stack as an array of frames
         else -> stackValue.use(context) { joinStackFrames(context, this) }
     }

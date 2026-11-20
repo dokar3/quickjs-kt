@@ -112,7 +112,11 @@ jclass cls_ubyte_array(JNIEnv *env) {
 jclass cls_short(JNIEnv *env) {
     if (_cls_short == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Short");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_short = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_short;
 }
@@ -120,7 +124,11 @@ jclass cls_short(JNIEnv *env) {
 jclass cls_byte(JNIEnv *env) {
     if (_cls_byte == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Byte");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_byte = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_byte;
 }
@@ -128,7 +136,11 @@ jclass cls_byte(JNIEnv *env) {
 jclass cls_integer(JNIEnv *env) {
     if (_cls_integer == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Integer");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_integer = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_integer;
 }
@@ -136,7 +148,11 @@ jclass cls_integer(JNIEnv *env) {
 jclass cls_long(JNIEnv *env) {
     if (_cls_long == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Long");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_long = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_long;
 }
@@ -144,7 +160,11 @@ jclass cls_long(JNIEnv *env) {
 jclass cls_float(JNIEnv *env) {
     if (_cls_float == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Float");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_float = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_float;
 }
@@ -152,7 +172,11 @@ jclass cls_float(JNIEnv *env) {
 jclass cls_double(JNIEnv *env) {
     if (_cls_double == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Double");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_double = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_double;
 }
@@ -160,7 +184,11 @@ jclass cls_double(JNIEnv *env) {
 jclass cls_boolean(JNIEnv *env) {
     if (_cls_boolean == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Boolean");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_boolean = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_boolean;
 }
@@ -168,7 +196,11 @@ jclass cls_boolean(JNIEnv *env) {
 jclass cls_string(JNIEnv *env) {
     if (_cls_string == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/String");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_string = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_string;
 }
@@ -176,7 +208,11 @@ jclass cls_string(JNIEnv *env) {
 jclass cls_object(JNIEnv *env) {
     if (_cls_object == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Object");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_object = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_object;
 }
@@ -184,7 +220,11 @@ jclass cls_object(JNIEnv *env) {
 jclass cls_system(JNIEnv *env) {
     if (_cls_system == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/System");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_system = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_system;
 }
@@ -192,7 +232,11 @@ jclass cls_system(JNIEnv *env) {
 jclass cls_class(JNIEnv *env) {
     if (_cls_class == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Class");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_class = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_class;
 }
@@ -200,7 +244,11 @@ jclass cls_class(JNIEnv *env) {
 jclass cls_throwable(JNIEnv *env) {
     if (_cls_throwable == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Throwable");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_throwable = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_throwable;
 }
@@ -208,7 +256,11 @@ jclass cls_throwable(JNIEnv *env) {
 jclass cls_set(JNIEnv *env) {
     if (_cls_set == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/Set");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_set = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_set;
 }
@@ -216,7 +268,11 @@ jclass cls_set(JNIEnv *env) {
 jclass cls_iterator(JNIEnv *env) {
     if (_cls_iterator == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/Iterator");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_iterator = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_iterator;
 }
@@ -224,7 +280,11 @@ jclass cls_iterator(JNIEnv *env) {
 jclass cls_list(JNIEnv *env) {
     if (_cls_list == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/List");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_list = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_list;
 }
@@ -232,7 +292,11 @@ jclass cls_list(JNIEnv *env) {
 jclass cls_array_list(JNIEnv *env) {
     if (_cls_array_list == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/ArrayList");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_array_list = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_array_list;
 }
@@ -240,7 +304,11 @@ jclass cls_array_list(JNIEnv *env) {
 jclass cls_map(JNIEnv *env) {
     if (_cls_map == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/Map");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_map = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_map;
 }
@@ -248,7 +316,11 @@ jclass cls_map(JNIEnv *env) {
 jclass cls_map_entry(JNIEnv *env) {
     if (_cls_map_entry == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/Map$Entry");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_map_entry = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_map_entry;
 }
@@ -256,7 +328,11 @@ jclass cls_map_entry(JNIEnv *env) {
 jclass cls_hash_set(JNIEnv *env) {
     if (_cls_hash_set == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/HashSet");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_hash_set = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_hash_set;
 }
@@ -264,7 +340,11 @@ jclass cls_hash_set(JNIEnv *env) {
 jclass cls_linked_hash_map(JNIEnv *env) {
     if (_cls_linked_hash_map == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/LinkedHashMap");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_linked_hash_map = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_linked_hash_map;
 }
@@ -272,7 +352,11 @@ jclass cls_linked_hash_map(JNIEnv *env) {
 jclass cls_linked_hash_set(JNIEnv *env) {
     if (_cls_linked_hash_set == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/LinkedHashSet");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_linked_hash_set = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_linked_hash_set;
 }
@@ -280,7 +364,11 @@ jclass cls_linked_hash_set(JNIEnv *env) {
 jclass cls_quick_js_exception(JNIEnv *env) {
     if (_cls_quick_js_exception == NULL) {
         jclass cls = (*env)->FindClass(env, "com/dokar/quickjs/QuickJsException");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_quick_js_exception = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_quick_js_exception;
 }
@@ -288,7 +376,11 @@ jclass cls_quick_js_exception(JNIEnv *env) {
 jclass cls_quick_js(JNIEnv *env) {
     if (_cls_quick_js == NULL) {
         jclass cls = (*env)->FindClass(env, "com/dokar/quickjs/QuickJs");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_quick_js = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_quick_js;
 }
@@ -296,7 +388,11 @@ jclass cls_quick_js(JNIEnv *env) {
 jclass cls_memory_usage(JNIEnv *env) {
     if (_cls_memory_usage == NULL) {
         jclass cls = (*env)->FindClass(env, "com/dokar/quickjs/MemoryUsage");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_memory_usage = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_memory_usage;
 }
@@ -304,7 +400,11 @@ jclass cls_memory_usage(JNIEnv *env) {
 jclass cls_js_property(JNIEnv *env) {
     if (_cls_js_property == NULL) {
         jclass cls = (*env)->FindClass(env, "com/dokar/quickjs/binding/JsProperty");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_js_property = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_js_property;
 }
@@ -312,7 +412,11 @@ jclass cls_js_property(JNIEnv *env) {
 jclass cls_js_function(JNIEnv *env) {
     if (_cls_js_function == NULL) {
         jclass cls = (*env)->FindClass(env, "com/dokar/quickjs/binding/JsFunction");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_js_function = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_js_function;
 }
@@ -320,7 +424,11 @@ jclass cls_js_function(JNIEnv *env) {
 jclass cls_js_object(JNIEnv *env) {
     if (_cls_js_object == NULL) {
         jclass cls = (*env)->FindClass(env, "com/dokar/quickjs/binding/JsObject");
+        if (cls == NULL) {
+            return NULL;
+        }
         _cls_js_object = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_js_object;
 }
@@ -341,329 +449,517 @@ void set_cls_ubyte_array(JNIEnv *env, jclass cls) {
 
 jmethodID method_ubyte_array_init(JNIEnv *env) {
     if (_method_ubyte_array_init == NULL) {
-        _method_ubyte_array_init = (*env)->GetMethodID(env, cls_ubyte_array(env), "<init>", "([B)V");
+        jclass cls = cls_ubyte_array(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_ubyte_array_init = (*env)->GetMethodID(env, cls, "<init>", "([B)V");
     }
     return _method_ubyte_array_init;
 }
 
 jmethodID method_short_short_value(JNIEnv *env) {
     if (_method_short_short_value == NULL) {
-        _method_short_short_value = (*env)->GetMethodID(env, cls_short(env), "shortValue", "()S");
+        jclass cls = cls_short(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_short_short_value = (*env)->GetMethodID(env, cls, "shortValue", "()S");
     }
     return _method_short_short_value;
 }
 
 jmethodID method_byte_byte_value(JNIEnv *env) {
     if (_method_byte_byte_value == NULL) {
-        _method_byte_byte_value = (*env)->GetMethodID(env, cls_byte(env), "byteValue", "()B");
+        jclass cls = cls_byte(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_byte_byte_value = (*env)->GetMethodID(env, cls, "byteValue", "()B");
     }
     return _method_byte_byte_value;
 }
 
 jmethodID method_integer_value_of(JNIEnv *env) {
     if (_method_integer_value_of == NULL) {
-        _method_integer_value_of = (*env)->GetStaticMethodID(env, cls_integer(env), "valueOf", "(I)Ljava/lang/Integer;");
+        jclass cls = cls_integer(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_integer_value_of = (*env)->GetStaticMethodID(env, cls, "valueOf", "(I)Ljava/lang/Integer;");
     }
     return _method_integer_value_of;
 }
 
 jmethodID method_integer_int_value(JNIEnv *env) {
     if (_method_integer_int_value == NULL) {
-        _method_integer_int_value = (*env)->GetMethodID(env, cls_integer(env), "intValue", "()I");
+        jclass cls = cls_integer(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_integer_int_value = (*env)->GetMethodID(env, cls, "intValue", "()I");
     }
     return _method_integer_int_value;
 }
 
 jmethodID method_long_value_of(JNIEnv *env) {
     if (_method_long_value_of == NULL) {
-        _method_long_value_of = (*env)->GetStaticMethodID(env, cls_long(env), "valueOf", "(J)Ljava/lang/Long;");
+        jclass cls = cls_long(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_long_value_of = (*env)->GetStaticMethodID(env, cls, "valueOf", "(J)Ljava/lang/Long;");
     }
     return _method_long_value_of;
 }
 
 jmethodID method_long_long_value(JNIEnv *env) {
     if (_method_long_long_value == NULL) {
-        _method_long_long_value = (*env)->GetMethodID(env, cls_long(env), "longValue", "()J");
+        jclass cls = cls_long(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_long_long_value = (*env)->GetMethodID(env, cls, "longValue", "()J");
     }
     return _method_long_long_value;
 }
 
 jmethodID method_float_float_value(JNIEnv *env) {
     if (_method_float_float_value == NULL) {
-        _method_float_float_value = (*env)->GetMethodID(env, cls_float(env), "floatValue", "()F");
+        jclass cls = cls_float(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_float_float_value = (*env)->GetMethodID(env, cls, "floatValue", "()F");
     }
     return _method_float_float_value;
 }
 
 jmethodID method_double_value_of(JNIEnv *env) {
     if (_method_double_value_of == NULL) {
-        _method_double_value_of = (*env)->GetStaticMethodID(env, cls_double(env), "valueOf", "(D)Ljava/lang/Double;");
+        jclass cls = cls_double(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_double_value_of = (*env)->GetStaticMethodID(env, cls, "valueOf", "(D)Ljava/lang/Double;");
     }
     return _method_double_value_of;
 }
 
 jmethodID method_double_double_value(JNIEnv *env) {
     if (_method_double_double_value == NULL) {
-        _method_double_double_value = (*env)->GetMethodID(env, cls_double(env), "doubleValue", "()D");
+        jclass cls = cls_double(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_double_double_value = (*env)->GetMethodID(env, cls, "doubleValue", "()D");
     }
     return _method_double_double_value;
 }
 
 jmethodID method_boolean_value_of(JNIEnv *env) {
     if (_method_boolean_value_of == NULL) {
-        _method_boolean_value_of = (*env)->GetStaticMethodID(env, cls_boolean(env), "valueOf", "(Z)Ljava/lang/Boolean;");
+        jclass cls = cls_boolean(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_boolean_value_of = (*env)->GetStaticMethodID(env, cls, "valueOf", "(Z)Ljava/lang/Boolean;");
     }
     return _method_boolean_value_of;
 }
 
 jmethodID method_boolean_boolean_value(JNIEnv *env) {
     if (_method_boolean_boolean_value == NULL) {
-        _method_boolean_boolean_value = (*env)->GetMethodID(env, cls_boolean(env), "booleanValue", "()Z");
+        jclass cls = cls_boolean(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_boolean_boolean_value = (*env)->GetMethodID(env, cls, "booleanValue", "()Z");
     }
     return _method_boolean_boolean_value;
 }
 
 jmethodID method_object_to_string(JNIEnv *env) {
     if (_method_object_to_string == NULL) {
-        _method_object_to_string = (*env)->GetMethodID(env, cls_object(env), "toString", "()Ljava/lang/String;");
+        jclass cls = cls_object(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_object_to_string = (*env)->GetMethodID(env, cls, "toString", "()Ljava/lang/String;");
     }
     return _method_object_to_string;
 }
 
 jmethodID method_system_identity_hash_code(JNIEnv *env) {
     if (_method_system_identity_hash_code == NULL) {
-        _method_system_identity_hash_code = (*env)->GetStaticMethodID(env, cls_system(env), "identityHashCode", "(Ljava/lang/Object;)I");
+        jclass cls = cls_system(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_system_identity_hash_code = (*env)->GetStaticMethodID(env, cls, "identityHashCode", "(Ljava/lang/Object;)I");
     }
     return _method_system_identity_hash_code;
 }
 
 jmethodID method_class_get_name(JNIEnv *env) {
     if (_method_class_get_name == NULL) {
-        _method_class_get_name = (*env)->GetMethodID(env, cls_class(env), "getName", "()Ljava/lang/String;");
+        jclass cls = cls_class(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_class_get_name = (*env)->GetMethodID(env, cls, "getName", "()Ljava/lang/String;");
     }
     return _method_class_get_name;
 }
 
 jmethodID method_class_is_array(JNIEnv *env) {
     if (_method_class_is_array == NULL) {
-        _method_class_is_array = (*env)->GetMethodID(env, cls_class(env), "isArray", "()Z");
+        jclass cls = cls_class(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_class_is_array = (*env)->GetMethodID(env, cls, "isArray", "()Z");
     }
     return _method_class_is_array;
 }
 
 jmethodID method_throwable_get_message(JNIEnv *env) {
     if (_method_throwable_get_message == NULL) {
-        _method_throwable_get_message = (*env)->GetMethodID(env, cls_throwable(env), "getMessage", "()Ljava/lang/String;");
+        jclass cls = cls_throwable(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_throwable_get_message = (*env)->GetMethodID(env, cls, "getMessage", "()Ljava/lang/String;");
     }
     return _method_throwable_get_message;
 }
 
 jmethodID method_throwable_get_stack_trace(JNIEnv *env) {
     if (_method_throwable_get_stack_trace == NULL) {
-        _method_throwable_get_stack_trace = (*env)->GetMethodID(env, cls_throwable(env), "getStackTrace", "()[Ljava/lang/StackTraceElement;");
+        jclass cls = cls_throwable(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_throwable_get_stack_trace = (*env)->GetMethodID(env, cls, "getStackTrace", "()[Ljava/lang/StackTraceElement;");
     }
     return _method_throwable_get_stack_trace;
 }
 
 jmethodID method_set_iterator(JNIEnv *env) {
     if (_method_set_iterator == NULL) {
-        _method_set_iterator = (*env)->GetMethodID(env, cls_set(env), "iterator", "()Ljava/util/Iterator;");
+        jclass cls = cls_set(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_set_iterator = (*env)->GetMethodID(env, cls, "iterator", "()Ljava/util/Iterator;");
     }
     return _method_set_iterator;
 }
 
 jmethodID method_set_add(JNIEnv *env) {
     if (_method_set_add == NULL) {
-        _method_set_add = (*env)->GetMethodID(env, cls_set(env), "add", "(Ljava/lang/Object;)Z");
+        jclass cls = cls_set(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_set_add = (*env)->GetMethodID(env, cls, "add", "(Ljava/lang/Object;)Z");
     }
     return _method_set_add;
 }
 
 jmethodID method_set_contains(JNIEnv *env) {
     if (_method_set_contains == NULL) {
-        _method_set_contains = (*env)->GetMethodID(env, cls_set(env), "contains", "(Ljava/lang/Object;)Z");
+        jclass cls = cls_set(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_set_contains = (*env)->GetMethodID(env, cls, "contains", "(Ljava/lang/Object;)Z");
     }
     return _method_set_contains;
 }
 
 jmethodID method_set_is_empty(JNIEnv *env) {
     if (_method_set_is_empty == NULL) {
-        _method_set_is_empty = (*env)->GetMethodID(env, cls_set(env), "isEmpty", "()Z");
+        jclass cls = cls_set(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_set_is_empty = (*env)->GetMethodID(env, cls, "isEmpty", "()Z");
     }
     return _method_set_is_empty;
 }
 
 jmethodID method_iterator_has_next(JNIEnv *env) {
     if (_method_iterator_has_next == NULL) {
-        _method_iterator_has_next = (*env)->GetMethodID(env, cls_iterator(env), "hasNext", "()Z");
+        jclass cls = cls_iterator(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_iterator_has_next = (*env)->GetMethodID(env, cls, "hasNext", "()Z");
     }
     return _method_iterator_has_next;
 }
 
 jmethodID method_iterator_next(JNIEnv *env) {
     if (_method_iterator_next == NULL) {
-        _method_iterator_next = (*env)->GetMethodID(env, cls_iterator(env), "next", "()Ljava/lang/Object;");
+        jclass cls = cls_iterator(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_iterator_next = (*env)->GetMethodID(env, cls, "next", "()Ljava/lang/Object;");
     }
     return _method_iterator_next;
 }
 
 jmethodID method_list_size(JNIEnv *env) {
     if (_method_list_size == NULL) {
-        _method_list_size = (*env)->GetMethodID(env, cls_list(env), "size", "()I");
+        jclass cls = cls_list(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_list_size = (*env)->GetMethodID(env, cls, "size", "()I");
     }
     return _method_list_size;
 }
 
 jmethodID method_list_get(JNIEnv *env) {
     if (_method_list_get == NULL) {
-        _method_list_get = (*env)->GetMethodID(env, cls_list(env), "get", "(I)Ljava/lang/Object;");
+        jclass cls = cls_list(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_list_get = (*env)->GetMethodID(env, cls, "get", "(I)Ljava/lang/Object;");
     }
     return _method_list_get;
 }
 
 jmethodID method_list_add(JNIEnv *env) {
     if (_method_list_add == NULL) {
-        _method_list_add = (*env)->GetMethodID(env, cls_list(env), "add", "(Ljava/lang/Object;)Z");
+        jclass cls = cls_list(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_list_add = (*env)->GetMethodID(env, cls, "add", "(Ljava/lang/Object;)Z");
     }
     return _method_list_add;
 }
 
 jmethodID method_array_list_init(JNIEnv *env) {
     if (_method_array_list_init == NULL) {
-        _method_array_list_init = (*env)->GetMethodID(env, cls_array_list(env), "<init>", "()V");
+        jclass cls = cls_array_list(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_array_list_init = (*env)->GetMethodID(env, cls, "<init>", "()V");
     }
     return _method_array_list_init;
 }
 
 jmethodID method_array_list_init_with_capacity(JNIEnv *env) {
     if (_method_array_list_init_with_capacity == NULL) {
-        _method_array_list_init_with_capacity = (*env)->GetMethodID(env, cls_array_list(env), "<init>", "(I)V");
+        jclass cls = cls_array_list(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_array_list_init_with_capacity = (*env)->GetMethodID(env, cls, "<init>", "(I)V");
     }
     return _method_array_list_init_with_capacity;
 }
 
 jmethodID method_map_entry_set(JNIEnv *env) {
     if (_method_map_entry_set == NULL) {
-        _method_map_entry_set = (*env)->GetMethodID(env, cls_map(env), "entrySet", "()Ljava/util/Set;");
+        jclass cls = cls_map(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_map_entry_set = (*env)->GetMethodID(env, cls, "entrySet", "()Ljava/util/Set;");
     }
     return _method_map_entry_set;
 }
 
 jmethodID method_map_entry_get_key(JNIEnv *env) {
     if (_method_map_entry_get_key == NULL) {
-        _method_map_entry_get_key = (*env)->GetMethodID(env, cls_map_entry(env), "getKey", "()Ljava/lang/Object;");
+        jclass cls = cls_map_entry(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_map_entry_get_key = (*env)->GetMethodID(env, cls, "getKey", "()Ljava/lang/Object;");
     }
     return _method_map_entry_get_key;
 }
 
 jmethodID method_map_entry_get_value(JNIEnv *env) {
     if (_method_map_entry_get_value == NULL) {
-        _method_map_entry_get_value = (*env)->GetMethodID(env, cls_map_entry(env), "getValue", "()Ljava/lang/Object;");
+        jclass cls = cls_map_entry(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_map_entry_get_value = (*env)->GetMethodID(env, cls, "getValue", "()Ljava/lang/Object;");
     }
     return _method_map_entry_get_value;
 }
 
 jmethodID method_hash_set_init(JNIEnv *env) {
     if (_method_hash_set_init == NULL) {
-        _method_hash_set_init = (*env)->GetMethodID(env, cls_hash_set(env), "<init>", "()V");
+        jclass cls = cls_hash_set(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_hash_set_init = (*env)->GetMethodID(env, cls, "<init>", "()V");
     }
     return _method_hash_set_init;
 }
 
 jmethodID method_linked_hash_map_init(JNIEnv *env) {
     if (_method_linked_hash_map_init == NULL) {
-        _method_linked_hash_map_init = (*env)->GetMethodID(env, cls_linked_hash_map(env), "<init>", "()V");
+        jclass cls = cls_linked_hash_map(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_linked_hash_map_init = (*env)->GetMethodID(env, cls, "<init>", "()V");
     }
     return _method_linked_hash_map_init;
 }
 
 jmethodID method_linked_hash_map_put(JNIEnv *env) {
     if (_method_linked_hash_map_put == NULL) {
-        _method_linked_hash_map_put = (*env)->GetMethodID(env, cls_linked_hash_map(env), "put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+        jclass cls = cls_linked_hash_map(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_linked_hash_map_put = (*env)->GetMethodID(env, cls, "put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
     }
     return _method_linked_hash_map_put;
 }
 
 jmethodID method_linked_hash_set_init(JNIEnv *env) {
     if (_method_linked_hash_set_init == NULL) {
-        _method_linked_hash_set_init = (*env)->GetMethodID(env, cls_linked_hash_set(env), "<init>", "()V");
+        jclass cls = cls_linked_hash_set(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_linked_hash_set_init = (*env)->GetMethodID(env, cls, "<init>", "()V");
     }
     return _method_linked_hash_set_init;
 }
 
 jmethodID method_linked_hash_set_add(JNIEnv *env) {
     if (_method_linked_hash_set_add == NULL) {
-        _method_linked_hash_set_add = (*env)->GetMethodID(env, cls_linked_hash_set(env), "add", "(Ljava/lang/Object;)Z");
+        jclass cls = cls_linked_hash_set(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_linked_hash_set_add = (*env)->GetMethodID(env, cls, "add", "(Ljava/lang/Object;)Z");
     }
     return _method_linked_hash_set_add;
 }
 
 jmethodID method_quick_js_exception_init(JNIEnv *env) {
     if (_method_quick_js_exception_init == NULL) {
-        _method_quick_js_exception_init = (*env)->GetMethodID(env, cls_quick_js_exception(env), "<init>", "(Ljava/lang/String;)V");
+        jclass cls = cls_quick_js_exception(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_quick_js_exception_init = (*env)->GetMethodID(env, cls, "<init>", "(Ljava/lang/String;)V");
     }
     return _method_quick_js_exception_init;
 }
 
 jmethodID method_quick_js_exception_init_with_stack(JNIEnv *env) {
     if (_method_quick_js_exception_init_with_stack == NULL) {
-        _method_quick_js_exception_init_with_stack = (*env)->GetMethodID(env, cls_quick_js_exception(env), "<init>", "(Ljava/lang/String;Ljava/lang/String;)V");
+        jclass cls = cls_quick_js_exception(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_quick_js_exception_init_with_stack = (*env)->GetMethodID(env, cls, "<init>", "(Ljava/lang/String;Ljava/lang/String;)V");
     }
     return _method_quick_js_exception_init_with_stack;
 }
 
 jmethodID method_quick_js_on_call_getter(JNIEnv *env) {
     if (_method_quick_js_on_call_getter == NULL) {
-        _method_quick_js_on_call_getter = (*env)->GetMethodID(env, cls_quick_js(env), "onCallGetter", "(JLjava/lang/String;)Ljava/lang/Object;");
+        jclass cls = cls_quick_js(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_quick_js_on_call_getter = (*env)->GetMethodID(env, cls, "onCallGetter", "(JLjava/lang/String;)Ljava/lang/Object;");
     }
     return _method_quick_js_on_call_getter;
 }
 
 jmethodID method_quick_js_on_call_setter(JNIEnv *env) {
     if (_method_quick_js_on_call_setter == NULL) {
-        _method_quick_js_on_call_setter = (*env)->GetMethodID(env, cls_quick_js(env), "onCallSetter", "(JLjava/lang/String;Ljava/lang/Object;)V");
+        jclass cls = cls_quick_js(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_quick_js_on_call_setter = (*env)->GetMethodID(env, cls, "onCallSetter", "(JLjava/lang/String;Ljava/lang/Object;)V");
     }
     return _method_quick_js_on_call_setter;
 }
 
 jmethodID method_quick_js_on_call_function(JNIEnv *env) {
     if (_method_quick_js_on_call_function == NULL) {
-        _method_quick_js_on_call_function = (*env)->GetMethodID(env, cls_quick_js(env), "onCallFunction", "(JLjava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;");
+        jclass cls = cls_quick_js(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_quick_js_on_call_function = (*env)->GetMethodID(env, cls, "onCallFunction", "(JLjava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;");
     }
     return _method_quick_js_on_call_function;
 }
 
 jmethodID method_quick_js_set_eval_exception(JNIEnv *env) {
     if (_method_quick_js_set_eval_exception == NULL) {
-        _method_quick_js_set_eval_exception = (*env)->GetMethodID(env, cls_quick_js(env), "setEvalException", "(Ljava/lang/Throwable;)V");
+        jclass cls = cls_quick_js(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_quick_js_set_eval_exception = (*env)->GetMethodID(env, cls, "setEvalException", "(Ljava/lang/Throwable;)V");
     }
     return _method_quick_js_set_eval_exception;
 }
 
 jmethodID method_quick_js_set_unhandled_promise_rejection(JNIEnv *env) {
     if (_method_quick_js_set_unhandled_promise_rejection == NULL) {
-        _method_quick_js_set_unhandled_promise_rejection = (*env)->GetMethodID(env, cls_quick_js(env), "setUnhandledPromiseRejection", "(JLjava/lang/Object;)V");
+        jclass cls = cls_quick_js(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_quick_js_set_unhandled_promise_rejection = (*env)->GetMethodID(env, cls, "setUnhandledPromiseRejection", "(JLjava/lang/Object;)V");
     }
     return _method_quick_js_set_unhandled_promise_rejection;
 }
 
 jmethodID method_quick_js_clear_handled_promise_rejection(JNIEnv *env) {
     if (_method_quick_js_clear_handled_promise_rejection == NULL) {
-        _method_quick_js_clear_handled_promise_rejection = (*env)->GetMethodID(env, cls_quick_js(env), "clearHandledPromiseRejection", "(J)V");
+        jclass cls = cls_quick_js(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_quick_js_clear_handled_promise_rejection = (*env)->GetMethodID(env, cls, "clearHandledPromiseRejection", "(J)V");
     }
     return _method_quick_js_clear_handled_promise_rejection;
 }
 
 jmethodID method_memory_usage_init(JNIEnv *env) {
     if (_method_memory_usage_init == NULL) {
-        _method_memory_usage_init = (*env)->GetMethodID(env, cls_memory_usage(env), "<init>", "(JJJJJJJJJJJJJJJJJJJJJJJJJJ)V");
+        jclass cls = cls_memory_usage(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_memory_usage_init = (*env)->GetMethodID(env, cls, "<init>", "(JJJJJJJJJJJJJJJJJJJJJJJJJJ)V");
     }
     return _method_memory_usage_init;
 }
 
 jmethodID method_js_object_init(JNIEnv *env) {
     if (_method_js_object_init == NULL) {
-        _method_js_object_init = (*env)->GetMethodID(env, cls_js_object(env), "<init>", "(Ljava/util/Map;)V");
+        jclass cls = cls_js_object(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _method_js_object_init = (*env)->GetMethodID(env, cls, "<init>", "(Ljava/util/Map;)V");
     }
     return _method_js_object_init;
 }

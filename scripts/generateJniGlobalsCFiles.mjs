@@ -381,7 +381,11 @@ function generateSource() {
         `jclass ${name}(JNIEnv *env) {
     if (_${name} == NULL) {
         jclass cls = (*env)->FindClass(env, "${className}");
+        if (cls == NULL) {
+            return NULL;
+        }
         _${name} = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _${name};
 }`,
@@ -424,7 +428,11 @@ function generateSource() {
         const staticPart = method.isStatic === true ? "Static" : "";
         return `jmethodID ${name}(JNIEnv *env) {
     if (_${name} == NULL) {
-        _${name} = (*env)->Get${staticPart}MethodID(env, ${classFunName}(env), "${method.name}", "${method.sign}");
+        jclass cls = ${classFunName}(env);
+        if (cls == NULL || (*env)->ExceptionCheck(env)) {
+            return NULL;
+        }
+        _${name} = (*env)->Get${staticPart}MethodID(env, cls, "${method.name}", "${method.sign}");
     }
     return _${name};
 }`;

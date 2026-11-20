@@ -84,12 +84,10 @@ internal fun ktErrorToJsError(context: CPointer<JSContext>, error: Throwable): C
         JS_SetPropertyStr(context, jsError, "message", message)
     }
 
-    val stack = JS_NewArray(context)
+    // The updated engine's Error.prototype.stack setter only accepts strings, so
+    // join the frames instead of assigning the array older QuickJS builds accepted
     val ktStack = error.getStackTrace()
-    for (i in ktStack.indices) {
-        val line = JS_NewString(context, ktStack[i].cstr)
-        JS_SetPropertyUint32(context, stack, i.toUInt(), line)
-    }
+    val stack = JS_NewString(context, ktStack.joinToString("\n").cstr)
     JS_SetPropertyStr(context, jsError, "stack", stack)
 
     return jsError
