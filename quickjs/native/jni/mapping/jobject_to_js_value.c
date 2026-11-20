@@ -333,8 +333,16 @@ JSValue java_throwable_to_js_error(JNIEnv *env, JSContext *context, jthrowable t
         (*env)->DeleteLocalRef(env, element);
     }
 
-    // Set stack trace
-    JS_SetPropertyStr(context, error, "stack", stack_trace);
+    // Set stack trace: the updated engine's Error.prototype.stack setter only
+    // accepts strings, so join the frames instead of assigning the array that
+    // older QuickJS builds silently accepted
+    char *joined_stack = js_array_join(context, stack_trace, "\n");
+    if (joined_stack != NULL) {
+        JSValue js_stack = JS_NewString(context, joined_stack);
+        JS_SetPropertyStr(context, error, "stack", js_stack);
+        free(joined_stack);
+    }
+    JS_FreeValue(context, stack_trace);
 
     return error;
 }
