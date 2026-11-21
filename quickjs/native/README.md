@@ -7,6 +7,7 @@ Using zig for cross-compiling, based on [zig-cross](https://github.com/mrexodia/
 - [Zig](https://ziglang.org/)
 - Windows, Linux, and macOS JDK
 - [CMake](https://cmake.org/)
+- [Git](https://git-scm.com/) (used by CMake to apply the QuickJS backport)
 - Android NDK
 
 ### Build
