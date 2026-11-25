@@ -175,6 +175,46 @@ class EvalErrorsTest {
     }
 
     @Test
+    fun hostExceptionHasStringStackWhenCaughtInJavaScript() = runTest {
+        quickJs {
+            var caughtStackType: String? = null
+            var caughtStack: String? = null
+            function("throwSync") { throw IllegalStateException("sync boom") }
+            asyncFunction("throwAsync") { throw IllegalStateException("async boom") }
+            function("capture") { args ->
+                caughtStackType = args[0] as? String
+                caughtStack = args[1] as? String
+            }
+
+            evaluate<Any?>(
+                """
+                    try {
+                        throwSync();
+                    } catch (e) {
+                        capture(typeof e.stack, e.stack);
+                    }
+                """.trimIndent(),
+            )
+            assertEquals("string", caughtStackType)
+            assertTrue(!caughtStack.isNullOrEmpty())
+
+            caughtStackType = null
+            caughtStack = null
+            evaluate<Any?>(
+                """
+                    try {
+                        await throwAsync();
+                    } catch (e) {
+                        capture(typeof e.stack, e.stack);
+                    }
+                """.trimIndent(),
+            )
+            assertEquals("string", caughtStackType)
+            assertTrue(!caughtStack.isNullOrEmpty())
+        }
+    }
+
+    @Test
     fun evalWithObjectBindingErrors() = runTest {
         quickJs {
             define("app") {

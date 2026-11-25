@@ -20,26 +20,30 @@ import platform.posix.memcpy
 import platform.posix.uint8_tVar
 import quickjs.JSContext
 import quickjs.JSRuntime
-import quickjs.JSValue
-import quickjs.JS_CallConstructor
-import quickjs.JS_FreeValue
-import quickjs.JS_GetGlobalObject
-import quickjs.JS_GetPropertyStr
-import quickjs.JS_IsNull
-import quickjs.JS_IsUndefined
-import quickjs.JS_NewArray
-import quickjs.JS_NewArrayBuffer
-import quickjs.JS_NewBool
-import quickjs.JS_NewError
-import quickjs.JS_NewFloat64
-import quickjs.JS_NewInt32
-import quickjs.JS_NewInt64
-import quickjs.JS_NewObject
-import quickjs.JS_NewString
-import quickjs.JS_SetPropertyStr
-import quickjs.JS_SetPropertyUint32
+import quickjs.JS_PROP_C_W_E
 import quickjs.JsNull
 import quickjs.JsUndefined
+import quickjs.QJSValue
+import quickjs.qjs_call_constructor
+import quickjs.qjs_define_property_value_str
+import quickjs.qjs_free_value
+import quickjs.qjs_get_exception
+import quickjs.qjs_get_global_object
+import quickjs.qjs_get_property_str
+import quickjs.qjs_is_exception
+import quickjs.qjs_is_null
+import quickjs.qjs_is_undefined
+import quickjs.qjs_new_array
+import quickjs.qjs_new_array_buffer
+import quickjs.qjs_new_bool
+import quickjs.qjs_new_error
+import quickjs.qjs_new_float64
+import quickjs.qjs_new_int32
+import quickjs.qjs_new_int64
+import quickjs.qjs_new_object
+import quickjs.qjs_new_string
+import quickjs.qjs_set_property_str
+import quickjs.qjs_set_property_uint32
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.identityHashCode
 
@@ -47,18 +51,18 @@ import kotlin.native.identityHashCode
 internal fun <T : Any?> T.toJsValue(
     context: CPointer<JSContext>,
     visited: MutableSet<Int>? = null,
-): CValue<JSValue> {
+): CValue<QJSValue> {
     val value = this ?: return JsNull()
     return when (value) {
         Unit -> JsUndefined()
-        is Boolean -> JS_NewBool(context, if (value) 1 else 0)
-        is Byte -> JS_NewInt32(context, value.toInt())
-        is Short -> JS_NewInt32(context, value.toInt())
-        is Int -> JS_NewInt32(context, value)
-        is Long -> JS_NewInt64(context, value)
-        is Float -> JS_NewFloat64(context, value.toDouble())
-        is Double -> JS_NewFloat64(context, value)
-        is String -> JS_NewString(context, value.cstr)
+        is Boolean -> qjs_new_bool(context, if (value) 1 else 0)
+        is Byte -> qjs_new_int32(context, value.toInt())
+        is Short -> qjs_new_int32(context, value.toInt())
+        is Int -> qjs_new_int32(context, value)
+        is Long -> qjs_new_int64(context, value)
+        is Float -> qjs_new_float64(context, value.toDouble())
+        is Double -> qjs_new_float64(context, value)
+        is String -> qjs_new_string(context, value.cstr)
         is ByteArray -> ktByteArrayToJsInt8Array(context, value)
         is UByteArray -> ktUByteArrayToJsUint8Array(context, value)
         is Array<*> -> ktArrayToJsArray(context, value, visited ?: mutableSetOf())
@@ -72,25 +76,27 @@ internal fun <T : Any?> T.toJsValue(
 }
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalNativeApi::class)
-internal fun ktErrorToJsError(context: CPointer<JSContext>, error: Throwable): CValue<JSValue> {
-    val jsError = JS_NewError(context)
+internal fun ktErrorToJsError(context: CPointer<JSContext>, error: Throwable): CValue<QJSValue> {
+    val jsError = qjs_new_error(context)
 
-    val name = JS_NewString(context, error::class.qualifiedName!!.cstr)
-    JS_SetPropertyStr(context, jsError, "name", name)
+    val name = qjs_new_string(context, error::class.qualifiedName!!.cstr)
+    qjs_set_property_str(context, jsError, "name", name)
 
     val ktMessage = error.message
     if (ktMessage != null) {
-        val message = JS_NewString(context, ktMessage.cstr)
-        JS_SetPropertyStr(context, jsError, "message", message)
+        val message = qjs_new_string(context, ktMessage.cstr)
+        qjs_set_property_str(context, jsError, "message", message)
     }
 
-    val stack = JS_NewArray(context)
     val ktStack = error.getStackTrace()
-    for (i in ktStack.indices) {
-        val line = JS_NewString(context, ktStack[i].cstr)
-        JS_SetPropertyUint32(context, stack, i.toUInt(), line)
+    if (ktStack.isNotEmpty()) {
+        val stack = qjs_new_string(context, ktStack.joinToString("\n").cstr)
+        if (qjs_is_exception(stack) == 1) {
+            qjs_free_value(context, qjs_get_exception(context))
+        } else if (qjs_define_property_value_str(context, jsError, "stack", stack, JS_PROP_C_W_E) < 0) {
+            qjs_free_value(context, qjs_get_exception(context))
+        }
     }
-    JS_SetPropertyStr(context, jsError, "stack", stack)
 
     return jsError
 }
@@ -99,7 +105,7 @@ internal fun ktErrorToJsError(context: CPointer<JSContext>, error: Throwable): C
 private inline fun ktByteArrayToJsInt8Array(
     context: CPointer<JSContext>,
     array: ByteArray,
-): CValue<JSValue> {
+): CValue<QJSValue> {
     return ktByteBufferToJsByteArray(
         context = context,
         buffer = array.toCValues(),
@@ -112,7 +118,7 @@ private inline fun ktByteArrayToJsInt8Array(
 private inline fun ktUByteArrayToJsUint8Array(
     context: CPointer<JSContext>,
     array: UByteArray,
-): CValue<JSValue> {
+): CValue<QJSValue> {
     return ktByteBufferToJsByteArray(
         context = context,
         buffer = array.toCValues(),
@@ -127,11 +133,11 @@ private fun ktByteBufferToJsByteArray(
     buffer: CValues<*>,
     size: ULong,
     arrayType: String,
-): CValue<JSValue> = memScoped {
+): CValue<QJSValue> = memScoped {
     val cBuffer = malloc(size)?.reinterpret<uint8_tVar>()
         ?: qjsError("Cannot alloc buffer for byte array.")
     memcpy(cBuffer, buffer, size)
-    val arrayBuffer = JS_NewArrayBuffer(
+    val arrayBuffer = qjs_new_array_buffer(
         ctx = context,
         buf = cBuffer,
         len = size,
@@ -142,7 +148,7 @@ private fun ktByteBufferToJsByteArray(
     try {
         newJsObjectFromConstructor(context, arrayType, 1, allocArrayOf(arrayBuffer))
     } finally {
-        JS_FreeValue(context, arrayBuffer)
+        qjs_free_value(context, arrayBuffer)
     }
 }
 
@@ -161,15 +167,15 @@ private fun ktArrayToJsArray(
     context: CPointer<JSContext>,
     array: Array<*>,
     visited: MutableSet<Int>,
-): CValue<JSValue> {
+): CValue<QJSValue> {
     if (visited.isEmpty()) visit(visited, array)
-    val jsArray = JS_NewArray(context)
+    val jsArray = qjs_new_array(context)
     try {
         for (i in array.indices) {
             val element = array[i]
             visitOrCircularRefError(visited, element)
             val jsElement = element.toJsValue(context, visited)
-            JS_SetPropertyUint32(context, jsArray, i.toUInt(), jsElement)
+            qjs_set_property_uint32(context, jsArray, i.toUInt(), jsElement)
         }
     } catch (e: Throwable) {
         freeJsValues(context, jsArray)
@@ -183,14 +189,14 @@ private fun ktIterableToJsArray(
     context: CPointer<JSContext>,
     iterable: Iterable<*>,
     visited: MutableSet<Int>,
-): CValue<JSValue> {
+): CValue<QJSValue> {
     if (visited.isEmpty()) visit(visited, iterable)
-    val jsArray = JS_NewArray(context)
+    val jsArray = qjs_new_array(context)
     try {
         for ((i, element) in iterable.withIndex()) {
             visitOrCircularRefError(visited, element)
             val jsElement = element.toJsValue(context, visited)
-            JS_SetPropertyUint32(context, jsArray, i.toUInt(), jsElement)
+            qjs_set_property_uint32(context, jsArray, i.toUInt(), jsElement)
         }
     } catch (e: Throwable) {
         freeJsValues(context, jsArray)
@@ -204,14 +210,14 @@ private fun ktSetToJsSet(
     context: CPointer<JSContext>,
     set: Set<*>,
     visited: MutableSet<Int>,
-): CValue<JSValue> = memScoped {
+): CValue<QJSValue> = memScoped {
     if (visited.isEmpty()) visit(visited, set)
-    val elements = JS_NewArray(context)
+    val elements = qjs_new_array(context)
     try {
         for ((i, element) in set.withIndex()) {
             visitOrCircularRefError(visited, element)
             val jsElement = element.toJsValue(context, visited)
-            JS_SetPropertyUint32(context, elements, i.toUInt(), jsElement)
+            qjs_set_property_uint32(context, elements, i.toUInt(), jsElement)
         }
     } catch (e: Throwable) {
         freeJsValues(context, elements)
@@ -234,19 +240,19 @@ private fun ktMapToJsMap(
     context: CPointer<JSContext>,
     map: Map<*, *>,
     visited: MutableSet<Int>,
-): CValue<JSValue> = memScoped {
+): CValue<QJSValue> = memScoped {
     if (visited.isEmpty()) visit(visited, map)
-    val elements = JS_NewArray(context)
+    val elements = qjs_new_array(context)
     try {
         var index = 0
         for ((key, value) in map) {
             visitOrCircularRefError(visited, key)
             visitOrCircularRefError(visited, value)
-            val entryArray = JS_NewArray(context)
+            val entryArray = qjs_new_array(context)
             try {
-                JS_SetPropertyUint32(context, entryArray, 0u, key.toJsValue(context, visited))
-                JS_SetPropertyUint32(context, entryArray, 1u, value.toJsValue(context, visited))
-                JS_SetPropertyUint32(context, elements, index.toUInt(), entryArray)
+                qjs_set_property_uint32(context, entryArray, 0u, key.toJsValue(context, visited))
+                qjs_set_property_uint32(context, entryArray, 1u, value.toJsValue(context, visited))
+                qjs_set_property_uint32(context, elements, index.toUInt(), entryArray)
             } catch (e: Throwable) {
                 freeJsValues(context, entryArray)
                 throw e
@@ -274,9 +280,9 @@ private fun ktMapToJsObject(
     context: CPointer<JSContext>,
     map: Map<*, *>,
     visited: MutableSet<Int>,
-): CValue<JSValue> = memScoped {
+): CValue<QJSValue> = memScoped {
     if (visited.isEmpty()) visit(visited, map)
-    val jsObject = JS_NewObject(context)
+    val jsObject = qjs_new_object(context)
     try {
         for ((key, value) in map) {
             if (key !is String) {
@@ -284,7 +290,7 @@ private fun ktMapToJsObject(
             }
             visitOrCircularRefError(visited, value)
             visitOrCircularRefError(visited, key)
-            JS_SetPropertyStr(context, jsObject, key, value.toJsValue(context, visited))
+            qjs_set_property_str(context, jsObject, key, value.toJsValue(context, visited))
         }
     } catch (e: Throwable) {
         freeJsValues(context, jsObject)
@@ -297,14 +303,14 @@ private fun newJsObjectFromConstructor(
     context: CPointer<JSContext>,
     constructorName: String,
     argc: Int,
-    argv: CValuesRef<JSValue>?,
-): CValue<JSValue> {
-    val globalThis = JS_GetGlobalObject(context)
-    val constructor = JS_GetPropertyStr(context, globalThis, constructorName)
-    if (JS_IsNull(constructor) == 1 || JS_IsUndefined(constructor) == 1) {
+    argv: CValuesRef<QJSValue>?,
+): CValue<QJSValue> {
+    val globalThis = qjs_get_global_object(context)
+    val constructor = qjs_get_property_str(context, globalThis, constructorName)
+    if (qjs_is_null(constructor) == 1 || qjs_is_undefined(constructor) == 1) {
         qjsError("JS constructor '$constructorName' not found.")
     }
-    val instance = JS_CallConstructor(context, constructor, argc, argv)
+    val instance = qjs_call_constructor(context, constructor, argc, argv)
     freeJsValues(context, constructor, globalThis)
     return instance
 }

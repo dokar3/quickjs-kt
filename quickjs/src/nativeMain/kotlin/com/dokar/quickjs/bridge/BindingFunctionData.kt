@@ -13,8 +13,8 @@ import kotlinx.cinterop.toCPointer
 import kotlinx.cinterop.value
 import platform.posix.int64_tVar
 import quickjs.JSContext
-import quickjs.JSValue
-import quickjs.JS_ToInt64Ext
+import quickjs.QJSValue
+import quickjs.qjs_to_int64_ext
 
 internal data class BindingFunctionData(
     val name: String,
@@ -25,21 +25,21 @@ internal data class BindingFunctionData(
         @OptIn(ExperimentalForeignApi::class)
         fun fromJsValues(
             ctx: CPointer<JSContext>?,
-            data: CPointer<JSValue>,
+            data: CPointer<QJSValue>,
         ): BindingFunctionData = memScoped {
             // Read property name
             val name = data[0].readValue().toKtString(ctx!!)!!
 
             // Read the QuickJs instance
             val qjsAddress = alloc<int64_tVar>()
-            JS_ToInt64Ext(ctx, qjsAddress.ptr, data[1].readValue())
+            qjs_to_int64_ext(ctx, qjsAddress.ptr, data[1].readValue())
             val qjsVoidPtr = qjsAddress.value.toCPointer<int64_tVar>()
             val qjsStableRef = qjsVoidPtr!!.asStableRef<QuickJs>()
             val quickJs = qjsStableRef.get()
 
             // Read object handle
             val objectHandle = alloc<int64_tVar>()
-            JS_ToInt64Ext(ctx, objectHandle.ptr, data[2].readValue())
+            qjs_to_int64_ext(ctx, objectHandle.ptr, data[2].readValue())
 
             BindingFunctionData(
                 name = name,

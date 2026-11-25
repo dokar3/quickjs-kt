@@ -69,6 +69,7 @@ kotlin {
                         file("native/quickjs/quickjs.h"),
                         file("native/common/quickjs_version.h"),
                         file("native/common/quickjs_interrupt.h"),
+                        file("native/common/quickjs_cinterop.h"),
                     )
                     packageName("quickjs")
                 }

@@ -95,4 +95,16 @@ class BindingTest {
         assertEquals(2, launchCount)
         assertEquals("My App", name)
     }
+
+    @Test
+    fun bindFunctionWithManyArgs() = runTest {
+        val result = quickJs {
+            function("sumAll") { args ->
+                args.sumOf { (it as Number).toInt() }
+            }
+            // Exercises >16-arg heap fallback in native cinterop trampolines
+            evaluate<Int>("sumAll(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)")
+        }
+        assertEquals(210, result)
+    }
 }

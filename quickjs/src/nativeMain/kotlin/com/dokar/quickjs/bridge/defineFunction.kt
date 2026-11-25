@@ -14,26 +14,26 @@ import kotlinx.cinterop.readValue
 import kotlinx.cinterop.staticCFunction
 import kotlinx.cinterop.toLong
 import quickjs.JSContext
-import quickjs.JSValue
-import quickjs.JS_DefinePropertyValue
-import quickjs.JS_DupValue
 import quickjs.JS_FreeAtom
-import quickjs.JS_FreeValue
-import quickjs.JS_GetGlobalObject
 import quickjs.JS_NewAtom
-import quickjs.JS_NewBigInt64
-import quickjs.JS_NewCFunctionData
-import quickjs.JS_NewPromiseCapability
-import quickjs.JS_NewString
 import quickjs.JS_PROP_CONFIGURABLE
-import quickjs.JS_Throw
 import quickjs.JsException
+import quickjs.QJSValue
+import quickjs.qjs_define_property_value
+import quickjs.qjs_dup_value
+import quickjs.qjs_free_value
+import quickjs.qjs_get_global_object
+import quickjs.qjs_new_big_int64
+import quickjs.qjs_new_c_function_data
+import quickjs.qjs_new_promise_capability
+import quickjs.qjs_new_string
+import quickjs.qjs_throw
 
 @OptIn(ExperimentalForeignApi::class)
 internal fun CPointer<JSContext>.defineFunction(
     quickJsRef: StableRef<QuickJs>,
     parentHandle: Long,
-    parent: CValue<JSValue>?,
+    parent: CValue<QJSValue>?,
     name: String,
     isAsync: Boolean,
 ): Unit = memScoped {
@@ -44,9 +44,9 @@ internal fun CPointer<JSContext>.defineFunction(
     val qjsPtrAddress = qjsVoidPtr.toLong()
 
     val funcDataArray = arrayOf(
-        JS_NewString(context, name.cstr),
-        JS_NewBigInt64(context, qjsPtrAddress),
-        JS_NewBigInt64(context, parentHandle),
+        qjs_new_string(context, name.cstr),
+        qjs_new_big_int64(context, qjsPtrAddress),
+        qjs_new_big_int64(context, parentHandle),
     )
 
     // Free function data when closing
@@ -58,29 +58,29 @@ internal fun CPointer<JSContext>.defineFunction(
         staticCFunction(::invokeFunction)
     }
 
-    val function = JS_NewCFunctionData(
+    val function = qjs_new_c_function_data(
         ctx = context,
         func = cFunc,
         length = 0,
         magic = 0,
         data_len = 3,
-        data = allocArrayOf<JSValue>(*funcDataArray),
+        data = allocArrayOf<QJSValue>(*funcDataArray),
     )
 
     val prop = JS_NewAtom(context, name)
 
     if (parent == null) {
-        val globalThis = JS_GetGlobalObject(context)
-        JS_DefinePropertyValue(
+        val globalThis = qjs_get_global_object(context)
+        qjs_define_property_value(
             ctx = context,
             this_obj = globalThis,
             prop = prop,
             `val` = function,
             flags = JS_PROP_CONFIGURABLE
         )
-        JS_FreeValue(context, globalThis)
+        qjs_free_value(context, globalThis)
     } else {
-        JS_DefinePropertyValue(
+        qjs_define_property_value(
             ctx = context,
             this_obj = parent,
             prop = prop,
@@ -96,12 +96,12 @@ internal fun CPointer<JSContext>.defineFunction(
 @Suppress("unused_parameter")
 private fun invokeFunction(
     ctx: CPointer<JSContext>?,
-    thisVal: CValue<JSValue>,
+    thisVal: CValue<QJSValue>,
     argc: Int,
-    argv: CPointer<JSValue>?,
+    argv: CPointer<QJSValue>?,
     magic: Int,
-    funcData: CPointer<JSValue>?,
-): CValue<JSValue> = memScoped {
+    funcData: CPointer<QJSValue>?,
+): CValue<QJSValue> = memScoped {
     ctx ?: return@memScoped JsException()
     funcData ?: return@memScoped JsException()
 
@@ -120,7 +120,7 @@ private fun invokeFunction(
             )
             .toJsValue(context = ctx)
     } catch (e: Throwable) {
-        JS_Throw(ctx, ktErrorToJsError(ctx, e))
+        qjs_throw(ctx, ktErrorToJsError(ctx, e))
         JsException()
     }
     quickJs.checkInterruptResult(ctx, result)
@@ -130,12 +130,12 @@ private fun invokeFunction(
 @Suppress("unused_parameter")
 private fun invokeAsyncFunction(
     ctx: CPointer<JSContext>?,
-    thisVal: CValue<JSValue>,
+    thisVal: CValue<QJSValue>,
     argc: Int,
-    argv: CPointer<JSValue>?,
+    argv: CPointer<QJSValue>?,
     magic: Int,
-    funcData: CPointer<JSValue>?,
-): CValue<JSValue> = memScoped {
+    funcData: CPointer<QJSValue>?,
+): CValue<QJSValue> = memScoped {
     ctx ?: return@memScoped JsException()
     funcData ?: return@memScoped JsException()
 
@@ -144,8 +144,8 @@ private fun invokeAsyncFunction(
         return@memScoped JsException()
     }
 
-    val functions = allocArray<JSValue>(2)
-    val promise = JS_NewPromiseCapability(ctx, functions)
+    val functions = allocArray<QJSValue>(2)
+    val promise = qjs_new_promise_capability(ctx, functions)
 
     val resolveFunc = functions[0].readValue()
     val rejectFunc = functions[1].readValue()
@@ -169,9 +169,9 @@ private fun invokeAsyncFunction(
             args = args
         )
     } catch (e: Throwable) {
-        JS_Throw(ctx, ktErrorToJsError(ctx, e))
+        qjs_throw(ctx, ktErrorToJsError(ctx, e))
         return@memScoped quickJs.checkInterruptResult(ctx, JsException())
     }
 
-    quickJs.checkInterruptResult(ctx, JS_DupValue(ctx, promise))
+    quickJs.checkInterruptResult(ctx, qjs_dup_value(ctx, promise))
 }

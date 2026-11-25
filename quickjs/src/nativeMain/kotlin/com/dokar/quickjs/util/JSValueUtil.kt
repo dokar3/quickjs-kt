@@ -4,84 +4,84 @@ import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import quickjs.JSContext
-import quickjs.JSValue
-import quickjs.JS_FreeValue
-import quickjs.JS_GetGlobalObject
-import quickjs.JS_GetPropertyStr
-import quickjs.JS_IsInstanceOf
-import quickjs.JS_IsUndefined
+import quickjs.QJSValue
+import quickjs.qjs_free_value
+import quickjs.qjs_get_global_object
+import quickjs.qjs_get_property_str
+import quickjs.qjs_is_instance_of
+import quickjs.qjs_is_undefined
 
 @OptIn(ExperimentalForeignApi::class)
-internal inline fun freeJsValues(context: CPointer<JSContext>, vararg values: CValue<JSValue>) {
+internal inline fun freeJsValues(context: CPointer<JSContext>, vararg values: CValue<QJSValue>) {
     if (values.size == 1) {
-        JS_FreeValue(context, values[0])
+        qjs_free_value(context, values[0])
     } else {
         for (value in values) {
-            JS_FreeValue(context, value)
+            qjs_free_value(context, value)
         }
     }
 }
 
 @OptIn(ExperimentalForeignApi::class)
-internal fun CValue<JSValue>.isPromise(context: CPointer<JSContext>): Boolean {
-    val globalThis = JS_GetGlobalObject(context)
+internal fun CValue<QJSValue>.isPromise(context: CPointer<JSContext>): Boolean {
+    val globalThis = qjs_get_global_object(context)
     val result = isPromise(context, globalThis)
-    JS_FreeValue(context, globalThis)
+    qjs_free_value(context, globalThis)
     return result
 }
 
 @OptIn(ExperimentalForeignApi::class)
-internal inline fun CValue<JSValue>.isPromise(
+internal inline fun CValue<QJSValue>.isPromise(
     context: CPointer<JSContext>,
-    globalThis: CValue<JSValue>,
+    globalThis: CValue<QJSValue>,
 ): Boolean {
     return isInstanceOf(context, globalThis, "Promise")
 }
 
 @OptIn(ExperimentalForeignApi::class)
-internal inline fun CValue<JSValue>.isSet(
+internal inline fun CValue<QJSValue>.isSet(
     context: CPointer<JSContext>,
-    globalThis: CValue<JSValue>,
+    globalThis: CValue<QJSValue>,
 ): Boolean {
     return isInstanceOf(context, globalThis, "Set")
 }
 
 @OptIn(ExperimentalForeignApi::class)
-internal inline fun CValue<JSValue>.isMap(
+internal inline fun CValue<QJSValue>.isMap(
     context: CPointer<JSContext>,
-    globalThis: CValue<JSValue>,
+    globalThis: CValue<QJSValue>,
 ): Boolean {
     return isInstanceOf(context, globalThis, "Map")
 }
 
 @OptIn(ExperimentalForeignApi::class)
-internal inline fun CValue<JSValue>.isUint8Array(
+internal inline fun CValue<QJSValue>.isUint8Array(
     context: CPointer<JSContext>,
-    globalThis: CValue<JSValue>,
+    globalThis: CValue<QJSValue>,
 ): Boolean {
     return isInstanceOf(context, globalThis, "Uint8Array")
 }
 
 @OptIn(ExperimentalForeignApi::class)
-internal inline fun CValue<JSValue>.isInt8Array(
+internal inline fun CValue<QJSValue>.isInt8Array(
     context: CPointer<JSContext>,
-    globalThis: CValue<JSValue>,
+    globalThis: CValue<QJSValue>,
 ): Boolean {
     return isInstanceOf(context, globalThis, "Int8Array")
 }
 
 @OptIn(ExperimentalForeignApi::class)
-internal fun CValue<JSValue>.isInstanceOf(
+internal fun CValue<QJSValue>.isInstanceOf(
     context: CPointer<JSContext>,
-    globalThis: CValue<JSValue>,
+    globalThis: CValue<QJSValue>,
     constructorName: String,
 ): Boolean {
-    val constructor = JS_GetPropertyStr(context, globalThis, constructorName)
-    if (JS_IsUndefined(constructor) == 1) {
-        JS_FreeValue(context, constructor)
+    val constructor = qjs_get_property_str(context, globalThis, constructorName)
+    if (qjs_is_undefined(constructor) == 1) {
+        qjs_free_value(context, constructor)
         return false
     }
-    val result = JS_IsInstanceOf(context, this, constructor) == 1
-    JS_FreeValue(context, constructor)
+    val result = qjs_is_instance_of(context, this, constructor) == 1
+    qjs_free_value(context, constructor)
     return result
 }

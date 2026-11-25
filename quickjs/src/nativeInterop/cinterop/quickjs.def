@@ -16,7 +16,9 @@ libraryPaths = native/build/static_libs/
 noStringConversion = \
 	JS_Eval \
 	JS_NewString \
-	JS_FreeCString
+	JS_FreeCString \
+	qjs_eval \
+	qjs_new_string
 
 ---
 
@@ -24,45 +26,3 @@ noStringConversion = \
 
 typedef struct JSContext {} JSContext;
 typedef struct JSRuntime {} JSRuntime;
-
-// Exposing non-constant macros per https://kotlinlang.org/docs/native-c-interop.html#macros
-
-static inline int JsValueGetNormTag(JSValue v) {
-  return JS_VALUE_GET_NORM_TAG(v);
-}
-
-static inline int JsValueGetInt(JSValue v) {
-  return JS_VALUE_GET_INT(v);
-}
-
-static inline int JsValueGetBool(JSValue v) {
-  return JS_VALUE_GET_BOOL(v);
-}
-
-static inline double JsValueGetFloat64(JSValue v) {
-  return JS_VALUE_GET_FLOAT64(v);
-}
-
-static inline void* JsValueGetPtr(JSValue v) {
-    return JS_VALUE_GET_PTR(v);
-}
-
-static inline JSValue JsNull() {
-  return JS_NULL;
-}
-
-static inline JSValue JsUndefined() {
-  return JS_UNDEFINED;
-}
-
-static inline JSValue JsTrue() {
-  return JS_TRUE;
-}
-
-static inline JSValue JsFalse() {
-  return JS_FALSE;
-}
-
-static inline JSValue JsException() {
-    return JS_EXCEPTION;
-}

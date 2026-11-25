@@ -15,63 +15,63 @@ import kotlinx.cinterop.value
 import quickjs.JSContext
 import quickjs.JSPromiseStateEnum
 import quickjs.JSRuntime
-import quickjs.JSValue
 import quickjs.JS_ExecutePendingJob
 import quickjs.JS_FreeAtom
-import quickjs.JS_FreeValue
-import quickjs.JS_GetException
-import quickjs.JS_GetPropertyStr
-import quickjs.JS_HasProperty
-import quickjs.JS_IsError
-import quickjs.JS_IsException
 import quickjs.JS_NewAtom
-import quickjs.JS_PromiseResult
-import quickjs.JS_PromiseState
 import quickjs.JS_TAG_NULL
 import quickjs.JS_TAG_OBJECT
 import quickjs.JS_TAG_UNINITIALIZED
 import quickjs.JS_UpdateStackTop
 import quickjs.JsValueGetNormTag
 import quickjs.JsValueGetPtr
+import quickjs.QJSValue
+import quickjs.qjs_free_value
+import quickjs.qjs_get_exception
+import quickjs.qjs_get_property_str
+import quickjs.qjs_has_property
+import quickjs.qjs_is_error
+import quickjs.qjs_is_exception
+import quickjs.qjs_promise_result
+import quickjs.qjs_promise_state
 
 @PublishedApi
 @OptIn(ExperimentalForeignApi::class)
 internal value class JsPromise(
-    private val value: CValue<JSValue>
+    private val value: CValue<QJSValue>
 ) {
     val identity: Long
         get() = JsValueGetPtr(value)!!.toLong()
 
     fun isPending(context: CPointer<JSContext>): Boolean {
-        return JS_PromiseState(context, value) == JSPromiseStateEnum.JS_PROMISE_PENDING
+        return qjs_promise_state(context, value) == JSPromiseStateEnum.JS_PROMISE_PENDING
     }
 
     fun result(context: CPointer<JSContext>): Any? {
-        val ctxException = JS_GetException(context)
+        val ctxException = qjs_get_exception(context)
         val ctxExTag = JsValueGetNormTag(ctxException)
         if (ctxExTag != JS_TAG_NULL && ctxExTag != JS_TAG_UNINITIALIZED) {
             ctxException.use(context) {
-                if (JS_IsError(context, this) == 1) {
+                if (qjs_is_error(context, this) == 1) {
                     throw jsErrorToKtError(context, this)
                 } else {
                     throw QuickJsException(toKtString(context))
                 }
             }
         } else {
-            JS_FreeValue(context, ctxException)
+            qjs_free_value(context, ctxException)
         }
 
-        return when (val state = JS_PromiseState(context, value)) {
+        return when (val state = qjs_promise_state(context, value)) {
             JSPromiseStateEnum.JS_PROMISE_FULFILLED -> {
-                val realValue = JS_PromiseResult(context, value).unwrapIfWrapped(context)
+                val realValue = qjs_promise_result(context, value).unwrapIfWrapped(context)
                 if (realValue.isPromise(context)) {
-                    val stateText = when (val retState = JS_PromiseState(context, realValue)) {
+                    val stateText = when (val retState = qjs_promise_state(context, realValue)) {
                         JSPromiseStateEnum.JS_PROMISE_PENDING -> STATE_PENDING
                         JSPromiseStateEnum.JS_PROMISE_FULFILLED -> STATE_FULFILLED
                         JSPromiseStateEnum.JS_PROMISE_REJECTED -> STATE_REJECTED
                         else -> qjsError("Unknown promise state: $retState")
                     }
-                    JS_FreeValue(context, realValue)
+                    qjs_free_value(context, realValue)
                     stateText
                 } else {
                     realValue.use(context) { toKtValue(context) }
@@ -79,8 +79,8 @@ internal value class JsPromise(
             }
 
             JSPromiseStateEnum.JS_PROMISE_REJECTED -> {
-                JS_PromiseResult(context, value).unwrapIfWrapped(context).use(context) {
-                    if (JS_IsError(context, this) == 1) {
+                qjs_promise_result(context, value).unwrapIfWrapped(context).use(context) {
+                    if (qjs_is_error(context, this) == 1) {
                         throw jsErrorToKtError(context, this)
                     } else {
                         throw QuickJsException(toKtString(context))
@@ -95,7 +95,7 @@ internal value class JsPromise(
     }
 
     fun free(context: CPointer<JSContext>) {
-        JS_FreeValue(context, value)
+        qjs_free_value(context, value)
     }
 
     companion object {
@@ -112,25 +112,25 @@ internal sealed interface ExecuteJobResult {
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun CValue<JSValue>.unwrapIfWrapped(context: CPointer<JSContext>): CValue<JSValue> {
+private fun CValue<QJSValue>.unwrapIfWrapped(context: CPointer<JSContext>): CValue<QJSValue> {
     if (JsValueGetNormTag(this) != JS_TAG_OBJECT || this.isPromise(context)) {
         return this
     }
     // The evaluation result is wrapped in {value: ...} if it's not a module eval.
     val atom = JS_NewAtom(context, "value")
-    val hasProperty = JS_HasProperty(context, this, atom)
+    val hasProperty = qjs_has_property(context, this, atom)
     JS_FreeAtom(context, atom)
     if (hasProperty < 0) {
-        JS_FreeValue(context, this)
-        return JS_GetException(context)
+        qjs_free_value(context, this)
+        return qjs_get_exception(context)
     }
     if (hasProperty == 1) {
-        val valueProp = JS_GetPropertyStr(context, this, "value")
-        if (JS_IsException(valueProp) != 1) {
-            JS_FreeValue(context, this)
+        val valueProp = qjs_get_property_str(context, this, "value")
+        if (qjs_is_exception(valueProp) != 1) {
+            qjs_free_value(context, this)
             return valueProp
         } else {
-            JS_FreeValue(context, this)
+            qjs_free_value(context, this)
             return valueProp
         }
     }
@@ -146,7 +146,7 @@ internal fun executePendingJob(runtime: CPointer<JSRuntime>): ExecuteJobResult =
         val context = ctx.value ?: return@memScoped ExecuteJobResult.Failure(
             QuickJsException("Unknown execute error.")
         )
-        val jsError = JS_GetException(context)
+        val jsError = qjs_get_exception(context)
         val error = jsError.use(context) { jsErrorToKtError(context, this) }
         return ExecuteJobResult.Failure(error)
     } else if (ret == 1) {
