@@ -11,18 +11,18 @@ import kotlinx.cinterop.staticCFunction
 import kotlinx.cinterop.toLong
 import quickjs.JSContext
 import quickjs.JSRuntime
-import quickjs.JSValue
-import quickjs.JS_FreeValue
-import quickjs.JS_GetException
-import quickjs.JS_SetHostPromiseRejectionTracker
 import quickjs.JsValueGetPtr
+import quickjs.QJSValue
+import quickjs.qjs_free_value
+import quickjs.qjs_get_exception
+import quickjs.qjs_promise_rejection_tracker_install
 
 @Suppress("UNUSED_PARAMETER")
 @OptIn(ExperimentalForeignApi::class)
 private fun promiseRejectionHandler(
     context: CPointer<JSContext>?,
-    promise: CValue<JSValue>,
-    reason: CValue<JSValue>,
+    promise: CValue<QJSValue>,
+    reason: CValue<QJSValue>,
     isHandled: Int,
     opaque: COpaquePointer?,
 ) {
@@ -36,7 +36,7 @@ private fun promiseRejectionHandler(
         } catch (e: Throwable) {
             // Exceptions must not cross this C callback: report the conversion failure
             // as the rejection reason and drop any JS exception it left behind.
-            JS_FreeValue(context, JS_GetException(context))
+            qjs_free_value(context, qjs_get_exception(context))
             e
         }
         if (quickJs.pollInterrupt()) return
@@ -47,11 +47,11 @@ private fun promiseRejectionHandler(
 }
 
 @OptIn(ExperimentalForeignApi::class)
-internal fun setPromiseRejectionHandler(
+internal fun installPromiseRejectionHandler(
     quickJs: StableRef<QuickJs>,
     runtime: CPointer<JSRuntime>,
-) {
-    JS_SetHostPromiseRejectionTracker(
+): COpaquePointer? {
+    return qjs_promise_rejection_tracker_install(
         rt = runtime,
         cb = staticCFunction(::promiseRejectionHandler),
         opaque = quickJs.asCPointer(),

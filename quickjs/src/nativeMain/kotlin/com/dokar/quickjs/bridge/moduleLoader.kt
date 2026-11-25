@@ -21,22 +21,22 @@ import kotlinx.cinterop.toCValues
 import kotlinx.cinterop.toKStringFromUtf8
 import quickjs.JSContext
 import quickjs.JSRuntime
-import quickjs.JS_AtomToString
 import quickjs.JS_EVAL_FLAG_COMPILE_ONLY
 import quickjs.JS_EVAL_TYPE_MODULE
-import quickjs.JS_Eval
 import quickjs.JS_FreeAtom
 import quickjs.JS_GetModuleName
-import quickjs.JS_IsException
 import quickjs.JS_READ_OBJ_BYTECODE
 import quickjs.JS_READ_OBJ_REFERENCE
-import quickjs.JS_ReadObject
 import quickjs.JS_SetModuleLoaderFunc
 import quickjs.JS_TAG_MODULE
-import quickjs.JS_Throw
 import quickjs.JsValueGetNormTag
 import quickjs.JsValueGetPtr
 import quickjs.js_malloc
+import quickjs.qjs_atom_to_string
+import quickjs.qjs_eval
+import quickjs.qjs_is_exception
+import quickjs.qjs_read_object
+import quickjs.qjs_throw
 
 /** Compiles source returned by the runtime-scoped module loader. */
 @OptIn(ExperimentalForeignApi::class)
@@ -47,7 +47,7 @@ private fun compileSourceModule(
     source: String,
 ): CPointer<JSModuleDef>? {
     val sourceString = source.cstr
-    val compiled = JS_Eval(
+    val compiled = qjs_eval(
         ctx = context,
         input = sourceString,
         input_len = (sourceString.size - 1).toULong(),
@@ -56,7 +56,7 @@ private fun compileSourceModule(
     )
     return compiled.use(context) {
         // Preserve the syntax exception already stored on the context.
-        if (JS_IsException(this) == 1) return@use null
+        if (qjs_is_exception(this) == 1) return@use null
         if (JsValueGetNormTag(this) != JS_TAG_MODULE) {
             qjsError("Module loader returned unsupported source for '$name'.")
         }
@@ -77,7 +77,7 @@ private fun readBytecodeModule(
     bytecode: ByteArray,
 ): CPointer<JSModuleDef>? = memScoped {
     val buffer = bytecode.toCValues() as CValues<UByteVar>
-    val module = JS_ReadObject(
+    val module = qjs_read_object(
         ctx = context,
         buf = buffer,
         buf_len = buffer.size.toULong(),
@@ -85,7 +85,7 @@ private fun readBytecodeModule(
     )
     module.use(context) {
         // Preserve the bytecode exception already stored on the context.
-        if (JS_IsException(this) == 1) return@use null
+        if (qjs_is_exception(this) == 1) return@use null
         if (JsValueGetNormTag(this) != JS_TAG_MODULE) {
             qjsError("Bytecode for '$name' is not an ES module.")
         }
@@ -106,7 +106,7 @@ private fun readModuleName(
     module: CPointer<JSModuleDef>,
 ): String {
     val nameAtom = JS_GetModuleName(context, module)
-    val nameValue = JS_AtomToString(context, nameAtom)
+    val nameValue = qjs_atom_to_string(context, nameAtom)
     JS_FreeAtom(context, nameAtom)
     return nameValue.use(context) {
         checkContextException(context)
@@ -134,7 +134,7 @@ private fun throwModuleLoadFailure(
     } else {
         error
     }
-    JS_Throw(context, ktErrorToJsError(context, failure))
+    qjs_throw(context, ktErrorToJsError(context, failure))
     return null
 }
 
@@ -168,7 +168,7 @@ private fun normalizeModule(
         result[bytes.size] = 0
         result
     } catch (error: Throwable) {
-        JS_Throw(jsContext, ktErrorToJsError(jsContext, error))
+        qjs_throw(jsContext, ktErrorToJsError(jsContext, error))
         // An interrupt raised during the callback must stay uncatchable.
         owner?.checkInterruptOrThrow(jsContext)
         null
@@ -192,7 +192,7 @@ private fun loadModule(
     }
     resolvedName to resolvedOwner
   } catch (error: Throwable) {
-    JS_Throw(jsContext, ktErrorToJsError(jsContext, error))
+    qjs_throw(jsContext, ktErrorToJsError(jsContext, error))
     return null
   }
   val failureVersion = owner.moduleLoadFailureVersion
@@ -228,7 +228,7 @@ private fun loadModule(
     try {
       owner.onModuleLoadFailed(name)
     } catch (error: Throwable) {
-      JS_Throw(jsContext, ktErrorToJsError(jsContext, error))
+      qjs_throw(jsContext, ktErrorToJsError(jsContext, error))
     }
   }
   return definition

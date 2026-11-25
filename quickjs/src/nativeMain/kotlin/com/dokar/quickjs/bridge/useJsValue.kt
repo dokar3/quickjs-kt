@@ -4,17 +4,17 @@ import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import quickjs.JSContext
-import quickjs.JSValue
-import quickjs.JS_FreeValue
+import quickjs.QJSValue
+import quickjs.qjs_free_value
 
 @OptIn(ExperimentalForeignApi::class)
-internal inline fun <T> CValue<JSValue>.use(
+internal inline fun <T> CValue<QJSValue>.use(
     context: CPointer<JSContext>,
-    block: CValue<JSValue>.() -> T
+    block: CValue<QJSValue>.() -> T
 ): T {
     try {
         return block()
     } finally {
-        JS_FreeValue(context, this)
+        qjs_free_value(context, this)
     }
 }

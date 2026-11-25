@@ -6,16 +6,16 @@ import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.memScoped
 import quickjs.JSContext
-import quickjs.JSValue
-import quickjs.JS_Call
-import quickjs.JS_FreeValue
 import quickjs.JS_GetRuntime
 import quickjs.JS_UpdateStackTop
 import quickjs.JsNull
+import quickjs.QJSValue
+import quickjs.qjs_call
+import quickjs.qjs_free_value
 
 @OptIn(ExperimentalForeignApi::class)
 internal fun CPointer<JSContext>.invokeJsFunction(
-    func: CValue<JSValue>,
+    func: CValue<QJSValue>,
     args: Array<Any?>,
 ): Unit = memScoped {
     val context = this@invokeJsFunction
@@ -28,7 +28,7 @@ internal fun CPointer<JSContext>.invokeJsFunction(
             jsArgs[i] = args[i].toJsValue(context)
         } catch (e: Throwable) {
             for (j in 0..<i) {
-                JS_FreeValue(context, jsArgs[j])
+                qjs_free_value(context, jsArgs[j])
             }
             throw e
         }
@@ -36,7 +36,7 @@ internal fun CPointer<JSContext>.invokeJsFunction(
 
     val argv = allocArrayOf(*jsArgs)
 
-    val result = JS_Call(
+    val result = qjs_call(
         ctx = context,
         func_obj = func,
         this_obj = JsNull(),
@@ -44,7 +44,7 @@ internal fun CPointer<JSContext>.invokeJsFunction(
         argv = argv,
     )
 
-    jsArgs.forEach { JS_FreeValue(context, it) }
+    jsArgs.forEach { qjs_free_value(context, it) }
 
-    JS_FreeValue(context, result)
+    qjs_free_value(context, result)
 }

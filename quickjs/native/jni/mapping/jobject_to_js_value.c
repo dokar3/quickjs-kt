@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 #include "jobject_to_js_value.h"
@@ -286,6 +287,146 @@ JSValue java_map_to_js_map(JNIEnv *env, JSContext *context,
     return result;
 }
 
+static int append_stack_frame(char **buf, size_t *len, size_t *cap,
+                              const char *data, size_t data_len) {
+    size_t sep_len = *len > 0 ? 1 : 0;
+    if (data_len > SIZE_MAX - *len - sep_len - 1) {
+        return 0;
+    }
+    size_t needed = *len + sep_len + data_len + 1;
+    if (needed > *cap) {
+        size_t new_cap = *cap == 0 ? 256 : *cap;
+        while (new_cap < needed) {
+            if (new_cap > SIZE_MAX / 2) {
+                new_cap = needed;
+                break;
+            }
+            new_cap *= 2;
+        }
+        char *resized = realloc(*buf, new_cap);
+        if (resized == NULL) {
+            return 0;
+        }
+        *buf = resized;
+        *cap = new_cap;
+    }
+
+    if (sep_len > 0) {
+        (*buf)[(*len)++] = '\n';
+    }
+    memcpy(*buf + *len, data, data_len);
+    *len += data_len;
+    (*buf)[*len] = '\0';
+    return 1;
+}
+
+static char *java_throwable_stack_trace_to_utf8(JNIEnv *env, jthrowable throwable,
+                                                size_t *out_len) {
+    *out_len = 0;
+
+    jmethodID get_stack_trace = method_throwable_get_stack_trace(env);
+    jobjectArray j_stack_trace = (jobjectArray) (*env)->CallObjectMethod(env, throwable,
+                                                                         get_stack_trace);
+    if ((*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+        if (j_stack_trace != NULL) {
+            (*env)->DeleteLocalRef(env, j_stack_trace);
+        }
+        return NULL;
+    }
+    if (j_stack_trace == NULL) {
+        return NULL;
+    }
+
+    jsize line_count = (*env)->GetArrayLength(env, j_stack_trace);
+    if (line_count <= 0) {
+        (*env)->DeleteLocalRef(env, j_stack_trace);
+        return NULL;
+    }
+
+    jmethodID to_string = method_object_to_string(env);
+    char *stack_buf = NULL;
+    size_t stack_len = 0;
+    size_t stack_cap = 0;
+    int stack_ok = 1;
+
+    for (jsize i = 0; i < line_count; i++) {
+        jobject element = (*env)->GetObjectArrayElement(env, j_stack_trace, i);
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+            if (element != NULL) {
+                (*env)->DeleteLocalRef(env, element);
+            }
+            stack_ok = 0;
+            break;
+        }
+        if (element == NULL) {
+            continue;
+        }
+
+        jstring j_string = (jstring) (*env)->CallObjectMethod(env, element, to_string);
+        (*env)->DeleteLocalRef(env, element);
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+            if (j_string != NULL) {
+                (*env)->DeleteLocalRef(env, j_string);
+            }
+            stack_ok = 0;
+            break;
+        }
+        if (j_string == NULL) {
+            continue;
+        }
+
+        JniUtf8String utf8;
+        if (!jni_string_to_utf8(env, j_string, &utf8)) {
+            if ((*env)->ExceptionCheck(env)) {
+                (*env)->ExceptionClear(env);
+            }
+            (*env)->DeleteLocalRef(env, j_string);
+            stack_ok = 0;
+            break;
+        }
+        (*env)->DeleteLocalRef(env, j_string);
+
+        int appended = append_stack_frame(&stack_buf, &stack_len, &stack_cap,
+                                          utf8.data, utf8.length);
+        jni_utf8_string_release(&utf8);
+        if (!appended) {
+            stack_ok = 0;
+            break;
+        }
+    }
+
+    (*env)->DeleteLocalRef(env, j_stack_trace);
+
+    if (!stack_ok || stack_len == 0) {
+        free(stack_buf);
+        return NULL;
+    }
+    *out_len = stack_len;
+    return stack_buf;
+}
+
+static void set_js_error_stack(JNIEnv *env, JSContext *context, JSValue error,
+                               jthrowable throwable) {
+    size_t stack_len = 0;
+    char *stack_buf = java_throwable_stack_trace_to_utf8(env, throwable, &stack_len);
+    if (stack_buf == NULL) {
+        return;
+    }
+
+    JSValue js_stack = JS_NewStringLen(context, stack_buf, stack_len);
+    free(stack_buf);
+
+    if (JS_IsException(js_stack)) {
+        JS_FreeValue(context, JS_GetException(context));
+    } else if (JS_DefinePropertyValueStr(context, error, "stack", js_stack,
+                                         JS_PROP_C_W_E) < 0) {
+        JS_FreeValue(context, JS_GetException(context));
+    }
+}
+
 JSValue java_throwable_to_js_error(JNIEnv *env, JSContext *context, jthrowable throwable) {
     JSValue error = JS_NewError(context);
 
@@ -294,6 +435,7 @@ JSValue java_throwable_to_js_error(JNIEnv *env, JSContext *context, jthrowable t
     // Get class js_name
     jstring j_cls_name = (jstring) (*env)->CallObjectMethod(env, exceptionClass,
                                                             method_class_get_name(env));
+    (*env)->DeleteLocalRef(env, exceptionClass);
     // Set error name
     JSValue js_name = java_string_to_js_string(env, context, j_cls_name);
     JS_SetPropertyStr(context, error, "name", js_name);
@@ -312,29 +454,8 @@ JSValue java_throwable_to_js_error(JNIEnv *env, JSContext *context, jthrowable t
         JS_SetPropertyStr(context, error, "message", js_message);
     }
 
-    // Get stack trace
-    jmethodID get_stack_trace = method_throwable_get_stack_trace(env);
-    jmethodID to_string = method_object_to_string(env);
-    jobjectArray j_stack_trace = (jobjectArray) (*env)->CallObjectMethod(env, throwable,
-                                                                         get_stack_trace);
-    size_t stack_trace_line_count = (*env)->GetArrayLength(env, j_stack_trace);
-
-    JSValue stack_trace = JS_NewArray(context);
-
-    for (int i = 0; i < stack_trace_line_count; i++) {
-        jobject element = (*env)->GetObjectArrayElement(env, j_stack_trace, i);
-        jstring j_string = (jstring) (*env)->CallObjectMethod(env, element, to_string);
-
-        // Set stack trace line
-        JSValue line = java_string_to_js_string(env, context, j_string);
-        JS_SetPropertyUint32(context, stack_trace, i, line);
-
-        (*env)->DeleteLocalRef(env, j_string);
-        (*env)->DeleteLocalRef(env, element);
-    }
-
-    // Set stack trace
-    JS_SetPropertyStr(context, error, "stack", stack_trace);
+    // Set stack trace as a newline-joined string (Error.prototype.stack requires a string)
+    set_js_error_stack(env, context, error, throwable);
 
     return error;
 }

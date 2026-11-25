@@ -17,7 +17,7 @@ import com.dokar.quickjs.bridge.ktMemoryUsage
 import com.dokar.quickjs.bridge.objectHandleToStableRef
 import com.dokar.quickjs.bridge.resolveModuleGraph
 import com.dokar.quickjs.bridge.setModuleLoader
-import com.dokar.quickjs.bridge.setPromiseRejectionHandler
+import com.dokar.quickjs.bridge.installPromiseRejectionHandler
 import com.dokar.quickjs.converter.TypeConverter
 import com.dokar.quickjs.converter.TypeConverters
 import com.dokar.quickjs.converter.castValueOr
@@ -50,21 +50,20 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import quickjs.JSContext
 import quickjs.JSRuntime
-import quickjs.JSValue
 import quickjs.JS_FreeContext
 import quickjs.JS_FreeRuntime
-import quickjs.JS_FreeValue
-import quickjs.JS_GetException
 import quickjs.JS_GetRuntime
 import quickjs.JS_NewContext
 import quickjs.JS_NewRuntime
 import quickjs.JS_RunGC
 import quickjs.JS_SetMaxStackSize
 import quickjs.JS_SetMemoryLimit
-import quickjs.JS_SetHostPromiseRejectionTracker
 import quickjs.JS_SetModuleLoaderFunc
 import quickjs.JS_UpdateStackTop
 import quickjs.JsException
+import quickjs.QJSValue
+import quickjs.qjs_free_value
+import quickjs.qjs_get_exception
 import quickjs.qjs_interrupt_check_or_throw
 import quickjs.qjs_interrupt_clear_pending_jobs
 import quickjs.qjs_interrupt_fired
@@ -73,6 +72,9 @@ import quickjs.qjs_interrupt_install
 import quickjs.qjs_interrupt_poll
 import quickjs.qjs_interrupt_request
 import quickjs.qjs_interrupt_reset
+import quickjs.qjs_promise_rejection_tracker_free
+import quickjs.qjs_promise_rejection_tracker_resume
+import quickjs.qjs_promise_rejection_tracker_suspend
 import quickjs.quickjs_version
 import kotlin.concurrent.atomics.AtomicBoolean
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
@@ -158,6 +160,7 @@ actual class QuickJs private constructor(
     private val ref = StableRef.create(this)
 
     private var interruptState: COpaquePointer? = null
+    private var promiseRejectionTrackerState: COpaquePointer? = null
 
     private var evalException: Throwable? = null
     private var currentEvaluationSession: EvaluationSession? = null
@@ -173,7 +176,7 @@ actual class QuickJs private constructor(
     private val globalFunctions = mutableMapOf<String, Binding>()
     private val nativeCloseHandlers = mutableListOf<(QuickJsNativeContext) -> Unit>()
 
-    private val managedJsValues = mutableListOf<CValue<JSValue>>()
+    private val managedJsValues = mutableListOf<CValue<QJSValue>>()
 
     private val modules = mutableListOf<ByteArray>()
     private var resolvingModuleNames: LinkedHashSet<String>? = null
@@ -269,7 +272,16 @@ actual class QuickJs private constructor(
 
     init {
         interruptState = qjs_interrupt_install(runtime)
-        setPromiseRejectionHandler(ref, runtime)
+        val trackerState = installPromiseRejectionHandler(ref, runtime)
+        if (trackerState == null) {
+            JS_FreeContext(context)
+            interruptState?.let { qjs_interrupt_free(runtime, it) }
+            interruptState = null
+            JS_FreeRuntime(runtime)
+            ref.dispose()
+            qjsError("Failed to install promise rejection tracker.")
+        }
+        promiseRejectionTrackerState = trackerState
         if (moduleLoader != null) {
             setModuleLoader(ref, runtime)
         }
@@ -462,18 +474,22 @@ actual class QuickJs private constructor(
             }
             nativeCloseHandlers.clear()
             promisesToFree.forEach { it.free(context) }
-            managedJsValues.forEach { JS_FreeValue(context, it) }
+            managedJsValues.forEach { qjs_free_value(context, it) }
             managedJsValues.clear()
             // Dispose stable refs
             objectBindings.keys.forEach { handle ->
                 objectHandleToStableRef(handle)?.let {
-                    JS_FreeValue(context, it.get())
+                    qjs_free_value(context, it.get())
                     it.dispose()
                 }
             }
             objectBindings.clear()
             globalFunctions.clear()
             JS_FreeContext(context)
+            promiseRejectionTrackerState?.let {
+                qjs_promise_rejection_tracker_free(runtime, it)
+                promiseRejectionTrackerState = null
+            }
             interruptMutex.withLockSync {
                 interruptState?.let { qjs_interrupt_free(runtime, it) }
                 interruptState = null
@@ -494,8 +510,8 @@ actual class QuickJs private constructor(
         if (isClosed) return
         val session = currentEvaluationSession
             ?: qjsError("Async function was invoked outside an evaluation.")
-        val resolveFunc = args[0] as CValue<JSValue>
-        val rejectFunc = args[1] as CValue<JSValue>
+        val resolveFunc = args[0] as CValue<QJSValue>
+        val rejectFunc = args[1] as CValue<QJSValue>
         val job = coroutineScope.launch(context = session, start = CoroutineStart.LAZY) {
             try {
                 val result = block(args.sliceArray(2..<args.size))
@@ -606,10 +622,10 @@ actual class QuickJs private constructor(
      */
     internal fun checkInterruptResult(
         ctx: CPointer<JSContext>,
-        result: CValue<JSValue>,
-    ): CValue<JSValue> {
+        result: CValue<QJSValue>,
+    ): CValue<QJSValue> {
         if (!checkInterruptOrThrow(ctx)) return result
-        JS_FreeValue(ctx, result)
+        qjs_free_value(ctx, result)
         return JsException()
     }
 
@@ -675,7 +691,7 @@ actual class QuickJs private constructor(
                     if (promise != null || clearJobs) {
                         jsMutex.withLock {
                             if (!isClosed) {
-                                JS_FreeValue(context, JS_GetException(context))
+                                qjs_free_value(context, qjs_get_exception(context))
                                 promise?.free(context)
                                 if (clearJobs) clearInterruptedRuntime()
                             }
@@ -691,14 +707,14 @@ actual class QuickJs private constructor(
      * Must be called with [jsMutex] held on an open runtime.
      */
     private fun clearInterruptedRuntime() {
-        JS_SetHostPromiseRejectionTracker(runtime, null, null)
+        qjs_promise_rejection_tracker_suspend(runtime)
         qjs_interrupt_clear_pending_jobs(runtime, maxStackSize)
         if (moduleLoader != null) {
             setModuleLoader(ref, runtime)
         } else {
             JS_SetModuleLoaderFunc(runtime, null, null, null)
         }
-        setPromiseRejectionHandler(ref, runtime)
+        qjs_promise_rejection_tracker_resume(runtime, promiseRejectionTrackerState)
     }
 
     /** Drives the event loop by draining pending microtasks and awaiting async jobs. */
@@ -832,7 +848,7 @@ actual class QuickJs private constructor(
         if (exception != null) throw exception
     }
 
-    internal fun addManagedJsValues(vararg value: CValue<JSValue>) {
+    internal fun addManagedJsValues(vararg value: CValue<QJSValue>) {
         managedJsValues.addAll(value)
     }
 

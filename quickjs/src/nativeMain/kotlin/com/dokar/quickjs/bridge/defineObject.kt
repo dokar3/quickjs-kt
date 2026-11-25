@@ -18,25 +18,25 @@ import kotlinx.cinterop.toCPointer
 import kotlinx.cinterop.toLong
 import platform.posix.int64_tVar
 import quickjs.JSContext
-import quickjs.JSValue
-import quickjs.JS_DefinePropertyGetSet
-import quickjs.JS_DefinePropertyValueStr
-import quickjs.JS_DupValue
 import quickjs.JS_FreeAtom
-import quickjs.JS_FreeValue
-import quickjs.JS_GetGlobalObject
 import quickjs.JS_NewAtom
-import quickjs.JS_NewBigInt64
-import quickjs.JS_NewCFunctionData
-import quickjs.JS_NewObject
-import quickjs.JS_NewString
 import quickjs.JS_PROP_CONFIGURABLE
 import quickjs.JS_PROP_C_W_E
 import quickjs.JS_PROP_ENUMERABLE
 import quickjs.JS_PROP_WRITABLE
-import quickjs.JS_Throw
 import quickjs.JsException
 import quickjs.JsUndefined
+import quickjs.QJSValue
+import quickjs.qjs_define_property_get_set
+import quickjs.qjs_define_property_value_str
+import quickjs.qjs_dup_value
+import quickjs.qjs_free_value
+import quickjs.qjs_get_global_object
+import quickjs.qjs_new_big_int64
+import quickjs.qjs_new_c_function_data
+import quickjs.qjs_new_object
+import quickjs.qjs_new_string
+import quickjs.qjs_throw
 
 @OptIn(ExperimentalForeignApi::class)
 internal fun CPointer<JSContext>.defineObject(
@@ -45,8 +45,8 @@ internal fun CPointer<JSContext>.defineObject(
     name: String,
     binding: ObjectBinding
 ): Long {
-    val instance = JS_NewObject(this)
-    val retainedInstance = JS_DupValue(this, instance)
+    val instance = qjs_new_object(this)
+    val retainedInstance = qjs_dup_value(this, instance)
 
     val handleRef = StableRef.create(retainedInstance)
     val handle = handleRef.asCPointer().toLong()
@@ -74,18 +74,18 @@ internal fun CPointer<JSContext>.defineObject(
 
     val parent = parentHandle?.let { objectHandleToStableRef(it) }?.get()
     val defineResult = if (parent == null) {
-        val globalThis = JS_GetGlobalObject(this)
+        val globalThis = qjs_get_global_object(this)
         try {
-            JS_DefinePropertyValueStr(this, globalThis, name, instance, JS_PROP_C_W_E)
+            qjs_define_property_value_str(this, globalThis, name, instance, JS_PROP_C_W_E)
         } finally {
-            JS_FreeValue(this, globalThis)
+            qjs_free_value(this, globalThis)
         }
     } else {
-        JS_DefinePropertyValueStr(this, parent, name, instance, JS_PROP_C_W_E)
+        qjs_define_property_value_str(this, parent, name, instance, JS_PROP_C_W_E)
     }
 
     if (defineResult < 0) {
-        JS_FreeValue(this, retainedInstance)
+        qjs_free_value(this, retainedInstance)
         handleRef.dispose()
         checkContextException(this)
         error("QuickJS failed to define object '$name'.")
@@ -97,7 +97,7 @@ internal fun CPointer<JSContext>.defineObject(
 @OptIn(ExperimentalForeignApi::class)
 internal fun CPointer<JSContext>.defineProperty(
     quickJsRef: StableRef<QuickJs>,
-    instance: CValue<JSValue>,
+    instance: CValue<QJSValue>,
     handle: Long,
     property: JsProperty,
 ) = memScoped {
@@ -108,31 +108,31 @@ internal fun CPointer<JSContext>.defineProperty(
     val qjsPtrAddress = qjsVoidPtr.toLong()
 
     val funcDataArray = arrayOf(
-        JS_NewString(context, property.name.cstr),
-        JS_NewBigInt64(context, qjsPtrAddress),
-        JS_NewBigInt64(context, handle),
+        qjs_new_string(context, property.name.cstr),
+        qjs_new_big_int64(context, qjsPtrAddress),
+        qjs_new_big_int64(context, handle),
     )
 
     // Free function data when closing
     quickJs.addManagedJsValues(*funcDataArray)
 
-    val getter = JS_NewCFunctionData(
+    val getter = qjs_new_c_function_data(
         ctx = context,
         func = staticCFunction(::invokeGetter),
         length = 0,
         magic = 0,
         data_len = 3,
-        data = allocArrayOf<JSValue>(*funcDataArray),
+        data = allocArrayOf<QJSValue>(*funcDataArray),
     )
 
     val setter = if (property.writable) {
-        JS_NewCFunctionData(
+        qjs_new_c_function_data(
             ctx = context,
             func = staticCFunction(::invokeSetter),
             length = 0,
             magic = 0,
             data_len = 3,
-            data = allocArrayOf<JSValue>(*funcDataArray),
+            data = allocArrayOf<QJSValue>(*funcDataArray),
         )
     } else {
         JsUndefined()
@@ -150,7 +150,7 @@ internal fun CPointer<JSContext>.defineProperty(
     }
 
     val prop = JS_NewAtom(context, property.name)
-    JS_DefinePropertyGetSet(
+    qjs_define_property_get_set(
         ctx = context,
         this_obj = instance,
         prop = prop,
@@ -165,12 +165,12 @@ internal fun CPointer<JSContext>.defineProperty(
 @Suppress("unused_parameter")
 private fun invokeGetter(
     ctx: CPointer<JSContext>?,
-    thisVal: CValue<JSValue>,
+    thisVal: CValue<QJSValue>,
     argc: Int,
-    argv: CPointer<JSValue>?,
+    argv: CPointer<QJSValue>?,
     magic: Int,
-    funcData: CPointer<JSValue>?,
-): CValue<JSValue> = memScoped {
+    funcData: CPointer<QJSValue>?,
+): CValue<QJSValue> = memScoped {
     ctx ?: return@memScoped JsException()
     funcData ?: return@memScoped JsException()
 
@@ -184,7 +184,7 @@ private fun invokeGetter(
             .onCallBindingGetter(parentHandle = objectHandle, name = propName)
             .toJsValue(context = ctx)
     } catch (e: Throwable) {
-        JS_Throw(ctx, ktErrorToJsError(ctx, e))
+        qjs_throw(ctx, ktErrorToJsError(ctx, e))
         JsException()
     }
     quickJs.checkInterruptResult(ctx, result)
@@ -194,12 +194,12 @@ private fun invokeGetter(
 @Suppress("unused_parameter")
 private fun invokeSetter(
     ctx: CPointer<JSContext>?,
-    thisVal: CValue<JSValue>,
+    thisVal: CValue<QJSValue>,
     argc: Int,
-    argv: CPointer<JSValue>?,
+    argv: CPointer<QJSValue>?,
     magic: Int,
-    funcData: CPointer<JSValue>?,
-): CValue<JSValue> = memScoped {
+    funcData: CPointer<QJSValue>?,
+): CValue<QJSValue> = memScoped {
     ctx ?: return@memScoped JsException()
     funcData ?: return@memScoped JsException()
 
@@ -221,14 +221,14 @@ private fun invokeSetter(
         )
         JsUndefined()
     } catch (e: Throwable) {
-        JS_Throw(ctx, ktErrorToJsError(ctx, e))
+        qjs_throw(ctx, ktErrorToJsError(ctx, e))
         JsException()
     }
     quickJs.checkInterruptResult(ctx, result)
 }
 
 @OptIn(ExperimentalForeignApi::class)
-internal fun objectHandleToStableRef(handle: Long): StableRef<CValue<JSValue>>? {
+internal fun objectHandleToStableRef(handle: Long): StableRef<CValue<QJSValue>>? {
     val voidPtr = handle.toCPointer<int64_tVar>() ?: return null
-    return voidPtr.asStableRef<CValue<JSValue>>()
+    return voidPtr.asStableRef<CValue<QJSValue>>()
 }

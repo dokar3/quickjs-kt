@@ -109,14 +109,19 @@ val quickjsHeaderFile = quickjsHeaderDirectory.map { it.file("quickjs.h") }
 
 val prepareQuickJsHeader = tasks.register("prepareQuickJsHeader") {
     group = "verification"
-    description = "Rewrites quickjs.h into build dir, resolving MSVC struct cast compatibility."
+    description = "Rewrites quickjs.h into build dir, resolving MSVC compatibility (struct cast and x64 NaN-boxing ABI)."
     val originalHeader = rootDir.resolve("quickjs/native/quickjs/quickjs.h")
     inputs.file(originalHeader)
     outputs.file(quickjsHeaderFile)
     doLast {
         val originalContent = originalHeader.readText()
-        val fixedContent = originalContent.replace("return (JSValue)v;", "return v;")
-        require(fixedContent != originalContent) { "Failed to patch return cast in quickjs.h" }
+        val castFixed = originalContent.replace("return (JSValue)v;", "return v;")
+        require(castFixed != originalContent) { "Failed to patch return cast in quickjs.h" }
+        val fixedContent = castFixed.replace(
+            "#elif defined(__x86_64__) || (defined(__aarch64__) && defined(__APPLE__)) || defined(__riscv)",
+            "#elif defined(__x86_64__) || defined(_M_X64) || (defined(__aarch64__) && defined(__APPLE__)) || defined(__riscv)",
+        )
+        require(fixedContent != castFixed) { "Failed to patch x64 NaN-boxing guard for MSVC in quickjs.h" }
         val outFile = quickjsHeaderFile.get().asFile
         outFile.parentFile.mkdirs()
         outFile.writeText(fixedContent)

@@ -29,28 +29,10 @@ import platform.posix.size_tVar
 import platform.posix.uint32_tVar
 import quickjs.JSContext
 import quickjs.JSPropertyEnum
-import quickjs.JSValue
-import quickjs.JS_AtomToValue
-import quickjs.JS_Call
 import quickjs.JS_FreeAtom
 import quickjs.JS_FreeCString
-import quickjs.JS_FreeValue
 import quickjs.JS_GPN_STRING_MASK
 import quickjs.JS_GPN_SYMBOL_MASK
-import quickjs.JS_GetArrayBuffer
-import quickjs.JS_GetException
-import quickjs.JS_GetGlobalObject
-import quickjs.JS_GetOwnPropertyNames
-import quickjs.JS_GetProperty
-import quickjs.JS_GetPropertyStr
-import quickjs.JS_GetPropertyUint32
-import quickjs.JS_IsArray
-import quickjs.JS_IsError
-import quickjs.JS_IsException
-import quickjs.JS_IsFunction
-import quickjs.JS_IsString
-import quickjs.JS_IsUndefined
-import quickjs.JS_JSONStringify
 import quickjs.JS_TAG_BOOL
 import quickjs.JS_TAG_EXCEPTION
 import quickjs.JS_TAG_FLOAT64
@@ -61,54 +43,72 @@ import quickjs.JS_TAG_NULL
 import quickjs.JS_TAG_OBJECT
 import quickjs.JS_TAG_UNDEFINED
 import quickjs.JS_TAG_UNINITIALIZED
-import quickjs.JS_ToBool
-import quickjs.JS_ToCString
-import quickjs.JS_ToFloat64
-import quickjs.JS_ToInt32
-import quickjs.JS_ToInt64
-import quickjs.JS_VALUE_IS_NAN
 import quickjs.JS_WRITE_OBJ_BYTECODE
 import quickjs.JS_WRITE_OBJ_REFERENCE
-import quickjs.JS_WriteObject
 import quickjs.JsUndefined
 import quickjs.JsValueGetNormTag
 import quickjs.JsValueGetPtr
+import quickjs.QJSValue
 import quickjs.js_free
+import quickjs.qjs_atom_to_value
+import quickjs.qjs_call
+import quickjs.qjs_free_value
+import quickjs.qjs_get_array_buffer
+import quickjs.qjs_get_exception
+import quickjs.qjs_get_global_object
+import quickjs.qjs_get_own_property_names
+import quickjs.qjs_get_property
+import quickjs.qjs_get_property_str
+import quickjs.qjs_get_property_uint32
+import quickjs.qjs_is_array
+import quickjs.qjs_is_error
+import quickjs.qjs_is_exception
+import quickjs.qjs_is_function
+import quickjs.qjs_is_string
+import quickjs.qjs_is_undefined
+import quickjs.qjs_json_stringify
+import quickjs.qjs_to_bool
+import quickjs.qjs_to_c_string
+import quickjs.qjs_to_float64
+import quickjs.qjs_to_int32
+import quickjs.qjs_to_int64
+import quickjs.qjs_value_is_nan
+import quickjs.qjs_write_object
 
 @OptIn(ExperimentalForeignApi::class)
-internal fun CValue<JSValue>.toKtValue(context: CPointer<JSContext>): Any? {
+internal fun CValue<QJSValue>.toKtValue(context: CPointer<JSContext>): Any? {
     val tag = JsValueGetNormTag(this)
     return when {
         tag == JS_TAG_NULL || tag == JS_TAG_UNDEFINED || tag == JS_TAG_UNINITIALIZED -> null
 
         tag == JS_TAG_EXCEPTION -> {
-            throw JS_GetException(context).use(context) { jsErrorToKtError(context, this) }
+            throw qjs_get_exception(context).use(context) { jsErrorToKtError(context, this) }
         }
 
         tag == JS_TAG_BOOL -> {
-            JS_ToBool(context, this) == 1
+            qjs_to_bool(context, this) == 1
         }
 
         tag == JS_TAG_INT -> memScoped {
             val out = alloc<int64_tVar>()
-            JS_ToInt64(context, out.ptr, this@toKtValue)
+            qjs_to_int64(context, out.ptr, this@toKtValue)
             out.value
         }
 
         tag == JS_TAG_FLOAT64 -> {
-            if (JS_VALUE_IS_NAN(this) == 1) {
+            if (qjs_value_is_nan(this) == 1) {
                 Double.NaN
             } else {
                 memScoped {
                     val out = alloc<double_tVar>()
-                    JS_ToFloat64(context, out.ptr, this@toKtValue)
+                    qjs_to_float64(context, out.ptr, this@toKtValue)
                     out.value
                 }
             }
         }
 
-        JS_IsString(this) == 1 -> {
-            val buffer = JS_ToCString(context, this) ?: return null
+        qjs_is_string(this) == 1 -> {
+            val buffer = qjs_to_c_string(context, this) ?: return null
             val string = buffer.toKStringFromUtf8()
             JS_FreeCString(context, buffer)
             string
@@ -118,7 +118,7 @@ internal fun CValue<JSValue>.toKtValue(context: CPointer<JSContext>): Any? {
             memScoped {
                 val flags = JS_WRITE_OBJ_BYTECODE or JS_WRITE_OBJ_REFERENCE
                 val length = alloc<size_tVar>()
-                val bufferPtr = JS_WriteObject(
+                val bufferPtr = qjs_write_object(
                     ctx = context,
                     psize = length.ptr,
                     obj = this@toKtValue,
@@ -130,16 +130,16 @@ internal fun CValue<JSValue>.toKtValue(context: CPointer<JSContext>): Any? {
             }
         }
 
-        JS_IsArray(context, this) == 1 -> {
+        qjs_is_array(context, this) == 1 -> {
             jsArrayToKtList(context, this)
         }
 
-        JS_IsError(context, this) == 1 -> {
+        qjs_is_error(context, this) == 1 -> {
             jsErrorToKtError(context, this)
         }
 
         tag == JS_TAG_OBJECT -> {
-            val globalThis = JS_GetGlobalObject(context)
+            val globalThis = qjs_get_global_object(context)
             try {
                 when {
                     isPromise(context, globalThis) -> JsPromise(value = this)
@@ -150,7 +150,7 @@ internal fun CValue<JSValue>.toKtValue(context: CPointer<JSContext>): Any? {
                     else -> jsObjectToKtJsObject(context, this)
                 }
             } finally {
-                JS_FreeValue(context, globalThis)
+                qjs_free_value(context, globalThis)
             }
         }
 
@@ -161,43 +161,43 @@ internal fun CValue<JSValue>.toKtValue(context: CPointer<JSContext>): Any? {
 }
 
 @OptIn(ExperimentalForeignApi::class)
-internal fun CValue<JSValue>.toKtString(context: CPointer<JSContext>): String? {
+internal fun CValue<QJSValue>.toKtString(context: CPointer<JSContext>): String? {
     val tag = JsValueGetNormTag(this)
     if (tag == JS_TAG_NULL || tag == JS_TAG_UNDEFINED) return null
-    val buffer = JS_ToCString(context, this) ?: return null
+    val buffer = qjs_to_c_string(context, this) ?: return null
     val string = buffer.toKStringFromUtf8()
     JS_FreeCString(context, buffer)
     return string
 }
 
 @OptIn(ExperimentalForeignApi::class)
-internal fun jsErrorToKtError(context: CPointer<JSContext>, error: CValue<JSValue>): Throwable {
-    val name = JS_GetPropertyStr(context, error, "name")
+internal fun jsErrorToKtError(context: CPointer<JSContext>, error: CValue<QJSValue>): Throwable {
+    val name = qjs_get_property_str(context, error, "name")
         .use(context = context) { toKtString(context) }
         ?: return QuickJsException(error.toKtString(context) ?: "<NULL>")
-    val message = JS_GetPropertyStr(context, error, "message")
+    val message = qjs_get_property_str(context, error, "message")
         .use(context) { toKtString(context) }
-    val stackValue = JS_GetPropertyStr(context, error, "stack")
+    val stackValue = qjs_get_property_str(context, error, "stack")
     val stack = when {
-        JS_IsUndefined(stackValue) == 1 -> {
-            JS_FreeValue(context, stackValue)
+        qjs_is_undefined(stackValue) == 1 -> {
+            qjs_free_value(context, stackValue)
             null
         }
 
-        JS_IsString(stackValue) == 1 -> stackValue.use(context) { toKtString(context) }
-        // Older QuickJS builds expose the stack as an array of frames
+        qjs_is_string(stackValue) == 1 -> stackValue.use(context) { toKtString(context) }
+        // Fallback for array-shaped custom stacks
         else -> stackValue.use(context) { joinStackFrames(context, this) }
     }
     return newKtError(name, message, stack)
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun joinStackFrames(context: CPointer<JSContext>, stack: CValue<JSValue>): String? {
-    val frameCount = JS_GetPropertyStr(context, stack, "length").use(context) {
+private fun joinStackFrames(context: CPointer<JSContext>, stack: CValue<QJSValue>): String? {
+    val frameCount = qjs_get_property_str(context, stack, "length").use(context) {
         if (JsValueGetNormTag(this) == JS_TAG_INT) {
             memScoped {
                 val count = alloc<int32_tVar>()
-                JS_ToInt32(context, count.ptr, this@use)
+                qjs_to_int32(context, count.ptr, this@use)
                 count.value
             }
         } else {
@@ -205,7 +205,7 @@ private fun joinStackFrames(context: CPointer<JSContext>, stack: CValue<JSValue>
         }
     } ?: return null
     val frames = (0 until frameCount).mapNotNull { index ->
-        JS_GetPropertyUint32(context, stack, index.toUInt()).use(context) { toKtString(context) }
+        qjs_get_property_uint32(context, stack, index.toUInt()).use(context) { toKtString(context) }
     }
     return frames.joinToString("\n").takeIf { it.isNotEmpty() }
 }
@@ -241,7 +241,7 @@ private fun newKtError(name: String, message: String?, stack: String?): Throwabl
 @OptIn(ExperimentalForeignApi::class)
 private inline fun jsUint8ArrayToKtUByteArray(
     context: CPointer<JSContext>,
-    array: CValue<JSValue>
+    array: CValue<QJSValue>
 ): UByteArray {
     return jsInt8ArrayToKtByteArray(context, array).asUByteArray()
 }
@@ -249,34 +249,34 @@ private inline fun jsUint8ArrayToKtUByteArray(
 @OptIn(ExperimentalForeignApi::class)
 private fun jsInt8ArrayToKtByteArray(
     context: CPointer<JSContext>,
-    array: CValue<JSValue>
+    array: CValue<QJSValue>
 ): ByteArray = memScoped {
     val length = alloc<size_tVar>()
-    val arrayBuffer = JS_GetPropertyStr(context, array, "buffer")
-    val cBuffer = JS_GetArrayBuffer(context, length.ptr, arrayBuffer)
+    val arrayBuffer = qjs_get_property_str(context, array, "buffer")
+    val cBuffer = qjs_get_array_buffer(context, length.ptr, arrayBuffer)
     if (cBuffer == null) {
-        JS_FreeValue(context, arrayBuffer)
+        qjs_free_value(context, arrayBuffer)
         qjsError("Cannot read array buffer.")
     }
     try {
         cBuffer.readBytes(length.value.toInt())
     } finally {
-        JS_FreeValue(context, arrayBuffer)
+        qjs_free_value(context, arrayBuffer)
     }
 }
 
 @OptIn(ExperimentalForeignApi::class)
 private fun jsArrayToKtList(
     context: CPointer<JSContext>,
-    array: CValue<JSValue>
+    array: CValue<QJSValue>
 ): List<Any?> = memScoped {
     val length = alloc<int64_tVar>()
-    JS_GetPropertyStr(context, array, "length").use(context) {
-        JS_ToInt64(context, length.ptr, this)
+    qjs_get_property_str(context, array, "length").use(context) {
+        qjs_to_int64(context, length.ptr, this)
     }
 
     List(length.value.toInt()) {
-        JS_GetPropertyUint32(context, array, it.toUInt()).use(context) {
+        qjs_get_property_uint32(context, array, it.toUInt()).use(context) {
             if (this.isTheSameObject(array)) {
                 circularRefError()
             }
@@ -288,21 +288,21 @@ private fun jsArrayToKtList(
 @OptIn(ExperimentalForeignApi::class)
 private fun jsSetToKtSet(
     context: CPointer<JSContext>,
-    set: CValue<JSValue>
+    set: CValue<QJSValue>
 ): Set<Any?> {
     val result = mutableSetOf<Any?>()
 
-    val keysFunc = JS_GetPropertyStr(context, set, "keys")
-    val iterator = JS_Call(context, keysFunc, set, 0, null)
-    val nextFunc = JS_GetPropertyStr(context, iterator, "next")
+    val keysFunc = qjs_get_property_str(context, set, "keys")
+    val iterator = qjs_call(context, keysFunc, set, 0, null)
+    val nextFunc = qjs_get_property_str(context, iterator, "next")
     while (true) {
-        val entry = JS_Call(context, nextFunc, iterator, 0, null)
-        val done = JS_GetPropertyStr(context, entry, "done")
-        if (JS_ToBool(context, done) == 1) {
+        val entry = qjs_call(context, nextFunc, iterator, 0, null)
+        val done = qjs_get_property_str(context, entry, "done")
+        if (qjs_to_bool(context, done) == 1) {
             freeJsValues(context, done, entry)
             break
         }
-        val key = JS_GetPropertyStr(context, entry, "value")
+        val key = qjs_get_property_str(context, entry, "value")
 
         if (key.isTheSameObject(set)) {
             freeJsValues(context, key, done, entry)
@@ -321,23 +321,23 @@ private fun jsSetToKtSet(
 @OptIn(ExperimentalForeignApi::class)
 private fun jsMapToKtMap(
     context: CPointer<JSContext>,
-    set: CValue<JSValue>
+    set: CValue<QJSValue>
 ): Map<Any?, Any?> {
     val result = mutableMapOf<Any?, Any?>()
 
-    val entriesFunc = JS_GetPropertyStr(context, set, "entries")
-    val iterator = JS_Call(context, entriesFunc, set, 0, null)
-    val nextFunc = JS_GetPropertyStr(context, iterator, "next")
+    val entriesFunc = qjs_get_property_str(context, set, "entries")
+    val iterator = qjs_call(context, entriesFunc, set, 0, null)
+    val nextFunc = qjs_get_property_str(context, iterator, "next")
     while (true) {
-        val entry = JS_Call(context, nextFunc, iterator, 0, null)
-        val done = JS_GetPropertyStr(context, entry, "done")
-        if (JS_ToBool(context, done) == 1) {
+        val entry = qjs_call(context, nextFunc, iterator, 0, null)
+        val done = qjs_get_property_str(context, entry, "done")
+        if (qjs_to_bool(context, done) == 1) {
             freeJsValues(context, done, entry)
             break
         }
-        val entryVal = JS_GetPropertyStr(context, entry, "value")
-        val key = JS_GetPropertyUint32(context, entryVal, 0.toUInt())
-        val value = JS_GetPropertyUint32(context, entryVal, 1.toUInt())
+        val entryVal = qjs_get_property_str(context, entry, "value")
+        val key = qjs_get_property_uint32(context, entryVal, 0.toUInt())
+        val value = qjs_get_property_uint32(context, entryVal, 1.toUInt())
 
         if (key.isTheSameObject(set) || value.isTheSameObject(set)) {
             freeJsValues(context, value, key, entryVal, done, entry)
@@ -356,12 +356,12 @@ private fun jsMapToKtMap(
 @OptIn(ExperimentalForeignApi::class)
 private fun jsObjectToKtJsObject(
     context: CPointer<JSContext>,
-    jsObject: CValue<JSValue>
+    jsObject: CValue<QJSValue>
 ): JsObject = memScoped {
     // Check circular refs
-    val json = JS_JSONStringify(context, jsObject, JsUndefined(), JsUndefined())
-    if (JS_IsException(json) == 1) {
-        val jsError = JS_GetException(context)
+    val json = qjs_json_stringify(context, jsObject, JsUndefined(), JsUndefined())
+    if (qjs_is_exception(json) == 1) {
+        val jsError = qjs_get_exception(context)
         val jsErrorTag = JsValueGetNormTag(jsError)
         val error = if (jsErrorTag != JS_TAG_NULL && jsErrorTag != JS_TAG_UNINITIALIZED) {
             jsErrorToKtError(context, jsError)
@@ -380,7 +380,7 @@ private fun jsObjectToKtJsObject(
 
     val props = allocArrayOfPointersTo<JSPropertyEnum>()
     val propLen = alloc<uint32_tVar>()
-    JS_GetOwnPropertyNames(
+    qjs_get_own_property_names(
         ctx = context,
         ptab = props,
         plen = propLen.ptr,
@@ -392,7 +392,7 @@ private fun jsObjectToKtJsObject(
 
     for (i in 0..<propLen.value.toInt()) {
         val atom = propsPointer[i].atom
-        val jsKey = JS_AtomToValue(context, atom)
+        val jsKey = qjs_atom_to_value(context, atom)
         if (jsKey.isTheSameObject(jsObject)) {
             freeJsValues(context, jsKey)
             JS_FreeAtom(context, atom)
@@ -405,11 +405,11 @@ private fun jsObjectToKtJsObject(
             continue
         }
 
-        val jsValue = JS_GetProperty(context, jsObject, atom)
+        val jsValue = qjs_get_property(context, jsObject, atom)
         JS_FreeAtom(context, atom)
         val value = if (jsValue.isTheSameObject(jsObject)) {
             jsValue.use(context) { toKtString(context) }
-        } else if (JS_IsFunction(context, jsValue) == 1) {
+        } else if (qjs_is_function(context, jsValue) == 1) {
             freeJsValues(context, jsValue)
             "[Function]"
         } else {
@@ -424,7 +424,7 @@ private fun jsObjectToKtJsObject(
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun CValue<JSValue>.isTheSameObject(other: CValue<JSValue>): Boolean {
+private fun CValue<QJSValue>.isTheSameObject(other: CValue<QJSValue>): Boolean {
     return JsValueGetNormTag(this) == JS_TAG_OBJECT &&
             JsValueGetNormTag(other) == JS_TAG_OBJECT &&
             JsValueGetPtr(this) == JsValueGetPtr(other)

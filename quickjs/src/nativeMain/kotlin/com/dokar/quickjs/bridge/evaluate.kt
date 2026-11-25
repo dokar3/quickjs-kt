@@ -13,22 +13,14 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.toCValues
 import quickjs.JSContext
-import quickjs.JSValue
-import quickjs.JS_AtomToString
 import quickjs.JS_EVAL_FLAG_ASYNC
 import quickjs.JS_EVAL_FLAG_COMPILE_ONLY
 import quickjs.JS_EVAL_TYPE_MODULE
-import quickjs.JS_Eval
-import quickjs.JS_EvalFunction
 import quickjs.JS_FreeAtom
-import quickjs.JS_FreeValue
-import quickjs.JS_GetException
 import quickjs.JS_GetModuleName
 import quickjs.JS_GetRuntime
 import quickjs.JS_READ_OBJ_BYTECODE
 import quickjs.JS_READ_OBJ_REFERENCE
-import quickjs.JS_ReadObject
-import quickjs.JS_ResolveModule
 import quickjs.JS_TAG_FUNCTION_BYTECODE
 import quickjs.JS_TAG_MODULE
 import quickjs.JS_TAG_NULL
@@ -36,6 +28,14 @@ import quickjs.JS_TAG_UNINITIALIZED
 import quickjs.JS_UpdateStackTop
 import quickjs.JsValueGetNormTag
 import quickjs.JsValueGetPtr
+import quickjs.QJSValue
+import quickjs.qjs_atom_to_string
+import quickjs.qjs_eval
+import quickjs.qjs_eval_function
+import quickjs.qjs_free_value
+import quickjs.qjs_get_exception
+import quickjs.qjs_read_object
+import quickjs.qjs_resolve_module
 
 @OptIn(ExperimentalForeignApi::class)
 @Suppress("UNCHECKED_CAST")
@@ -55,7 +55,7 @@ internal fun CPointer<JSContext>.compile(
     }
     val cStr = code.cstr
     JS_UpdateStackTop(JS_GetRuntime(this))
-    val result = JS_Eval(
+    val result = qjs_eval(
         ctx = this,
         input = cStr,
         input_len = (cStr.size - 1).toULong(),
@@ -82,7 +82,7 @@ internal fun CPointer<JSContext>.compile(
 internal fun CPointer<JSContext>.resolveModuleGraph(bytecode: ByteArray): String = memScoped {
     val buffer = bytecode.toBytecodeBuffer()
     JS_UpdateStackTop(JS_GetRuntime(this@resolveModuleGraph))
-    val entry = JS_ReadObject(
+    val entry = qjs_read_object(
         ctx = this@resolveModuleGraph,
         buf = buffer,
         buf_len = buffer.size.toULong(),
@@ -96,14 +96,14 @@ internal fun CPointer<JSContext>.resolveModuleGraph(bytecode: ByteArray): String
         val moduleDefinition = JsValueGetPtr(this)?.reinterpret<JSModuleDef>()
             ?: qjsError("Cannot read the ES module definition.")
         val nameAtom = JS_GetModuleName(this@resolveModuleGraph, moduleDefinition)
-        val nameValue = JS_AtomToString(this@resolveModuleGraph, nameAtom)
+        val nameValue = qjs_atom_to_string(this@resolveModuleGraph, nameAtom)
         JS_FreeAtom(this@resolveModuleGraph, nameAtom)
         val name = nameValue.use(this@resolveModuleGraph) {
             checkContextException(this@resolveModuleGraph)
             toKtValue(this@resolveModuleGraph) as? String
                 ?: qjsError("Cannot read the ES module name.")
         }
-        if (JS_ResolveModule(this@resolveModuleGraph, this) < 0) {
+        if (qjs_resolve_module(this@resolveModuleGraph, this) < 0) {
             checkContextException(this@resolveModuleGraph)
             qjsError("Cannot resolve ES module entry bytecode.")
         }
@@ -125,7 +125,7 @@ internal fun CPointer<JSContext>.evaluate(
     }
     val cStr = code.cstr
     JS_UpdateStackTop(JS_GetRuntime(context))
-    val result = JS_Eval(
+    val result = qjs_eval(
         ctx = this,
         input = cStr,
         input_len = (cStr.size - 1).toULong(),
@@ -144,7 +144,7 @@ internal fun CPointer<JSContext>.evaluate(
 
     val buffer = bytecode.toBytecodeBuffer()
     JS_UpdateStackTop(JS_GetRuntime(context))
-    val jsValue = JS_ReadObject(
+    val jsValue = qjs_read_object(
         ctx = context,
         buf = buffer,
         buf_len = buffer.size.toULong(),
@@ -153,16 +153,16 @@ internal fun CPointer<JSContext>.evaluate(
     try {
         checkContextException(context)
         if (JsValueGetNormTag(jsValue) == JS_TAG_MODULE &&
-            JS_ResolveModule(context, jsValue) < 0
+            qjs_resolve_module(context, jsValue) < 0
         ) {
             checkContextException(context)
             qjsError("Cannot resolve module bytecode.")
         }
     } catch (error: Throwable) {
-        JS_FreeValue(context, jsValue)
+        qjs_free_value(context, jsValue)
         throw error
     }
-    val result = JS_EvalFunction(
+    val result = qjs_eval_function(
         ctx = context,
         fun_obj = jsValue,
     )
@@ -172,7 +172,7 @@ internal fun CPointer<JSContext>.evaluate(
 @OptIn(ExperimentalForeignApi::class)
 private fun handleEvalResult(
     context: CPointer<JSContext>,
-    result: CValue<JSValue>
+    result: CValue<QJSValue>
 ): JsPromise {
     try {
         JS_UpdateStackTop(JS_GetRuntime(context))
@@ -183,14 +183,14 @@ private fun handleEvalResult(
         }
         return ktValue
     } catch (e: Throwable) {
-        JS_FreeValue(context, result)
+        qjs_free_value(context, result)
         throw e
     }
 }
 
 @OptIn(ExperimentalForeignApi::class)
 internal fun checkContextException(context: CPointer<JSContext>) {
-    JS_GetException(context).use(context) {
+    qjs_get_exception(context).use(context) {
         val tag = JsValueGetNormTag(this)
         if (tag != JS_TAG_NULL && tag != JS_TAG_UNINITIALIZED) {
             throw jsErrorToKtError(context, this)
