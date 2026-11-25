@@ -154,8 +154,10 @@ actual class QuickJs private constructor(
     private val runtime: CPointer<JSRuntime> = JS_NewRuntime()
         ?: qjsError("Failed to create js runtime.")
 
-    private val context: CPointer<JSContext> = JS_NewContext(runtime)
-        ?: qjsError("Failed to create js context.")
+    private val context: CPointer<JSContext> = JS_NewContext(runtime) ?: run {
+        JS_FreeRuntime(runtime)
+        qjsError("Failed to create js context.")
+    }
 
     private val ref = StableRef.create(this)
 

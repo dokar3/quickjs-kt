@@ -27,4 +27,25 @@ class UInt8ArrayMapping {
             assertContentEquals(array, evaluate<UByteArray>("getBuffer()"))
         }
     }
+
+    @Test
+    fun emptyByteArrays() = runTest {
+        val array = byteArrayOf()
+        quickJs {
+            function("getBuffer") { array }
+
+            assertContentEquals(array, evaluate<ByteArray>("getBuffer()"))
+        }
+    }
+
+    @OptIn(ExperimentalUnsignedTypes::class)
+    @Test
+    fun emptyUByteArrays() = runTest {
+        val array = ubyteArrayOf()
+        quickJs {
+            function("getBuffer") { array }
+
+            assertContentEquals(array, evaluate<UByteArray>("getBuffer()"))
+        }
+    }
 }

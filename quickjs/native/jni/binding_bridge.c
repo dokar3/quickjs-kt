@@ -426,6 +426,16 @@ void define_js_functions_on(JNIEnv *env,
     }
 }
 
+static jobject get_or_create_global_host(JNIEnv *env, Globals *globals, jobject host) {
+    if (globals->global_object_refs != NULL && cvector_size(globals->global_object_refs) > 0 &&
+        (*env)->IsSameObject(env, globals->global_object_refs[0], host)) {
+        return globals->global_object_refs[0];
+    }
+    jobject global_host = (*env)->NewGlobalRef(env, host);
+    cvector_push_back(globals->global_object_refs, global_host);
+    return global_host;
+}
+
 JSValue define_js_object(JNIEnv *env, JSContext *context,
                          Globals *globals,
                          jobject host,
@@ -434,8 +444,7 @@ JSValue define_js_object(JNIEnv *env, JSContext *context,
                          jstring name,
                          jobjectArray properties,
                          jobjectArray functions) {
-    jobject global_host = (*env)->NewGlobalRef(env, host);
-    cvector_push_back(globals->global_object_refs, global_host);
+    jobject global_host = get_or_create_global_host(env, globals, host);
 
     jsize prop_size = (*env)->GetArrayLength(env, properties);
 
@@ -548,8 +557,7 @@ void define_js_function(JNIEnv *env, JSContext *context,
                         jobject host,
                         jstring name,
                         jboolean is_async) {
-    jobject global_host = (*env)->NewGlobalRef(env, host);
-    cvector_push_back(globals->global_object_refs, global_host);
+    jobject global_host = get_or_create_global_host(env, globals, host);
 
     JniUtf8String func_name;
     if (!jni_string_to_utf8(env, name, &func_name)) {

@@ -195,8 +195,9 @@ jobject to_java_set(JNIEnv *env, JSContext *context, JSValue set) {
         JSValue entry = JS_Call(context, next_func, iterator, 0, 0);
 
         JSValue done = JS_GetPropertyStr(context, entry, "done");
-        if (JS_ToBool(context, done)) {
-            JS_FreeValue(context, done);
+        int is_done = JS_ToBool(context, done);
+        JS_FreeValue(context, done);
+        if (is_done) {
             JS_FreeValue(context, entry);
             break;
         }
@@ -232,8 +233,9 @@ jobject to_java_map(JNIEnv *env, JSContext *context, JSValue map) {
     for (;;) {
         JSValue entry = JS_Call(context, next_func, iterator, 0, 0);
         JSValue done = JS_GetPropertyStr(context, entry, "done");
-        if (JS_ToBool(context, done)) {
-            JS_FreeValue(context, done);
+        int is_done = JS_ToBool(context, done);
+        JS_FreeValue(context, done);
+        if (is_done) {
             JS_FreeValue(context, entry);
             break;
         }
@@ -246,7 +248,10 @@ jobject to_java_map(JNIEnv *env, JSContext *context, JSValue map) {
         jobject java_key = js_value_to_jobject(env, context, key);
         jobject java_val = js_value_to_jobject(env, context, val);
         // Map.put(k, v)
-        (*env)->CallObjectMethod(env, java_map, put_method, java_key, java_val);
+        jobject prev = (*env)->CallObjectMethod(env, java_map, put_method, java_key, java_val);
+        if (prev != NULL) {
+            (*env)->DeleteLocalRef(env, prev);
+        }
         (*env)->DeleteLocalRef(env, java_key);
         (*env)->DeleteLocalRef(env, java_val);
 
@@ -310,7 +315,12 @@ jobject object_to_java_js_object(JNIEnv *env, JSContext *context, JSValue value)
         }
 
         jobject java_key = js_value_to_jobject(env, context, key);
-        if (try_catch_java_exceptions(env) != NULL) {
+        jthrowable key_exception = try_catch_java_exceptions(env);
+        if (key_exception != NULL) {
+            (*env)->DeleteLocalRef(env, key_exception);
+            if (java_key != NULL) {
+                (*env)->DeleteLocalRef(env, java_key);
+            }
             goto free_values;
         }
 
@@ -329,7 +339,15 @@ jobject object_to_java_js_object(JNIEnv *env, JSContext *context, JSValue value)
             java_val = to_java_string(env, function_label, strlen(function_label));
         } else {
             java_val = js_value_to_jobject(env, context, val);
-            if (try_catch_java_exceptions(env) != NULL) {
+            jthrowable val_exception = try_catch_java_exceptions(env);
+            if (val_exception != NULL) {
+                (*env)->DeleteLocalRef(env, val_exception);
+                if (java_key != NULL) {
+                    (*env)->DeleteLocalRef(env, java_key);
+                }
+                if (java_val != NULL) {
+                    (*env)->DeleteLocalRef(env, java_val);
+                }
                 goto free_values;
             }
         }
@@ -348,7 +366,10 @@ jobject object_to_java_js_object(JNIEnv *env, JSContext *context, JSValue value)
         }
 
         // Map.put(k, v)
-        (*env)->CallObjectMethod(env, java_map, put_method, java_key, java_val);
+        jobject prev = (*env)->CallObjectMethod(env, java_map, put_method, java_key, java_val);
+        if (prev != NULL) {
+            (*env)->DeleteLocalRef(env, prev);
+        }
 
         (*env)->DeleteLocalRef(env, java_key);
         (*env)->DeleteLocalRef(env, java_val);
@@ -365,6 +386,7 @@ jobject object_to_java_js_object(JNIEnv *env, JSContext *context, JSValue value)
     jclass js_object_cls = cls_js_object(env);
     jmethodID js_object_constructor = method_js_object_init(env);
     jobject js_object = (*env)->NewObject(env, js_object_cls, js_object_constructor, java_map);
+    (*env)->DeleteLocalRef(env, java_map);
 
     return js_object;
 }
@@ -389,7 +411,9 @@ jobject js_int8array_to_kt_ubyte_array(JNIEnv *env, JSContext *context, JSValue 
     if (bytes == NULL) {
         return NULL;
     }
-    return (*env)->NewObject(env, cls_ubyte_array(env), method_ubyte_array_init(env), bytes);
+    jobject result = (*env)->NewObject(env, cls_ubyte_array(env), method_ubyte_array_init(env), bytes);
+    (*env)->DeleteLocalRef(env, bytes);
+    return result;
 }
 
 jobject try_handle_promise_result(JNIEnv *env, JSContext *context, JSValue promise) {

@@ -134,9 +134,12 @@ private fun ktByteBufferToJsByteArray(
     size: ULong,
     arrayType: String,
 ): CValue<QJSValue> = memScoped {
-    val cBuffer = malloc(size)?.reinterpret<uint8_tVar>()
+    val allocSize = if (size > 0uL) size else 1uL
+    val cBuffer = malloc(allocSize)?.reinterpret<uint8_tVar>()
         ?: qjsError("Cannot alloc buffer for byte array.")
-    memcpy(cBuffer, buffer, size)
+    if (size > 0uL) {
+        memcpy(cBuffer, buffer, size)
+    }
     val arrayBuffer = qjs_new_array_buffer(
         ctx = context,
         buf = cBuffer,
@@ -145,6 +148,10 @@ private fun ktByteBufferToJsByteArray(
         opaque = null,
         is_shared = 0,
     )
+    if (qjs_is_exception(arrayBuffer) == 1) {
+        free(cBuffer)
+        return@memScoped arrayBuffer
+    }
     try {
         newJsObjectFromConstructor(context, arrayType, 1, allocArrayOf(arrayBuffer))
     } finally {
@@ -294,6 +301,7 @@ private fun ktMapToJsObject(
         }
     } catch (e: Throwable) {
         freeJsValues(context, jsObject)
+        throw e
     }
     return jsObject
 }
@@ -307,12 +315,14 @@ private fun newJsObjectFromConstructor(
 ): CValue<QJSValue> {
     val globalThis = qjs_get_global_object(context)
     val constructor = qjs_get_property_str(context, globalThis, constructorName)
-    if (qjs_is_null(constructor) == 1 || qjs_is_undefined(constructor) == 1) {
-        qjsError("JS constructor '$constructorName' not found.")
+    return try {
+        if (qjs_is_null(constructor) == 1 || qjs_is_undefined(constructor) == 1) {
+            qjsError("JS constructor '$constructorName' not found.")
+        }
+        qjs_call_constructor(context, constructor, argc, argv)
+    } finally {
+        freeJsValues(context, constructor, globalThis)
     }
-    val instance = qjs_call_constructor(context, constructor, argc, argv)
-    freeJsValues(context, constructor, globalThis)
-    return instance
 }
 
 /**
