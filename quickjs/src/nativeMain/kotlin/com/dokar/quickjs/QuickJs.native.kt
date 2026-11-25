@@ -448,14 +448,15 @@ actual class QuickJs private constructor(
         // first. Without this, closing while something like 'while(true){}' is
         // running would wait forever.
         requestInterruptIfOpen()
-        val promisesToFree = jobsMutex.withLockSync {
+        val (jobsToCancel, promisesToFree) = jobsMutex.withLockSync {
             evalException = null
-            asyncJobs.forEach { it.job.cancel() }
+            val jobs = asyncJobs.map { it.job }
             asyncJobs.clear()
             val promises = activePromises.toList()
             activePromises.clear()
-            promises
+            jobs to promises
         }
+        jobsToCancel.forEach { it.cancel() }
         signalRuntimeProgress()
         var nativeCleanupError: Throwable? = null
         jsMutex.withLockSync {
@@ -532,7 +533,18 @@ actual class QuickJs private constructor(
                 signalRuntimeProgress()
             }
         }
-        jobsMutex.withLockSync { asyncJobs += AsyncJob(job, session) }
+        val added = jobsMutex.withLockSync {
+            if (isClosed) {
+                false
+            } else {
+                asyncJobs += AsyncJob(job, session)
+                true
+            }
+        }
+        if (!added) {
+            job.cancel()
+            return
+        }
         job.invokeOnCompletion {
             jobsMutex.withLockSync { asyncJobs.removeAll { it.job == job } }
             signalRuntimeProgress()
