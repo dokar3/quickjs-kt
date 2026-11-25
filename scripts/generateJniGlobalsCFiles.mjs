@@ -371,6 +371,7 @@ function generateSource() {
     if (_${name} == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/IllegalStateException");
         (*env)->ThrowNew(env, cls, "Global class reference for '${className}' is not initialized. Ensure set_${name} is called.");
+        (*env)->DeleteLocalRef(env, cls);
         return NULL;
     }
     return _${name};
@@ -382,6 +383,7 @@ function generateSource() {
     if (_${name} == NULL) {
         jclass cls = (*env)->FindClass(env, "${className}");
         _${name} = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _${name};
 }`,

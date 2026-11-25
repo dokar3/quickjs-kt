@@ -118,8 +118,10 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
 
     jclass cls_unit = (*env)->GetObjectArrayElement(env, classes, 0);
     set_cls_unit(env, cls_unit);
+    (*env)->DeleteLocalRef(env, cls_unit);
     jclass cls_ubyte_array = (*env)->GetObjectArrayElement(env, classes, 1);
     set_cls_ubyte_array(env, cls_ubyte_array);
+    (*env)->DeleteLocalRef(env, cls_ubyte_array);
 
     jthrowable class_exception = try_catch_java_exceptions(env);
     if (class_exception != NULL) {

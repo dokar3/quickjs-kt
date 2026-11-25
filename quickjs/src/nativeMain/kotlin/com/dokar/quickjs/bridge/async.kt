@@ -63,18 +63,17 @@ internal value class JsPromise(
 
         return when (val state = qjs_promise_state(context, value)) {
             JSPromiseStateEnum.JS_PROMISE_FULFILLED -> {
-                val realValue = qjs_promise_result(context, value).unwrapIfWrapped(context)
-                if (realValue.isPromise(context)) {
-                    val stateText = when (val retState = qjs_promise_state(context, realValue)) {
-                        JSPromiseStateEnum.JS_PROMISE_PENDING -> STATE_PENDING
-                        JSPromiseStateEnum.JS_PROMISE_FULFILLED -> STATE_FULFILLED
-                        JSPromiseStateEnum.JS_PROMISE_REJECTED -> STATE_REJECTED
-                        else -> qjsError("Unknown promise state: $retState")
+                qjs_promise_result(context, value).unwrapIfWrapped(context).use(context) {
+                    if (isPromise(context)) {
+                        when (val retState = qjs_promise_state(context, this)) {
+                            JSPromiseStateEnum.JS_PROMISE_PENDING -> STATE_PENDING
+                            JSPromiseStateEnum.JS_PROMISE_FULFILLED -> STATE_FULFILLED
+                            JSPromiseStateEnum.JS_PROMISE_REJECTED -> STATE_REJECTED
+                            else -> qjsError("Unknown promise state: $retState")
+                        }
+                    } else {
+                        toKtValue(context)
                     }
-                    qjs_free_value(context, realValue)
-                    stateText
-                } else {
-                    realValue.use(context) { toKtValue(context) }
                 }
             }
 

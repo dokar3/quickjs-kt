@@ -26,17 +26,40 @@ char *js_array_join(JSContext *context, JSValue array, const char *separator) {
     }
 
     char **parts = malloc(sizeof(char *) * length);
+    if (parts == NULL) {
+        fprintf(stderr, "Memory allocation failed\n");
+        return NULL;
+    }
 
     size_t separator_len = strlen(separator);
     size_t total_len = 0;
 
     for (int i = 0; i < length; i++) {
         JSValue element = JS_GetPropertyUint32(context, array, i);
-        size_t len;
+        size_t len = 0;
         const char *line = JS_ToCStringLen(context, &len, element);
+        if (line == NULL) {
+            JS_FreeValue(context, JS_GetException(context));
+            len = 0;
+        }
         parts[i] = malloc(len + 1);
-        strcpy(parts[i], line);
-        JS_FreeCString(context, line);
+        if (parts[i] == NULL) {
+            if (line != NULL) {
+                JS_FreeCString(context, line);
+            }
+            JS_FreeValue(context, element);
+            for (int j = 0; j < i; j++) {
+                free(parts[j]);
+            }
+            free(parts);
+            return NULL;
+        }
+        if (line != NULL) {
+            memcpy(parts[i], line, len + 1);
+            JS_FreeCString(context, line);
+        } else {
+            parts[i][0] = '\0';
+        }
         JS_FreeValue(context, element);
         total_len += len;
         if (i != length - 1) {
@@ -47,6 +70,10 @@ char *js_array_join(JSContext *context, JSValue array, const char *separator) {
     char *result = (char *) malloc(total_len + 1);
     if (result == NULL) {
         fprintf(stderr, "Memory allocation failed\n");
+        for (int i = 0; i < length; ++i) {
+            free(parts[i]);
+        }
+        free(parts);
         return NULL;
     }
 
@@ -60,6 +87,7 @@ char *js_array_join(JSContext *context, JSValue array, const char *separator) {
         }
         free(parts[i]);
     }
+    free(parts);
 
     result[position] = '\0';
 

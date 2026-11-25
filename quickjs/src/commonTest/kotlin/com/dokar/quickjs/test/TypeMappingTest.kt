@@ -415,4 +415,43 @@ class TypeMappingTest {
             )
         }
     }
+
+    @Test
+    fun ktCollectionAndJsObjectConversionErrorsPropagate() = runTest {
+        quickJs {
+            function("unsupportedJsObjectValue") {
+                mapOf<String, Any?>("bad" to Any()).toJsObject()
+            }
+
+            function("circularJsObject") {
+                val map = mutableMapOf<String, Any?>()
+                val jsObject = map.toJsObject()
+                map["self"] = jsObject
+                jsObject
+            }
+
+            function("unsupportedSetElement") {
+                setOf<Any?>(Any())
+            }
+
+            function("unsupportedNestedSetInArray") {
+                arrayOf<Any?>(setOf<Any?>(Any()))
+            }
+
+            assertFailsWith<QuickJsException> {
+                evaluate<Any?>("unsupportedJsObjectValue()")
+            }
+            assertFailsWith<QuickJsException> {
+                evaluate<Any?>("circularJsObject()")
+            }.also {
+                assertContains(it.message!!, "circular reference")
+            }
+            assertFailsWith<QuickJsException> {
+                evaluate<Any?>("unsupportedSetElement()")
+            }
+            assertFailsWith<QuickJsException> {
+                evaluate<Any?>("unsupportedNestedSetInArray()")
+            }
+        }
+    }
 }

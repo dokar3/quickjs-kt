@@ -95,6 +95,7 @@ jclass cls_unit(JNIEnv *env) {
     if (_cls_unit == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/IllegalStateException");
         (*env)->ThrowNew(env, cls, "Global class reference for 'kotlin/Unit' is not initialized. Ensure set_cls_unit is called.");
+        (*env)->DeleteLocalRef(env, cls);
         return NULL;
     }
     return _cls_unit;
@@ -104,6 +105,7 @@ jclass cls_ubyte_array(JNIEnv *env) {
     if (_cls_ubyte_array == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/IllegalStateException");
         (*env)->ThrowNew(env, cls, "Global class reference for 'kotlin/UByteArray' is not initialized. Ensure set_cls_ubyte_array is called.");
+        (*env)->DeleteLocalRef(env, cls);
         return NULL;
     }
     return _cls_ubyte_array;
@@ -113,6 +115,7 @@ jclass cls_short(JNIEnv *env) {
     if (_cls_short == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Short");
         _cls_short = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_short;
 }
@@ -121,6 +124,7 @@ jclass cls_byte(JNIEnv *env) {
     if (_cls_byte == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Byte");
         _cls_byte = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_byte;
 }
@@ -129,6 +133,7 @@ jclass cls_integer(JNIEnv *env) {
     if (_cls_integer == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Integer");
         _cls_integer = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_integer;
 }
@@ -137,6 +142,7 @@ jclass cls_long(JNIEnv *env) {
     if (_cls_long == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Long");
         _cls_long = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_long;
 }
@@ -145,6 +151,7 @@ jclass cls_float(JNIEnv *env) {
     if (_cls_float == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Float");
         _cls_float = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_float;
 }
@@ -153,6 +160,7 @@ jclass cls_double(JNIEnv *env) {
     if (_cls_double == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Double");
         _cls_double = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_double;
 }
@@ -161,6 +169,7 @@ jclass cls_boolean(JNIEnv *env) {
     if (_cls_boolean == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Boolean");
         _cls_boolean = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_boolean;
 }
@@ -169,6 +178,7 @@ jclass cls_string(JNIEnv *env) {
     if (_cls_string == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/String");
         _cls_string = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_string;
 }
@@ -177,6 +187,7 @@ jclass cls_object(JNIEnv *env) {
     if (_cls_object == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Object");
         _cls_object = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_object;
 }
@@ -185,6 +196,7 @@ jclass cls_system(JNIEnv *env) {
     if (_cls_system == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/System");
         _cls_system = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_system;
 }
@@ -193,6 +205,7 @@ jclass cls_class(JNIEnv *env) {
     if (_cls_class == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Class");
         _cls_class = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_class;
 }
@@ -201,6 +214,7 @@ jclass cls_throwable(JNIEnv *env) {
     if (_cls_throwable == NULL) {
         jclass cls = (*env)->FindClass(env, "java/lang/Throwable");
         _cls_throwable = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_throwable;
 }
@@ -209,6 +223,7 @@ jclass cls_set(JNIEnv *env) {
     if (_cls_set == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/Set");
         _cls_set = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_set;
 }
@@ -217,6 +232,7 @@ jclass cls_iterator(JNIEnv *env) {
     if (_cls_iterator == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/Iterator");
         _cls_iterator = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_iterator;
 }
@@ -225,6 +241,7 @@ jclass cls_list(JNIEnv *env) {
     if (_cls_list == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/List");
         _cls_list = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_list;
 }
@@ -233,6 +250,7 @@ jclass cls_array_list(JNIEnv *env) {
     if (_cls_array_list == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/ArrayList");
         _cls_array_list = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_array_list;
 }
@@ -241,6 +259,7 @@ jclass cls_map(JNIEnv *env) {
     if (_cls_map == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/Map");
         _cls_map = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_map;
 }
@@ -249,6 +268,7 @@ jclass cls_map_entry(JNIEnv *env) {
     if (_cls_map_entry == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/Map$Entry");
         _cls_map_entry = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_map_entry;
 }
@@ -257,6 +277,7 @@ jclass cls_hash_set(JNIEnv *env) {
     if (_cls_hash_set == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/HashSet");
         _cls_hash_set = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_hash_set;
 }
@@ -265,6 +286,7 @@ jclass cls_linked_hash_map(JNIEnv *env) {
     if (_cls_linked_hash_map == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/LinkedHashMap");
         _cls_linked_hash_map = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_linked_hash_map;
 }
@@ -273,6 +295,7 @@ jclass cls_linked_hash_set(JNIEnv *env) {
     if (_cls_linked_hash_set == NULL) {
         jclass cls = (*env)->FindClass(env, "java/util/LinkedHashSet");
         _cls_linked_hash_set = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_linked_hash_set;
 }
@@ -281,6 +304,7 @@ jclass cls_quick_js_exception(JNIEnv *env) {
     if (_cls_quick_js_exception == NULL) {
         jclass cls = (*env)->FindClass(env, "com/dokar/quickjs/QuickJsException");
         _cls_quick_js_exception = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_quick_js_exception;
 }
@@ -289,6 +313,7 @@ jclass cls_quick_js(JNIEnv *env) {
     if (_cls_quick_js == NULL) {
         jclass cls = (*env)->FindClass(env, "com/dokar/quickjs/QuickJs");
         _cls_quick_js = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_quick_js;
 }
@@ -297,6 +322,7 @@ jclass cls_memory_usage(JNIEnv *env) {
     if (_cls_memory_usage == NULL) {
         jclass cls = (*env)->FindClass(env, "com/dokar/quickjs/MemoryUsage");
         _cls_memory_usage = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_memory_usage;
 }
@@ -305,6 +331,7 @@ jclass cls_js_property(JNIEnv *env) {
     if (_cls_js_property == NULL) {
         jclass cls = (*env)->FindClass(env, "com/dokar/quickjs/binding/JsProperty");
         _cls_js_property = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_js_property;
 }
@@ -313,6 +340,7 @@ jclass cls_js_function(JNIEnv *env) {
     if (_cls_js_function == NULL) {
         jclass cls = (*env)->FindClass(env, "com/dokar/quickjs/binding/JsFunction");
         _cls_js_function = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_js_function;
 }
@@ -321,6 +349,7 @@ jclass cls_js_object(JNIEnv *env) {
     if (_cls_js_object == NULL) {
         jclass cls = (*env)->FindClass(env, "com/dokar/quickjs/binding/JsObject");
         _cls_js_object = (*env)->NewGlobalRef(env, cls);
+        (*env)->DeleteLocalRef(env, cls);
     }
     return _cls_js_object;
 }

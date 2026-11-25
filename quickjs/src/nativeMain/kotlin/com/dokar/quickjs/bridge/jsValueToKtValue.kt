@@ -295,26 +295,30 @@ private fun jsSetToKtSet(
     val keysFunc = qjs_get_property_str(context, set, "keys")
     val iterator = qjs_call(context, keysFunc, set, 0, null)
     val nextFunc = qjs_get_property_str(context, iterator, "next")
-    while (true) {
-        val entry = qjs_call(context, nextFunc, iterator, 0, null)
-        val done = qjs_get_property_str(context, entry, "done")
-        if (qjs_to_bool(context, done) == 1) {
-            freeJsValues(context, done, entry)
-            break
+    try {
+        while (true) {
+            val entry = qjs_call(context, nextFunc, iterator, 0, null)
+            try {
+                val isDone = qjs_get_property_str(context, entry, "done").use(context) {
+                    qjs_to_bool(context, this) == 1
+                }
+                if (isDone) {
+                    break
+                }
+                qjs_get_property_str(context, entry, "value").use(context) {
+                    if (isTheSameObject(set)) {
+                        circularRefError()
+                    }
+                    result.add(toKtValue(context))
+                }
+            } finally {
+                qjs_free_value(context, entry)
+            }
         }
-        val key = qjs_get_property_str(context, entry, "value")
-
-        if (key.isTheSameObject(set)) {
-            freeJsValues(context, key, done, entry)
-            freeJsValues(context, nextFunc, iterator, keysFunc)
-            circularRefError()
-        }
-
-        result.add(key.use(context) { toKtValue(context) })
-        freeJsValues(context, done, entry)
+    } finally {
+        freeJsValues(context, nextFunc, iterator, keysFunc)
     }
 
-    freeJsValues(context, nextFunc, iterator, keysFunc)
     return result
 }
 
@@ -328,28 +332,36 @@ private fun jsMapToKtMap(
     val entriesFunc = qjs_get_property_str(context, set, "entries")
     val iterator = qjs_call(context, entriesFunc, set, 0, null)
     val nextFunc = qjs_get_property_str(context, iterator, "next")
-    while (true) {
-        val entry = qjs_call(context, nextFunc, iterator, 0, null)
-        val done = qjs_get_property_str(context, entry, "done")
-        if (qjs_to_bool(context, done) == 1) {
-            freeJsValues(context, done, entry)
-            break
+    try {
+        while (true) {
+            val entry = qjs_call(context, nextFunc, iterator, 0, null)
+            try {
+                val isDone = qjs_get_property_str(context, entry, "done").use(context) {
+                    qjs_to_bool(context, this) == 1
+                }
+                if (isDone) {
+                    break
+                }
+                qjs_get_property_str(context, entry, "value").use(context) {
+                    val key = qjs_get_property_uint32(context, this, 0.toUInt())
+                    val value = qjs_get_property_uint32(context, this, 1.toUInt())
+                    try {
+                        if (key.isTheSameObject(set) || value.isTheSameObject(set)) {
+                            circularRefError()
+                        }
+                        result[key.toKtValue(context)] = value.toKtValue(context)
+                    } finally {
+                        freeJsValues(context, value, key)
+                    }
+                }
+            } finally {
+                qjs_free_value(context, entry)
+            }
         }
-        val entryVal = qjs_get_property_str(context, entry, "value")
-        val key = qjs_get_property_uint32(context, entryVal, 0.toUInt())
-        val value = qjs_get_property_uint32(context, entryVal, 1.toUInt())
-
-        if (key.isTheSameObject(set) || value.isTheSameObject(set)) {
-            freeJsValues(context, value, key, entryVal, done, entry)
-            freeJsValues(context, nextFunc, iterator, entriesFunc)
-            circularRefError()
-        }
-
-        result[key.use(context) { toKtValue(context) }] = value.use(context) { toKtValue(context) }
-        freeJsValues(context, entryVal, done, entry)
+    } finally {
+        freeJsValues(context, nextFunc, iterator, entriesFunc)
     }
 
-    freeJsValues(context, nextFunc, iterator, entriesFunc)
     return result
 }
 
@@ -380,45 +392,60 @@ private fun jsObjectToKtJsObject(
 
     val props = allocArrayOfPointersTo<JSPropertyEnum>()
     val propLen = alloc<uint32_tVar>()
-    qjs_get_own_property_names(
+    val status = qjs_get_own_property_names(
         ctx = context,
         ptab = props,
         plen = propLen.ptr,
         obj = jsObject,
         flags = JS_GPN_STRING_MASK or JS_GPN_SYMBOL_MASK
     )
-
-    val propsPointer = props.pointed.value!!
-
-    for (i in 0..<propLen.value.toInt()) {
-        val atom = propsPointer[i].atom
-        val jsKey = qjs_atom_to_value(context, atom)
-        if (jsKey.isTheSameObject(jsObject)) {
-            freeJsValues(context, jsKey)
-            JS_FreeAtom(context, atom)
-            continue
-        }
-
-        val key = jsKey.use(context) { toKtString(context) }
-        if (key == null) {
-            JS_FreeAtom(context, atom)
-            continue
-        }
-
-        val jsValue = qjs_get_property(context, jsObject, atom)
-        JS_FreeAtom(context, atom)
-        val value = if (jsValue.isTheSameObject(jsObject)) {
-            jsValue.use(context) { toKtString(context) }
-        } else if (qjs_is_function(context, jsValue) == 1) {
-            freeJsValues(context, jsValue)
-            "[Function]"
-        } else {
-            jsValue.use(context) { toKtValue(context) }
-        }
-        result[key] = value
+    if (status < 0) {
+        checkContextException(context)
+        qjsError("Failed to enumerate object properties.")
     }
 
-    js_free(context, propsPointer)
+    val propsPointer = props.pointed.value
+    val count = propLen.value.toInt()
+    if (propsPointer != null) {
+        var nextAtomToFree = 0
+        try {
+            for (i in 0..<count) {
+                val atom = propsPointer[i].atom
+                val jsKey = qjs_atom_to_value(context, atom)
+                if (jsKey.isTheSameObject(jsObject)) {
+                    freeJsValues(context, jsKey)
+                    JS_FreeAtom(context, atom)
+                    nextAtomToFree = i + 1
+                    continue
+                }
+
+                val key = jsKey.use(context) { toKtString(context) }
+                if (key == null) {
+                    JS_FreeAtom(context, atom)
+                    nextAtomToFree = i + 1
+                    continue
+                }
+
+                val jsValue = qjs_get_property(context, jsObject, atom)
+                JS_FreeAtom(context, atom)
+                nextAtomToFree = i + 1
+                val value = if (jsValue.isTheSameObject(jsObject)) {
+                    jsValue.use(context) { toKtString(context) }
+                } else if (qjs_is_function(context, jsValue) == 1) {
+                    freeJsValues(context, jsValue)
+                    "[Function]"
+                } else {
+                    jsValue.use(context) { toKtValue(context) }
+                }
+                result[key] = value
+            }
+        } finally {
+            for (remaining in nextAtomToFree..<count) {
+                JS_FreeAtom(context, propsPointer[remaining].atom)
+            }
+            js_free(context, propsPointer)
+        }
+    }
 
     result.toJsObject()
 }
