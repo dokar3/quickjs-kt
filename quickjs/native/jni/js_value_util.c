@@ -36,8 +36,12 @@ char *js_array_join(JSContext *context, JSValue array, const char *separator) {
 
     for (int i = 0; i < length; i++) {
         JSValue element = JS_GetPropertyUint32(context, array, i);
-        size_t len;
+        size_t len = 0;
         const char *line = JS_ToCStringLen(context, &len, element);
+        if (line == NULL) {
+            JS_FreeValue(context, JS_GetException(context));
+            len = 0;
+        }
         parts[i] = malloc(len + 1);
         if (parts[i] == NULL) {
             if (line != NULL) {

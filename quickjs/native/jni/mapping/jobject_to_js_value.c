@@ -810,6 +810,12 @@ JSValue jobject_to_js_value(JNIEnv *env, JSContext *context, jobject visited_set
                 break;
             }
             JSValue js_element = jobject_to_js_value(env, context, visited_set, element);
+            if (JS_IsException(js_element)) {
+                JS_FreeValue(context, js_array);
+                (*env)->DeleteLocalRef(env, element);
+                has_exception = 1;
+                break;
+            }
             JS_SetPropertyUint32(context, js_array, i, js_element);
             (*env)->DeleteLocalRef(env, element);
         }

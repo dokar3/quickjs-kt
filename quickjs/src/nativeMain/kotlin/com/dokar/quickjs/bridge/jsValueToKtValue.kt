@@ -392,13 +392,17 @@ private fun jsObjectToKtJsObject(
 
     val props = allocArrayOfPointersTo<JSPropertyEnum>()
     val propLen = alloc<uint32_tVar>()
-    qjs_get_own_property_names(
+    val status = qjs_get_own_property_names(
         ctx = context,
         ptab = props,
         plen = propLen.ptr,
         obj = jsObject,
         flags = JS_GPN_STRING_MASK or JS_GPN_SYMBOL_MASK
     )
+    if (status < 0) {
+        checkContextException(context)
+        qjsError("Failed to enumerate object properties.")
+    }
 
     val propsPointer = props.pointed.value
     val count = propLen.value.toInt()

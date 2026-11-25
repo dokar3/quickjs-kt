@@ -434,6 +434,10 @@ class TypeMappingTest {
                 setOf<Any?>(Any())
             }
 
+            function("unsupportedNestedSetInArray") {
+                arrayOf<Any?>(setOf<Any?>(Any()))
+            }
+
             assertFailsWith<QuickJsException> {
                 evaluate<Any?>("unsupportedJsObjectValue()")
             }
@@ -444,6 +448,9 @@ class TypeMappingTest {
             }
             assertFailsWith<QuickJsException> {
                 evaluate<Any?>("unsupportedSetElement()")
+            }
+            assertFailsWith<QuickJsException> {
+                evaluate<Any?>("unsupportedNestedSetInArray()")
             }
         }
     }
