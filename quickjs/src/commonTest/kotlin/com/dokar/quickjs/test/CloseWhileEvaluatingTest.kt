@@ -141,6 +141,40 @@ class CloseWhileEvaluatingTest {
         }
     }
 
+    @Test
+    fun closeWhileAsyncJobCancelsSynchronouslyDoesNotDeadlock() = runTest {
+        val started = CompletableDeferred<Unit>()
+        // Dispatchers.Unconfined completes cancellation synchronously on the caller's thread,
+        // deterministically hitting the same jobsMutex re-entry deadlock that occurs on
+        // Dispatchers.Default when close() cancels a LAZY async job before job.start().
+        val quickJs = QuickJs.create(jobDispatcher = Dispatchers.Unconfined)
+        quickJs.asyncFunction("hang") {
+            started.complete(Unit)
+            CompletableDeferred<Unit>().await()
+        }
+
+        val evalScope = CoroutineScope(Dispatchers.Default)
+        val evalJob = evalScope.launch {
+            try {
+                quickJs.evaluate<Any?>("await hang()")
+            } catch (_: Throwable) {
+            }
+        }
+
+        started.await()
+
+        val closeJob = CoroutineScope(Dispatchers.Default).launch { quickJs.close() }
+        val closed = withContext(Dispatchers.Default) {
+            withTimeoutOrNull(2.seconds) { closeJob.join() } != null
+        }
+        if (closed) {
+            evalJob.join()
+        } else {
+            evalJob.cancel()
+        }
+        assertTrue(closed, "close() deadlocked while canceling an async binding job")
+    }
+
     companion object {
         private const val REPEAT_COUNT = 20
     }

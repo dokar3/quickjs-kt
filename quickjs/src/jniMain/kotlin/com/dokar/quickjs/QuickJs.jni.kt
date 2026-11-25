@@ -606,11 +606,13 @@ actual class QuickJs private constructor(
         // running would wait forever.
         requestInterruptIfOpen()
         signalRuntimeProgress()
-        jobsMutex.withLockSync {
-            asyncJobs.forEach { it.job.cancel() }
+        val jobsToCancel = jobsMutex.withLockSync {
+            val jobs = asyncJobs.map { it.job }
             asyncJobs.clear()
             activeEvaluateResults.clear()
+            jobs
         }
+        jobsToCancel.forEach { it.cancel() }
         var nativeCleanupError: Throwable? = null
         jsMutex.withLockSync {
             if (context != 0L && runtime != 0L) {
@@ -857,7 +859,18 @@ actual class QuickJs private constructor(
                 signalRuntimeProgress()
             }
         }
-        jobsMutex.withLockSync { asyncJobs += AsyncJob(job, session) }
+        val added = jobsMutex.withLockSync {
+            if (isClosed) {
+                false
+            } else {
+                asyncJobs += AsyncJob(job, session)
+                true
+            }
+        }
+        if (!added) {
+            job.cancel()
+            return
+        }
         job.invokeOnCompletion {
             jobsMutex.withLockSync { asyncJobs.removeAll { it.job == job } }
             signalRuntimeProgress()
