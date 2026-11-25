@@ -272,7 +272,16 @@ actual class QuickJs private constructor(
 
     init {
         interruptState = qjs_interrupt_install(runtime)
-        promiseRejectionTrackerState = installPromiseRejectionHandler(ref, runtime)
+        val trackerState = installPromiseRejectionHandler(ref, runtime)
+        if (trackerState == null) {
+            JS_FreeContext(context)
+            interruptState?.let { qjs_interrupt_free(runtime, it) }
+            interruptState = null
+            JS_FreeRuntime(runtime)
+            ref.dispose()
+            qjsError("Failed to install promise rejection tracker.")
+        }
+        promiseRejectionTrackerState = trackerState
         if (moduleLoader != null) {
             setModuleLoader(ref, runtime)
         }

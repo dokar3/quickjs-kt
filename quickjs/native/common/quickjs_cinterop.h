@@ -5,10 +5,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include "../quickjs/quickjs.h"
+
 /*
  * Uniform struct wrapper for QuickJS JSValue used by Kotlin/Native cinterop.
- *
- * Requires "quickjs.h" to be included first.
  *
  * Upstream QuickJS enables 64-bit NaN-boxing (typedef uint64_t JSValue) on
  * x86_64, Apple arm64, and riscv, while non-Apple arm64 (e.g. linuxArm64)
@@ -431,20 +431,23 @@ static JSValue qjs_c_function_data_trampoline(
     if (cb == NULL) {
         return JS_ThrowInternalError(ctx, "Missing CFunctionData callback");
     }
-    int data_len = JS_VALUE_GET_INT(func_data[2]);
+    int meta = JS_VALUE_GET_INT(func_data[2]);
+    int data_len = meta & 0xff;
+    int declared_len = (meta >> 8) & 0xff;
     int safe_argc = (argc > 0 && argv != NULL) ? argc : 0;
+    int copy_argc = (argv != NULL && declared_len > safe_argc) ? declared_len : safe_argc;
 
     QJSValue stack_argv[16];
     QJSValue *q_argv = NULL;
-    if (safe_argc > 0) {
+    if (copy_argc > 0) {
         q_argv = stack_argv;
-        if (safe_argc > 16) {
-            q_argv = (QJSValue *)malloc((size_t)safe_argc * sizeof(QJSValue));
+        if (copy_argc > 16) {
+            q_argv = (QJSValue *)malloc((size_t)copy_argc * sizeof(QJSValue));
             if (q_argv == NULL) {
                 return JS_ThrowOutOfMemory(ctx);
             }
         }
-        for (int i = 0; i < safe_argc; i++) {
+        for (int i = 0; i < copy_argc; i++) {
             q_argv[i].raw = argv[i];
         }
     }
@@ -490,9 +493,10 @@ static inline QJSValue qjs_new_c_function_data(
         return qjs_wrap(JS_ThrowTypeError(ctx, "CFunctionData callback must not be NULL"));
     }
     int safe_data_len = (data_len > 0 && data != NULL) ? data_len : 0;
-    if (safe_data_len > INT_MAX - 3) {
-        return qjs_wrap(JS_ThrowRangeError(ctx, "CFunctionData data_len overflow"));
+    if (safe_data_len > UINT8_MAX - 3) {
+        return qjs_wrap(JS_ThrowRangeError(ctx, "CFunctionData data_len exceeds QuickJS uint8 limit"));
     }
+    int safe_length = length > 0 ? (length > UINT8_MAX ? UINT8_MAX : length) : 0;
     int total_len = safe_data_len + 3;
     JSValue stack_data[11];
     JSValue *raw_data = stack_data;
@@ -506,7 +510,7 @@ static inline QJSValue qjs_new_c_function_data(
     uint64_t addr = (uint64_t)(uintptr_t)func;
     raw_data[0] = JS_NewInt32(ctx, (int32_t)(uint32_t)(addr & 0xffffffffu));
     raw_data[1] = JS_NewInt32(ctx, (int32_t)(uint32_t)(addr >> 32));
-    raw_data[2] = JS_NewInt32(ctx, safe_data_len);
+    raw_data[2] = JS_NewInt32(ctx, safe_data_len | (safe_length << 8));
     for (int i = 0; i < safe_data_len; i++) {
         raw_data[3 + i] = data[i].raw;
     }

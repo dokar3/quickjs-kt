@@ -9,6 +9,42 @@ import kotlin.test.assertEquals
 
 class JniErrorStackTest {
     @Test
+    fun hostExceptionPreservesJoinedStackFrames() = runTest {
+        val frames = arrayOf(
+            StackTraceElement("com.example.Demo", "first", "Demo.kt", 12),
+            StackTraceElement("com.example.Demo", "second", "Demo.kt", 34),
+        )
+        val expectedStack = frames.joinToString("\n") { it.toString() }
+
+        quickJs {
+            function("throwSync") {
+                throw IllegalStateException("sync boom").apply { stackTrace = frames }
+            }
+            asyncFunction("throwAsync") {
+                throw IllegalStateException("async boom").apply { stackTrace = frames }
+            }
+
+            val syncStack = evaluate<String>(
+                """
+                    try {
+                        throwSync();
+                    } catch (e) {
+                        e.stack;
+                    }
+                """.trimIndent(),
+            )
+            assertEquals(expectedStack, syncStack)
+
+            val asyncStack = evaluate<String>(
+                """
+                    await throwAsync().catch(e => e.stack);
+                """.trimIndent(),
+            )
+            assertEquals(expectedStack, asyncStack)
+        }
+    }
+
+    @Test
     fun throwableWithEmptyStackTraceIsCaughtCleanly() = runTest {
         quickJs {
             function("throwEmptyStack") {
@@ -22,6 +58,7 @@ class JniErrorStackTest {
                 }
             }
 
+            // VM exception dispatch attaches a JS backtrace when no host stack property was defined.
             val syncResult = evaluate<String>(
                 """
                     try {
@@ -31,10 +68,9 @@ class JniErrorStackTest {
                     }
                 """.trimIndent(),
             )
-            // JS_NewError always initializes stack as a string (JS backtrace or empty) when no host stack is set.
             assertEquals("empty stack:string", syncResult)
 
-            val asyncResult = evaluate<String>(
+            val awaitResult = evaluate<String>(
                 """
                     try {
                         await throwEmptyStackAsync();
@@ -43,7 +79,15 @@ class JniErrorStackTest {
                     }
                 """.trimIndent(),
             )
-            assertEquals("empty stack async:string", asyncResult)
+            assertEquals("empty stack async:string", awaitResult)
+
+            // Direct Promise.catch receives the rejection object without passing through VM throw.
+            val catchResult = evaluate<String>(
+                """
+                    await throwEmptyStackAsync().catch(e => e.message + ":" + typeof e.stack);
+                """.trimIndent(),
+            )
+            assertEquals("empty stack async:undefined", catchResult)
         }
     }
 
