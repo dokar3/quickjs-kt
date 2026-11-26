@@ -118,13 +118,25 @@ if (BUILD_WITH_JNI)
             "jni/mapping")
 endif ()
 
+# Apply the patch proposed in bellard/quickjs#596 to a build copy of the pinned source.
+find_package(Git REQUIRED)
+set(quickjs_patched_dir "${CMAKE_CURRENT_BINARY_DIR}/quickjs-patched")
+configure_file("quickjs/quickjs.c" "${quickjs_patched_dir}/quickjs.c" COPYONLY)
+configure_file("cmake/quickjs-596.patch" "${quickjs_patched_dir}/quickjs-596.patch" @ONLY NEWLINE_STYLE LF)
+# Prevent git apply from finding the enclosing checkout and skipping the patch.
+execute_process(
+        COMMAND "${GIT_EXECUTABLE}" --git-dir=.quickjs-patch-git-dir apply --no-index quickjs-596.patch
+        WORKING_DIRECTORY "${quickjs_patched_dir}"
+        COMMAND_ERROR_IS_FATAL ANY
+)
+
 # QuickJS sources
 set(quickjs_sources
         "quickjs/cutils.c"
         "quickjs/dtoa.c"
         "quickjs/libregexp.c"
         "quickjs/libunicode.c"
-        "quickjs/quickjs.c"
+        "${quickjs_patched_dir}/quickjs.c"
         "common/quickjs_version.c"
         "common/quickjs_interrupt.c"
 )

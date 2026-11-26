@@ -1,0 +1,26 @@
+diff --git a/quickjs.c b/quickjs.c
+index e3716a4..d5e1f47 100644
+--- a/quickjs.c
++++ b/quickjs.c
+@@ -24769,9 +24769,11 @@ static BOOL is_regexp_allowed(int tok)
+     case TOK_FALSE:
+     case TOK_TRUE:
+     case TOK_THIS:
++    case TOK_PRIVATE_NAME:
+     case ')':
+     case ']':
+     case '}': /* XXX: regexp may occur after */
++    case TOK_TEMPLATE: /* complete template literal; "${" is handled by the caller */
+     case TOK_IDENT:
+         return FALSE;
+     default:
+@@ -24889,6 +24891,9 @@ static int js_parse_skip_parens_token(JSParseState *s, int *pbits, BOOL no_line_
+             (token_is_pseudo_keyword(s, JS_ATOM_of) ||
+              token_is_pseudo_keyword(s, JS_ATOM_yield))) {
+             last_tok = TOK_OF;
++        } else if (s->token.val == TOK_TEMPLATE && s->token.u.str.sep != '`') {
++            /* "${": an expression, hence possibly a regexp, follows */
++            last_tok = '(';
+         } else {
+             last_tok = s->token.val;
+         }
