@@ -779,20 +779,35 @@ actual class QuickJs private constructor(
 
     /** Loads module content synchronously for the JNI bridge. */
     @Suppress("unused")
-    private fun loadModule(name: String): Any? {
+    private fun loadModule(name: String, importType: Int): Any? {
         resolvingModuleNames?.add(name)
-        return moduleLoader?.load(name)
+        return moduleLoader?.load(name, importTypeFromNativeCode(importType))
     }
 
-    /** Returns source when [content] represents a source module. */
+    /** Returns source when [content] represents a JavaScript source module. */
     @Suppress("unused")
     private fun getModuleSource(content: Any): String? =
         (content as? ModuleContent.Source)?.code
 
-    /** Returns bytecode when [content] represents a compiled module. */
+    /** Returns bytecode when [content] represents a compiled JavaScript module. */
     @Suppress("unused")
     private fun getModuleBytecode(content: Any): ByteArray? =
         (content as? ModuleContent.Bytecode)?.bytes
+
+    /** Returns raw text when [content] represents a text module. */
+    @Suppress("unused")
+    private fun getModuleText(content: Any): String? =
+        (content as? ModuleContent.Text)?.text
+
+    /** Returns JSON text when [content] represents a JSON module. */
+    @Suppress("unused")
+    private fun getModuleJson(content: Any): String? =
+        (content as? ModuleContent.Json)?.json
+
+    /** Returns raw bytes when [content] represents a bytes module. */
+    @Suppress("unused")
+    private fun getModuleBytes(content: Any): ByteArray? =
+        (content as? ModuleContent.Bytes)?.bytes
 
     /** Delivers source-compiled bytecode to the runtime's loader. */
     @Suppress("unused")
@@ -802,8 +817,16 @@ actual class QuickJs private constructor(
 
     /** Reports a failed module loading attempt to the runtime's loader. */
     @Suppress("unused")
-    private fun onModuleLoadFailed(name: String) {
-        moduleLoader?.onLoadFailed(name)
+    private fun onModuleLoadFailed(name: String, importType: Int) {
+        moduleLoader?.onLoadFailed(name, importTypeFromNativeCode(importType))
+    }
+
+    private fun importTypeFromNativeCode(code: Int): ModuleImportType = when (code) {
+        0 -> ModuleImportType.Js
+        1 -> ModuleImportType.Text
+        2 -> ModuleImportType.Json
+        3 -> ModuleImportType.Bytes
+        else -> qjsError("Unknown module import type code: $code")
     }
 
     /** Loads queued modules using the legacy addModule behavior. */

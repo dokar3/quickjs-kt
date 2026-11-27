@@ -382,9 +382,21 @@
           ]
         },
         {
+          "name": "hasModuleNormalizer",
+          "parameterTypes": []
+        },
+        {
+          "name": "normalizeModule",
+          "parameterTypes": [
+            "java.lang.String",
+            "java.lang.String"
+          ]
+        },
+        {
           "name": "loadModule",
           "parameterTypes": [
-            "java.lang.String"
+            "java.lang.String",
+            "int"
           ]
         },
         {
@@ -400,6 +412,24 @@
           ]
         },
         {
+          "name": "getModuleText",
+          "parameterTypes": [
+            "java.lang.Object"
+          ]
+        },
+        {
+          "name": "getModuleJson",
+          "parameterTypes": [
+            "java.lang.Object"
+          ]
+        },
+        {
+          "name": "getModuleBytes",
+          "parameterTypes": [
+            "java.lang.Object"
+          ]
+        },
+        {
           "name": "onModuleCompiled",
           "parameterTypes": [
             "java.lang.String",
@@ -409,7 +439,8 @@
         {
           "name": "onModuleLoadFailed",
           "parameterTypes": [
-            "java.lang.String"
+            "java.lang.String",
+            "int"
           ]
         },
         {

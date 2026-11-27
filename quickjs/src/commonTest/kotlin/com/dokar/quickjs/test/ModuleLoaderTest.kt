@@ -29,7 +29,7 @@ class ModuleLoaderTest {
         val loaded = mutableListOf<String>()
         val compiled = linkedMapOf<String, ByteArray>()
         val loader = moduleLoader {
-            load { name ->
+            load { name, _ ->
                 loaded += name
                 sources[name]?.let(ModuleContent::Source)
             }
@@ -63,7 +63,7 @@ class ModuleLoaderTest {
         }
         var compilationCallbacks = 0
         val loader = moduleLoader {
-            load { name ->
+            load { name, _ ->
                 if (name == "cached") ModuleContent.Bytecode(cached) else null
             }
             onCompiled { _, _ -> compilationCallbacks++ }
@@ -93,7 +93,7 @@ class ModuleLoaderTest {
         }
         val compiled = linkedMapOf<String, ByteArray>()
         val loader = moduleLoader {
-            load { name ->
+            load { name, _ ->
                 when (name) {
                     "middle" -> ModuleContent.Source(
                         "import { value } from 'leaf'; export const result = value * 2;"
@@ -132,7 +132,7 @@ class ModuleLoaderTest {
         var executions = 0
         val loaded = mutableListOf<String>()
         val loader = moduleLoader {
-            load { name ->
+            load { name, _ ->
                 loaded += name
                 sources[name]?.let(ModuleContent::Source)
             }
@@ -169,7 +169,7 @@ class ModuleLoaderTest {
             "leaf" to "export const value = 42;",
         )
         val producer = moduleLoader {
-            load { name -> sources[name]?.let(ModuleContent::Source) }
+            load { name, _ -> sources[name]?.let(ModuleContent::Source) }
         }
         val entryBytecode = quickJs(moduleLoader = producer) {
             compile(
@@ -182,7 +182,7 @@ class ModuleLoaderTest {
         val cache = linkedMapOf<String, ByteArray>()
         var sourceLoads = 0
         val cachingLoader = moduleLoader {
-            load { name ->
+            load { name, _ ->
                 cache[name]?.let(ModuleContent::Bytecode)
                     ?: sources[name]?.let {
                         sourceLoads++
@@ -217,7 +217,7 @@ class ModuleLoaderTest {
             "leaf" to "export const value = 42;",
         )
         val loader = moduleLoader {
-            load { name -> sources[name]?.let(ModuleContent::Source) }
+            load { name, _ -> sources[name]?.let(ModuleContent::Source) }
         }
 
         quickJs(moduleLoader = loader) {
@@ -238,7 +238,7 @@ class ModuleLoaderTest {
     @Test
     fun successfullyCompiledSiblingIsReportedBeforeGraphFailure() = runTest {
         val completeLoader = moduleLoader {
-            load { name ->
+            load { name, _ ->
                 when (name) {
                     "first" -> ModuleContent.Source("export const first = 20;")
                     "missing" -> ModuleContent.Source("export const second = 22;")
@@ -261,7 +261,7 @@ class ModuleLoaderTest {
         val compiledBeforeFailure = linkedMapOf<String, ByteArray>()
         val failed = mutableListOf<String>()
         val incompleteLoader = moduleLoader {
-            load { name ->
+            load { name, _ ->
                 if (name == "first") {
                     ModuleContent.Source("export const first = 20;")
                 } else {
@@ -269,7 +269,7 @@ class ModuleLoaderTest {
                 }
             }
             onCompiled { name, bytecode -> compiledBeforeFailure[name] = bytecode }
-            onLoadFailed { name -> failed += name }
+            onLoadFailed { name, _ -> failed += name }
         }
 
         quickJs(moduleLoader = incompleteLoader) {
@@ -287,7 +287,7 @@ class ModuleLoaderTest {
     fun dynamicImportUsesTheRuntimeLoaderAndReportsCompiledBytecode() = runTest {
         val compiled = linkedMapOf<String, ByteArray>()
         val loader = moduleLoader {
-            load { name ->
+            load { name, _ ->
                 when (name) {
                     "base" -> ModuleContent.Source("export const value = 20;")
                     "dynamic" -> ModuleContent.Source("export const value = 22;")
@@ -320,7 +320,7 @@ class ModuleLoaderTest {
         val loadCounts = mutableMapOf<String, Int>()
         val compileCounts = mutableMapOf<String, Int>()
         val loader = moduleLoader {
-            load { name ->
+            load { name, _ ->
                 loadCounts[name] = loadCounts.getOrElse(name) { 0 } + 1
                 when (name) {
                     "cycle-a" -> ModuleContent.Source(
@@ -362,8 +362,8 @@ class ModuleLoaderTest {
     fun missingModuleFailureReportsItsNormalizedName() = runTest {
         val failed = mutableListOf<String>()
         val loader = moduleLoader {
-            load { null }
-            onLoadFailed { name -> failed += name }
+            load { _, _ -> null }
+            onLoadFailed { name, _ -> failed += name }
         }
 
         val failure = quickJs(moduleLoader = loader) {
@@ -408,8 +408,8 @@ class ModuleLoaderTest {
 
         val corruptFailures = mutableListOf<String>()
         val corruptLoader = moduleLoader {
-            load { ModuleContent.Bytecode(byteArrayOf(0, 1, 2, 3)) }
-            onLoadFailed { name -> corruptFailures += name }
+            load { _, _ -> ModuleContent.Bytecode(byteArrayOf(0, 1, 2, 3)) }
+            onLoadFailed { name, _ -> corruptFailures += name }
         }
         quickJs(moduleLoader = corruptLoader) {
             assertFailsWith<QuickJsException> {
@@ -420,8 +420,8 @@ class ModuleLoaderTest {
 
         val mismatchFailures = mutableListOf<String>()
         val mismatchedLoader = moduleLoader {
-            load { ModuleContent.Bytecode(actualModule) }
-            onLoadFailed { name -> mismatchFailures += name }
+            load { _, _ -> ModuleContent.Bytecode(actualModule) }
+            onLoadFailed { name, _ -> mismatchFailures += name }
         }
         val mismatch = quickJs(moduleLoader = mismatchedLoader) {
             assertFailsWith<QuickJsException> {
@@ -436,8 +436,8 @@ class ModuleLoaderTest {
     fun compileAndUnhandledDynamicImportFailuresInvokeCallbackAndFailOperation() = runTest {
         val failed = mutableListOf<String>()
         val loader = moduleLoader {
-            load { null }
-            onLoadFailed { name -> failed += name }
+            load { _, _ -> null }
+            onLoadFailed { name, _ -> failed += name }
         }
 
         quickJs(moduleLoader = loader) {
@@ -467,8 +467,8 @@ class ModuleLoaderTest {
     fun handledDynamicImportFailureStillInvokesTheFailureCallback() = runTest {
         val failed = mutableListOf<String>()
         val loader = moduleLoader {
-            load { null }
-            onLoadFailed { name -> failed += name }
+            load { _, _ -> null }
+            onLoadFailed { name, _ -> failed += name }
         }
 
         quickJs(moduleLoader = loader) {
@@ -486,14 +486,14 @@ class ModuleLoaderTest {
     fun nestedDependencyFailureReportsTheInnermostModuleName() = runTest {
         val failed = mutableListOf<String>()
         val loader = moduleLoader {
-            load { name ->
+            load { name, _ ->
                 when (name) {
                     "parent" -> ModuleContent.Source("import 'corrupt-leaf';")
                     "corrupt-leaf" -> ModuleContent.Bytecode(byteArrayOf(0, 1, 2, 3))
                     else -> null
                 }
             }
-            onLoadFailed { name -> failed += name }
+            onLoadFailed { name, _ -> failed += name }
         }
 
         quickJs(moduleLoader = loader) {
@@ -509,8 +509,8 @@ class ModuleLoaderTest {
     fun runtimeFailureAfterModuleLoadingRemainsARegularQuickJsException() = runTest {
         val failed = mutableListOf<String>()
         val loader = moduleLoader {
-            load { ModuleContent.Source("export const value = 42;") }
-            onLoadFailed { name -> failed += name }
+            load { _, _ -> ModuleContent.Source("export const value = 42;") }
+            onLoadFailed { name, _ -> failed += name }
         }
 
         val failure = quickJs(moduleLoader = loader) {
@@ -539,7 +539,7 @@ class ModuleLoaderTest {
         }
         val refreshed = linkedMapOf<String, ByteArray>()
         val sourceLoader = moduleLoader {
-            load { name ->
+            load { name, _ ->
                 if (name == "value") {
                     ModuleContent.Source("export const value = 42;")
                 } else {
@@ -565,7 +565,7 @@ class ModuleLoaderTest {
         var bytecodeResult = 0
         var recompilations = 0
         val bytecodeLoader = moduleLoader {
-            load { name ->
+            load { name, _ ->
                 if (name == "value") ModuleContent.Bytecode(versionTwo) else null
             }
             onCompiled { _, _ -> recompilations++ }
@@ -586,7 +586,7 @@ class ModuleLoaderTest {
     fun relativeImportsArePassedToLoaderAsNormalizedNames() = runTest {
         val requested = mutableListOf<String>()
         val loader = moduleLoader {
-            load { name ->
+            load { name, _ ->
                 requested += name
                 if (name == "app/value.js") {
                     ModuleContent.Source("export const value = 42;")
@@ -630,7 +630,7 @@ class ModuleLoaderTest {
                             requestedName.removePrefix("./")
                 }
             }
-            load { name ->
+            load { name, _ ->
                 loaded += name
                 sources[name]?.let(ModuleContent::Source)
             }
@@ -682,7 +682,7 @@ class ModuleLoaderTest {
             normalize { _, requestedName ->
                 if (requestedName == "value-alias") canonicalName else requestedName
             }
-            load { name ->
+            load { name, _ ->
                 loaded += name
                 if (name == canonicalName) ModuleContent.Bytecode(bytecode) else null
             }
@@ -710,7 +710,7 @@ class ModuleLoaderTest {
     @Test
     fun resolveModuleGraphUsesCustomNormalizer() = runTest {
         val producer = moduleLoader {
-            load { name ->
+            load { name, _ ->
                 when (name) {
                     "package-alias" -> ModuleContent.Source(
                         "import { value } from './leaf.js'; export { value };"
@@ -746,7 +746,7 @@ class ModuleLoaderTest {
                     else -> requestedName
                 }
             }
-            load { name -> sources[name]?.let(ModuleContent::Source) }
+            load { name, _ -> sources[name]?.let(ModuleContent::Source) }
             onCompiled { name, _ -> compiled += name }
         }
 
@@ -774,7 +774,7 @@ class ModuleLoaderTest {
         val compiled = mutableListOf<String>()
         val loader = moduleLoader {
             normalize { _, _ -> "shared/module.js" }
-            load { name ->
+            load { name, _ ->
                 if (name == "shared/module.js") {
                     loads++
                     ModuleContent.Source("export const value = 21;")
@@ -812,7 +812,7 @@ class ModuleLoaderTest {
                 normalized += baseName to requestedName
                 "dynamic/value.js"
             }
-            load { name ->
+            load { name, _ ->
                 if (name == "dynamic/value.js") {
                     ModuleContent.Source("export const value = 42;")
                 } else {
@@ -843,7 +843,7 @@ class ModuleLoaderTest {
         var loads = 0
         val loader = moduleLoader {
             normalize { _, _ -> throw IllegalStateException("normalize failed") }
-            load {
+            load { _, _ ->
                 loads++
                 ModuleContent.Source("export const value = 42;")
             }
@@ -867,8 +867,8 @@ class ModuleLoaderTest {
     fun loaderAndCompilationCallbackExceptionsReportFailureAndFailOperation() = runTest {
         val failed = mutableListOf<String>()
         val loadFailure = moduleLoader {
-            load { throw IllegalStateException("load failed") }
-            onLoadFailed { name -> failed += name }
+            load { _, _ -> throw IllegalStateException("load failed") }
+            onLoadFailed { name, _ -> failed += name }
         }
         val loadError = quickJs(moduleLoader = loadFailure) {
             assertFails {
@@ -892,9 +892,9 @@ class ModuleLoaderTest {
 
         val compilationCallbackFailures = mutableListOf<String>()
         val callbackFailure = moduleLoader {
-            load { ModuleContent.Source("export const value = 42;") }
+            load { _, _ -> ModuleContent.Source("export const value = 42;") }
             onCompiled { _, _ -> throw IllegalStateException("persistence handoff failed") }
-            onLoadFailed { name -> compilationCallbackFailures += name }
+            onLoadFailed { name, _ -> compilationCallbackFailures += name }
         }
         val callbackError = quickJs(moduleLoader = callbackFailure) {
             assertFails {
@@ -905,7 +905,7 @@ class ModuleLoaderTest {
         assertEquals(listOf("dependency"), compilationCallbackFailures)
 
         val quickJsLoadFailure = moduleLoader {
-            load { throw QuickJsException("custom loader failure") }
+            load { _, _ -> throw QuickJsException("custom loader failure") }
         }
         val quickJsLoadError = quickJs(moduleLoader = quickJsLoadFailure) {
             assertFailsWith<QuickJsException> {
@@ -915,8 +915,8 @@ class ModuleLoaderTest {
         assertEquals(QuickJsException::class, quickJsLoadError::class)
 
         val failureCallbackError = moduleLoader {
-            load { null }
-            onLoadFailed { throw IllegalStateException("invalidation handoff failed") }
+            load { _, _ -> null }
+            onLoadFailed { _, _ -> throw IllegalStateException("invalidation handoff failed") }
         }
         val invalidationError = quickJs(moduleLoader = failureCallbackError) {
             assertFails {
@@ -931,10 +931,10 @@ class ModuleLoaderTest {
         var source = "export const value = ;"
         val failed = mutableListOf<String>()
         val loader = moduleLoader {
-            load { name ->
+            load { name, _ ->
                 if (name == "recoverable") ModuleContent.Source(source) else null
             }
-            onLoadFailed { name -> failed += name }
+            onLoadFailed { name, _ -> failed += name }
         }
 
         var captured = 0
@@ -965,7 +965,7 @@ class ModuleLoaderTest {
         var source = "export const value = 21;"
         var loads = 0
         val loader = moduleLoader {
-            load { name ->
+            load { name, _ ->
                 if (name == "stable") {
                     loads++
                     ModuleContent.Source(source)

@@ -84,28 +84,13 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
     // Suppress lint: We will free it in releaseGlobals()
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "MemoryLeak"
-    Globals *globals = malloc(sizeof(Globals));
+    Globals *globals = calloc(1, sizeof(Globals));
 #pragma clang diagnostic pop
     if (globals == NULL) {
         jni_throw_qjs_exception(env, "Cannot allocate global resources.");
         return 0;
     }
 
-    globals->managed_js_values = NULL;
-    globals->defined_js_objects = NULL;
-    globals->global_object_refs = NULL;
-    globals->created_js_functions = NULL;
-    globals->evaluate_result_promises = NULL;
-    globals->evaluate_result_active = NULL;
-    globals->module_loader_host = NULL;
-    globals->normalize_module_method = NULL;
-    globals->load_module_method = NULL;
-    globals->get_module_source_method = NULL;
-    globals->get_module_bytecode_method = NULL;
-    globals->on_module_compiled_method = NULL;
-    globals->on_module_load_failed_method = NULL;
-    globals->module_load_failure_version = 0;
-    globals->has_module_normalizer = 0;
     globals->interrupt_state = (void *) (intptr_t) interrupt_state_ptr;
 
     pthread_mutexattr_t mutex_attributes;
@@ -164,18 +149,21 @@ JNIEXPORT jlong JNICALL Java_com_dokar_quickjs_QuickJs_initGlobals(JNIEnv *env,
 
     // Handle unhandled promise rejections
     JS_SetHostPromiseRejectionTracker(runtime, promise_rejection_handler, globals);
-    if (enable_module_loader == JNI_TRUE &&
-        !install_module_loader(env, runtime, globals, global_host_ref)) {
-        jthrowable exception = try_catch_java_exceptions(env);
-        if (exception == NULL) {
-            exception = new_qjs_exception(env, "Cannot install module loader.");
+    if (enable_module_loader == JNI_TRUE) {
+        if (!install_module_loader(env, runtime, globals, global_host_ref)) {
+            jthrowable exception = try_catch_java_exceptions(env);
+            if (exception == NULL) {
+                exception = new_qjs_exception(env, "Cannot install module loader.");
+            }
+            release_failed_globals_init(env, runtime, globals);
+            if (exception != NULL) {
+                (*env)->Throw(env, exception);
+                (*env)->DeleteLocalRef(env, exception);
+            }
+            return 0;
         }
-        release_failed_globals_init(env, runtime, globals);
-        if (exception != NULL) {
-            (*env)->Throw(env, exception);
-            (*env)->DeleteLocalRef(env, exception);
-        }
-        return 0;
+    } else {
+        restore_module_loader(runtime, globals);
     }
 
     return (jlong) globals;

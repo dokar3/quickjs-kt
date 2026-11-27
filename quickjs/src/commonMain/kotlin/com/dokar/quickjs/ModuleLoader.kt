@@ -16,29 +16,52 @@ fun interface ModuleLoader {
         get() = null
 
     /**
-     * Loads a normalized module name requested by QuickJS.
+     * Loads a normalized JavaScript module name requested by QuickJS.
+     */
+    @Deprecated(
+        message = "Use load(name, type) instead.",
+        replaceWith = ReplaceWith("load(name, ModuleImportType.Js)"),
+    )
+    fun load(name: String): ModuleContent? = load(name, ModuleImportType.Js)
+
+    /**
+     * Loads a normalized module name requested by QuickJS for [type].
      *
      * [name] is produced by [normalizer] when configured, or by QuickJS's
      * native default normalizer otherwise.
      *
-     * Return source for a cache miss, compatible bytecode for a cache hit, or
-     * null when the module is unavailable. Returning null or throwing an
+     * Return a [ModuleContent] matching [type], or null when the module is
+     * unavailable:
+     *
+     * - [ModuleImportType.Js]: [ModuleContent.Source] or [ModuleContent.Bytecode]
+     * - [ModuleImportType.Text]: [ModuleContent.Text]
+     * - [ModuleImportType.Json]: [ModuleContent.Json]
+     * - [ModuleImportType.Bytes]: [ModuleContent.Bytes]
+     *
+     * Returning null, returning an incompatible [ModuleContent], or throwing an
      * unhandled exception fails the current compile, graph-resolution, or
-     * evaluation operation and invokes [onLoadFailed] with this module name.
+     * evaluation operation and invokes [onLoadFailed] with this module name and
+     * import type.
      *
      * @param name The normalized module name.
+     * @param type The requested module import type.
      * @return The module content, or null when it cannot be loaded.
      */
-    fun load(name: String): ModuleContent?
+    fun load(name: String, type: ModuleImportType): ModuleContent?
 
     /**
-     * Reports bytecode immediately after a source module is compiled.
+     * Reports bytecode immediately after a JavaScript source module is compiled.
+     *
+     * Invoked only for [ModuleImportType.Js] imports loaded from
+     * [ModuleContent.Source]; data modules ([ModuleImportType.Text],
+     * [ModuleImportType.Json], [ModuleImportType.Bytes]) are not compiled to
+     * module bytecode and do not trigger this callback.
      *
      * QuickJs does not retain the Kotlin byte array after this call. Callers may
      * keep it or enqueue it for asynchronous persistence. Callbacks already
      * delivered for earlier modules remain valid if later graph resolution
      * fails. An unhandled exception fails the current module loading attempt and
-     * invokes [onLoadFailed] with this module name.
+     * invokes [onLoadFailed] with this module name and [ModuleImportType.Js].
      *
      * @param name The normalized module name.
      * @param bytecode The newly compiled module bytecode.
@@ -47,11 +70,19 @@ fun interface ModuleLoader {
 
     /**
      * Reports that QuickJS could not load a requested module.
+     */
+    @Deprecated("Use onLoadFailed(name, type) instead.")
+    fun onLoadFailed(name: String) = Unit
+
+    /**
+     * Reports that QuickJS could not load a requested module for [type].
      *
      * The callback is invoked when:
      *
-     * - [load] returns null or throws an exception.
-     * - Source or bytecode returned by [load] cannot be compiled, read, or validated.
+     * - [load] returns null, returns a [ModuleContent] incompatible with [type],
+     *   or throws an exception.
+     * - Source, bytecode, or data returned by [load] cannot be compiled, parsed,
+     *   read, or validated.
      * - [onCompiled] throws an exception.
      *
      * A failure notification does not consume the original module error:
@@ -65,9 +96,22 @@ fun interface ModuleLoader {
      * An unhandled callback exception becomes the current module loading failure.
      *
      * @param name The normalized name of the module that failed to load.
+     * @param type The import type that failed to load.
      */
-    fun onLoadFailed(name: String) = Unit
+    fun onLoadFailed(name: String, type: ModuleImportType) {
+        @Suppress("DEPRECATION")
+        onLoadFailed(name)
+    }
 }
+
+/**
+ * Creates a [ModuleLoader] that only handles [ModuleImportType.Js] modules.
+ */
+@Deprecated("Use ModuleLoader { name, type -> ... } instead.")
+fun ModuleLoader(load: (name: String) -> ModuleContent?): ModuleLoader =
+    ModuleLoader { name, type ->
+        if (type == ModuleImportType.Js) load(name) else null
+    }
 
 /**
  * Resolves an import specifier to the canonical module name used by QuickJS.
@@ -93,9 +137,9 @@ fun interface ModuleNormalizer {
  */
 class ModuleLoaderBuilder internal constructor() {
     private var normalizeBlock: ((String, String) -> String)? = null
-    private var loadBlock: ((String) -> ModuleContent?)? = null
+    private var loadBlock: ((String, ModuleImportType) -> ModuleContent?)? = null
     private var onCompiledBlock: (String, ByteArray) -> Unit = { _, _ -> }
-    private var onLoadFailedBlock: (String) -> Unit = {}
+    private var onLoadFailedBlock: (String, ModuleImportType) -> Unit = { _, _ -> }
 
     /**
      * Configures custom module-name resolution.
@@ -107,14 +151,24 @@ class ModuleLoaderBuilder internal constructor() {
     }
 
     /**
-     * Configures synchronous module lookup.
+     * Configures synchronous JavaScript module lookup.
      */
+    @Deprecated("Use load { name, type -> ... } instead.")
     fun load(block: (name: String) -> ModuleContent?) {
+        loadBlock = { name, type ->
+            if (type == ModuleImportType.Js) block(name) else null
+        }
+    }
+
+    /**
+     * Configures synchronous module lookup for all [ModuleImportType] values.
+     */
+    fun load(block: (name: String, type: ModuleImportType) -> ModuleContent?) {
         loadBlock = block
     }
 
     /**
-     * Configures immediate delivery of source-compiled module bytecode.
+     * Configures immediate delivery of source-compiled JavaScript module bytecode.
      */
     fun onCompiled(block: (name: String, bytecode: ByteArray) -> Unit) {
         onCompiledBlock = block
@@ -123,7 +177,15 @@ class ModuleLoaderBuilder internal constructor() {
     /**
      * Configures immediate notification for failed module loading attempts.
      */
+    @Deprecated("Use onLoadFailed { name, type -> ... } instead.")
     fun onLoadFailed(block: (name: String) -> Unit) {
+        onLoadFailedBlock = { name, _ -> block(name) }
+    }
+
+    /**
+     * Configures immediate notification for failed module loading attempts.
+     */
+    fun onLoadFailed(block: (name: String, type: ModuleImportType) -> Unit) {
         onLoadFailedBlock = block
     }
 
@@ -139,14 +201,15 @@ class ModuleLoaderBuilder internal constructor() {
         return object : ModuleLoader {
             override val normalizer: ModuleNormalizer? = normalizerCallback
 
-            override fun load(name: String): ModuleContent? = loadCallback(name)
+            override fun load(name: String, type: ModuleImportType): ModuleContent? =
+                loadCallback(name, type)
 
             override fun onCompiled(name: String, bytecode: ByteArray) {
                 onCompiledCallback(name, bytecode)
             }
 
-            override fun onLoadFailed(name: String) {
-                onLoadFailedCallback(name)
+            override fun onLoadFailed(name: String, type: ModuleImportType) {
+                onLoadFailedCallback(name, type)
             }
         }
     }

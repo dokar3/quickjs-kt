@@ -18,7 +18,9 @@ noStringConversion = \
 	JS_NewString \
 	JS_FreeCString \
 	qjs_eval \
-	qjs_new_string
+	qjs_new_string \
+	qjs_new_text_module \
+	qjs_new_json_module
 
 ---
 
