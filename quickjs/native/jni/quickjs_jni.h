@@ -16,15 +16,21 @@ typedef struct {
     jobject module_loader_host;
     /** QuickJs.normalizeModule(String, String) method used by the module normalizer. */
     jmethodID normalize_module_method;
-    /** QuickJs.loadModule(String) method used by the module loader. */
+    /** QuickJs.loadModule(String, int) method used by the module loader. */
     jmethodID load_module_method;
     /** QuickJs.getModuleSource(Object) content accessor. */
     jmethodID get_module_source_method;
     /** QuickJs.getModuleBytecode(Object) content accessor. */
     jmethodID get_module_bytecode_method;
+    /** QuickJs.getModuleText(Object) content accessor. */
+    jmethodID get_module_text_method;
+    /** QuickJs.getModuleJson(Object) content accessor. */
+    jmethodID get_module_json_method;
+    /** QuickJs.getModuleBytes(Object) content accessor. */
+    jmethodID get_module_bytes_method;
     /** QuickJs.onModuleCompiled(String, ByteArray) notification callback. */
     jmethodID on_module_compiled_method;
-    /** QuickJs.onModuleLoadFailed(String) failure callback. */
+    /** QuickJs.onModuleLoadFailed(String, int) failure callback. */
     jmethodID on_module_load_failed_method;
     /** Monotonic counter used to suppress parent notifications after a nested failure. */
     uint64_t module_load_failure_version;

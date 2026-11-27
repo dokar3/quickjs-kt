@@ -6,6 +6,7 @@
 #include "jni_globals.h"
 #include "jni_string_util.h"
 #include "quickjs_interrupt.h"
+#include "quickjs_module_import.h"
 
 /**
  * Converts a pending Java callback failure to a JavaScript error so it follows
@@ -33,18 +34,20 @@ static int forward_java_exception(JNIEnv *env,
     return 1;
 }
 
-/** Notifies the host while the normalized name of a failed module is known. */
+/** Notifies the host while the normalized name and import type of a failed module are known. */
 static void notify_module_load_failed(JNIEnv *env,
                                       Globals *globals,
                                       JSContext *context,
                                       jstring java_name,
+                                      QjsModuleImportType import_type,
                                       const char *module_name) {
     globals->module_load_failure_version++;
     (*env)->CallVoidMethod(
             env,
             globals->module_loader_host,
             globals->on_module_load_failed_method,
-            java_name);
+            java_name,
+            (jint) import_type);
     forward_java_exception(
             env, context,
             "Module load failure callback failed for '%s'.", module_name);
@@ -267,15 +270,209 @@ static char *normalize_module(JSContext *context,
     return result;
 }
 
-/**
- * Loads source or bytecode from the runtime-scoped Kotlin ModuleLoader.
+/** Loads a JavaScript module from ModuleContent.Source or ModuleContent.Bytecode. */
+static JSModuleDef *load_js_module(JNIEnv *env,
+                                   Globals *globals,
+                                   JSContext *context,
+                                   jstring java_name,
+                                   const char *module_name,
+                                   jobject content) {
+    jstring java_source = (jstring) (*env)->CallObjectMethod(
+            env,
+            globals->module_loader_host,
+            globals->get_module_source_method,
+            content);
+    if (forward_java_exception(
+            env, context,
+            "Cannot inspect module source for '%s'.", module_name)) {
+        return NULL;
+    }
 
+    JSValue module = JS_UNDEFINED;
+    if (java_source != NULL) {
+        JniUtf8String source;
+        if (!jni_string_to_utf8(env, java_source, &source)) {
+            if (!forward_java_exception(
+                    env, context,
+                    "Cannot read module source '%s'.", module_name)) {
+                JS_ThrowInternalError(context, "Cannot read module source '%s'.", module_name);
+            }
+            (*env)->DeleteLocalRef(env, java_source);
+            return NULL;
+        }
+        module = JS_Eval(
+                context,
+                source.data,
+                source.length,
+                module_name,
+                JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+        jni_utf8_string_release(&source);
+        (*env)->DeleteLocalRef(env, java_source);
+        if (!JS_IsException(module) && JS_VALUE_GET_TAG(module) == JS_TAG_MODULE &&
+            !notify_module_compiled(
+                    env, globals, context, java_name, module_name, module)) {
+            JS_FreeValue(context, module);
+            return NULL;
+        }
+    } else {
+        jbyteArray java_bytecode = (jbyteArray) (*env)->CallObjectMethod(
+                env,
+                globals->module_loader_host,
+                globals->get_module_bytecode_method,
+                content);
+        if (forward_java_exception(
+                env, context,
+                "Cannot inspect module bytecode for '%s'.", module_name)) {
+            return NULL;
+        }
+        if (java_bytecode == NULL) {
+            JS_ThrowTypeError(
+                    context,
+                    "Module '%s' was imported as 'js', but loader returned incompatible content.",
+                    module_name);
+            return NULL;
+        }
+        module = read_module_bytecode(env, context, java_bytecode, module_name);
+        (*env)->DeleteLocalRef(env, java_bytecode);
+        if (!JS_IsException(module) && JS_VALUE_GET_TAG(module) == JS_TAG_MODULE &&
+            !validate_module_name(context, module, module_name)) {
+            JS_FreeValue(context, module);
+            return NULL;
+        }
+    }
+
+    if (JS_IsException(module)) {
+        return NULL;
+    }
+    if (JS_VALUE_GET_TAG(module) != JS_TAG_MODULE) {
+        JS_ThrowTypeError(context, "Content for '%s' is not an ES module.", module_name);
+        JS_FreeValue(context, module);
+        return NULL;
+    }
+
+    JSModuleDef *definition = JS_VALUE_GET_PTR(module);
+    JS_FreeValue(context, module);
+    return definition;
+}
+
+/** Loads a UTF-8 string-backed data module (ModuleContent.Text or ModuleContent.Json). */
+static JSModuleDef *load_string_data_module(JNIEnv *env,
+                                            Globals *globals,
+                                            JSContext *context,
+                                            const char *module_name,
+                                            jobject content,
+                                            QjsModuleImportType import_type) {
+    int is_json = import_type == QJS_MODULE_IMPORT_TYPE_JSON;
+    const char *type_name = is_json ? "json" : "text";
+    jmethodID getter = is_json ? globals->get_module_json_method : globals->get_module_text_method;
+
+    jstring java_value = (jstring) (*env)->CallObjectMethod(
+            env,
+            globals->module_loader_host,
+            getter,
+            content);
+    if (forward_java_exception(
+            env, context,
+            "Cannot inspect module content for '%s'.", module_name)) {
+        return NULL;
+    }
+    if (java_value == NULL) {
+        JS_ThrowTypeError(
+                context,
+                "Module '%s' was imported as '%s', but loader returned incompatible content.",
+                module_name,
+                type_name);
+        return NULL;
+    }
+
+    JniUtf8String utf8;
+    if (!jni_string_to_utf8(env, java_value, &utf8)) {
+        if (!forward_java_exception(
+                env, context,
+                "Cannot read module content for '%s'.", module_name)) {
+            JS_ThrowInternalError(context, "Cannot read module content for '%s'.", module_name);
+        }
+        (*env)->DeleteLocalRef(env, java_value);
+        return NULL;
+    }
+    JSModuleDef *definition = is_json
+            ? qjs_new_json_module(context, module_name, utf8.data, utf8.length)
+            : qjs_new_text_module(context, module_name, utf8.data, utf8.length);
+    jni_utf8_string_release(&utf8);
+    (*env)->DeleteLocalRef(env, java_value);
+    return definition;
+}
+
+/** Loads a bytes data module from ModuleContent.Bytes. */
+static JSModuleDef *load_bytes_module(JNIEnv *env,
+                                      Globals *globals,
+                                      JSContext *context,
+                                      const char *module_name,
+                                      jobject content) {
+    jbyteArray java_bytes = (jbyteArray) (*env)->CallObjectMethod(
+            env,
+            globals->module_loader_host,
+            globals->get_module_bytes_method,
+            content);
+    if (forward_java_exception(
+            env, context,
+            "Cannot inspect bytes module '%s'.", module_name)) {
+        return NULL;
+    }
+    if (java_bytes == NULL) {
+        JS_ThrowTypeError(
+                context,
+                "Module '%s' was imported as 'bytes', but loader returned incompatible content.",
+                module_name);
+        return NULL;
+    }
+
+    jsize length = (*env)->GetArrayLength(env, java_bytes);
+    if (forward_java_exception(
+            env, context,
+            "Cannot inspect bytes length for module '%s'.", module_name)) {
+        (*env)->DeleteLocalRef(env, java_bytes);
+        return NULL;
+    }
+
+    JSModuleDef *definition;
+    if (length == 0) {
+        definition = qjs_new_bytes_module(context, module_name, NULL, 0);
+    } else {
+        jbyte *bytes = (*env)->GetByteArrayElements(env, java_bytes, NULL);
+        if (bytes == NULL) {
+            if (!forward_java_exception(
+                    env, context,
+                    "Cannot read bytes for module '%s'.", module_name)) {
+                JS_ThrowInternalError(context, "Cannot read bytes for module '%s'.", module_name);
+            }
+            (*env)->DeleteLocalRef(env, java_bytes);
+            return NULL;
+        }
+        definition = qjs_new_bytes_module(
+                context, module_name, (const uint8_t *) bytes, (size_t) length);
+        (*env)->ReleaseByteArrayElements(env, java_bytes, bytes, JNI_ABORT);
+    }
+    (*env)->DeleteLocalRef(env, java_bytes);
+    return definition;
+}
+
+/**
+ * Loads JS, text, JSON, or bytes content from the runtime-scoped Kotlin ModuleLoader.
  */
-static JSModuleDef *load_module(JSContext *context, const char *module_name, void *opaque) {
+static JSModuleDef *load_module(JSContext *context,
+                                const char *module_name,
+                                void *opaque,
+                                JSValueConst attributes) {
     Globals *globals = (Globals *) opaque;
     if (globals != NULL && qjs_interrupt_check_or_throw(context, globals->interrupt_state)) {
         return NULL;
     }
+    QjsModuleImportType import_type = qjs_module_get_import_type(context, attributes);
+    if (import_type == QJS_MODULE_IMPORT_TYPE_ERROR) {
+        return NULL;
+    }
+
     JNIEnv *env = get_jni_env();
     if (env == NULL) {
         JS_ThrowInternalError(context, "Cannot access JNI while loading module '%s'.", module_name);
@@ -296,7 +493,8 @@ static JSModuleDef *load_module(JSContext *context, const char *module_name, voi
             env,
             globals->module_loader_host,
             globals->load_module_method,
-            java_name);
+            java_name,
+            (jint) import_type);
     JSModuleDef *definition = NULL;
     uint64_t failure_version = globals->module_load_failure_version;
     if (forward_java_exception(
@@ -309,79 +507,26 @@ static JSModuleDef *load_module(JSContext *context, const char *module_name, voi
         goto notify_failure;
     }
 
-    jstring java_source = (jstring) (*env)->CallObjectMethod(
-            env,
-            globals->module_loader_host,
-            globals->get_module_source_method,
-            content);
-    if (forward_java_exception(
-            env, context,
-            "Cannot inspect module source for '%s'.", module_name)) {
-        goto notify_failure;
+    switch (import_type) {
+        case QJS_MODULE_IMPORT_TYPE_JS:
+            definition = load_js_module(env, globals, context, java_name, module_name, content);
+            break;
+        case QJS_MODULE_IMPORT_TYPE_TEXT:
+        case QJS_MODULE_IMPORT_TYPE_JSON:
+            definition = load_string_data_module(
+                    env, globals, context, module_name, content, import_type);
+            break;
+        case QJS_MODULE_IMPORT_TYPE_BYTES:
+            definition = load_bytes_module(env, globals, context, module_name, content);
+            break;
+        default:
+            JS_ThrowInternalError(context, "Unhandled import type for module '%s'.", module_name);
+            break;
     }
 
-    JSValue module = JS_UNDEFINED;
-    if (java_source != NULL) {
-        JniUtf8String source;
-        if (!jni_string_to_utf8(env, java_source, &source)) {
-            if (!forward_java_exception(
-                    env, context,
-                    "Cannot read module source '%s'.", module_name)) {
-                JS_ThrowInternalError(context, "Cannot read module source '%s'.", module_name);
-            }
-            (*env)->DeleteLocalRef(env, java_source);
-            goto notify_failure;
-        }
-        module = JS_Eval(
-                context,
-                source.data,
-                source.length,
-                module_name,
-                JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-        jni_utf8_string_release(&source);
-        (*env)->DeleteLocalRef(env, java_source);
-        if (!JS_IsException(module) && JS_VALUE_GET_TAG(module) == JS_TAG_MODULE &&
-            !notify_module_compiled(
-                    env, globals, context, java_name, module_name, module)) {
-            JS_FreeValue(context, module);
-            module = JS_EXCEPTION;
-        }
-    } else {
-        jbyteArray java_bytecode = (jbyteArray) (*env)->CallObjectMethod(
-                env,
-                globals->module_loader_host,
-                globals->get_module_bytecode_method,
-                content);
-        if (forward_java_exception(
-                env, context,
-                "Cannot inspect module bytecode for '%s'.", module_name)) {
-            goto notify_failure;
-        }
-        if (java_bytecode == NULL) {
-            JS_ThrowTypeError(context, "Unsupported module content for '%s'.", module_name);
-            goto notify_failure;
-        }
-        module = read_module_bytecode(env, context, java_bytecode, module_name);
-        (*env)->DeleteLocalRef(env, java_bytecode);
-        if (!JS_IsException(module) && JS_VALUE_GET_TAG(module) == JS_TAG_MODULE &&
-            !validate_module_name(context, module, module_name)) {
-            JS_FreeValue(context, module);
-            module = JS_EXCEPTION;
-        }
+    if (definition != NULL) {
+        goto cleanup_refs;
     }
-
-    if (JS_IsException(module)) {
-        goto notify_failure;
-    }
-    if (JS_VALUE_GET_TAG(module) != JS_TAG_MODULE) {
-        JS_ThrowTypeError(context, "Content for '%s' is not an ES module.", module_name);
-        JS_FreeValue(context, module);
-        goto notify_failure;
-    }
-
-    definition = JS_VALUE_GET_PTR(module);
-    JS_FreeValue(context, module);
-    goto cleanup_refs;
 
 notify_failure:
     // An interrupt is not a load failure: keep it uncatchable and don't notify.
@@ -389,7 +534,7 @@ notify_failure:
         goto cleanup_refs;
     }
     if (failure_version == globals->module_load_failure_version) {
-        notify_module_load_failed(env, globals, context, java_name, module_name);
+        notify_module_load_failed(env, globals, context, java_name, import_type, module_name);
     }
 
 cleanup_refs:
@@ -419,7 +564,7 @@ int install_module_loader(JNIEnv *env, JSRuntime *runtime, Globals *globals, job
             env,
             host_class,
             "loadModule",
-            "(Ljava/lang/String;)Ljava/lang/Object;");
+            "(Ljava/lang/String;I)Ljava/lang/Object;");
     jmethodID get_module_source_method = (*env)->GetMethodID(
             env,
             host_class,
@@ -430,6 +575,21 @@ int install_module_loader(JNIEnv *env, JSRuntime *runtime, Globals *globals, job
             host_class,
             "getModuleBytecode",
             "(Ljava/lang/Object;)[B");
+    jmethodID get_module_text_method = (*env)->GetMethodID(
+            env,
+            host_class,
+            "getModuleText",
+            "(Ljava/lang/Object;)Ljava/lang/String;");
+    jmethodID get_module_json_method = (*env)->GetMethodID(
+            env,
+            host_class,
+            "getModuleJson",
+            "(Ljava/lang/Object;)Ljava/lang/String;");
+    jmethodID get_module_bytes_method = (*env)->GetMethodID(
+            env,
+            host_class,
+            "getModuleBytes",
+            "(Ljava/lang/Object;)[B");
     jmethodID on_module_compiled_method = (*env)->GetMethodID(
             env,
             host_class,
@@ -439,13 +599,16 @@ int install_module_loader(JNIEnv *env, JSRuntime *runtime, Globals *globals, job
             env,
             host_class,
             "onModuleLoadFailed",
-            "(Ljava/lang/String;)V");
+            "(Ljava/lang/String;I)V");
 
     if (has_module_normalizer_method == NULL ||
         normalize_module_method == NULL ||
         load_module_method == NULL ||
         get_module_source_method == NULL ||
         get_module_bytecode_method == NULL ||
+        get_module_text_method == NULL ||
+        get_module_json_method == NULL ||
+        get_module_bytes_method == NULL ||
         on_module_compiled_method == NULL ||
         on_module_load_failed_method == NULL) {
         (*env)->DeleteLocalRef(env, host_class);
@@ -465,6 +628,9 @@ int install_module_loader(JNIEnv *env, JSRuntime *runtime, Globals *globals, job
     globals->load_module_method = load_module_method;
     globals->get_module_source_method = get_module_source_method;
     globals->get_module_bytecode_method = get_module_bytecode_method;
+    globals->get_module_text_method = get_module_text_method;
+    globals->get_module_json_method = get_module_json_method;
+    globals->get_module_bytes_method = get_module_bytes_method;
     globals->on_module_compiled_method = on_module_compiled_method;
     globals->on_module_load_failed_method = on_module_load_failed_method;
     restore_module_loader(runtime, globals);
@@ -476,12 +642,13 @@ void restore_module_loader(JSRuntime *runtime, Globals *globals) {
         return;
     }
     if (globals->module_loader_host != NULL) {
-        JS_SetModuleLoaderFunc(
+        JS_SetModuleLoaderFunc2(
                 runtime,
                 globals->has_module_normalizer ? normalize_module : NULL,
                 load_module,
+                qjs_module_check_attributes,
                 globals);
     } else {
-        JS_SetModuleLoaderFunc(runtime, NULL, NULL, NULL);
+        qjs_module_install_attribute_checker(runtime);
     }
 }

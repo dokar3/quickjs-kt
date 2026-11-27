@@ -39,22 +39,6 @@ Or in `libs.versions.toml`:
 quickjs-kt = { module = "io.github.dokar3:quickjs-kt", version = "<VERSION>" }
 ```
 
-### Android unit tests
-
-A desktop JVM cannot load the Android native library, so local unit tests need the
-`-jvm` artifact instead:
-
-```kotlin
-configurations.matching { it.name.endsWith("UnitTestRuntimeClasspath") }.configureEach {
-    resolutionStrategy.dependencySubstitution {
-        substitute(module("io.github.dokar3:quickjs-kt-android"))
-            .using(module("io.github.dokar3:quickjs-kt-jvm:<VERSION>"))
-    }
-}
-```
-
-Instrumented tests run on a device, they need no substitution.
-
 ### Evaluate
 
 with DSL (This is recommended if you don't need long-live instances):
@@ -218,7 +202,7 @@ handle both, otherwise an interrupted evaluation looks like a script error.
 
 [ES Modules](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules) are supported by passing `asModule = true` to `evaluate()` or `compile()`.
 
-Use a `ModuleLoader` to provide imported modules. It can return source code or cached bytecode:
+Use a `ModuleLoader` to provide imported modules. The `load` callback receives the normalized module name and requested `ModuleImportType` (`Js`, `Text`, `Json`, or `Bytes`), and returns the matching `ModuleContent`:
 
 ```kotlin
 val sources: Map<String, String> = downloadModuleSources()
@@ -228,39 +212,46 @@ val loader = moduleLoader {
     normalize { baseName, requestedName ->
         resolveModuleName(baseName, requestedName)
     }
-    load { name ->
-        bytecodeCache[name]
-            ?.let(ModuleContent::Bytecode)
-            ?: sources[name]?.let(ModuleContent::Source)
+    load { name, type ->
+        when (type) {
+            ModuleImportType.Js -> bytecodeCache[name]
+                ?.let(ModuleContent::Bytecode)
+                ?: sources[name]?.let(ModuleContent::Source)
+            ModuleImportType.Json -> readJson(name)?.let(ModuleContent::Json)
+            ModuleImportType.Text -> readText(name)?.let(ModuleContent::Text)
+            ModuleImportType.Bytes -> readBytes(name)?.let(ModuleContent::Bytes)
+        }
     }
     onCompiled { name, bytecode ->
         bytecodeCache[name] = bytecode
     }
-    onLoadFailed { name ->
+    onLoadFailed { name, type ->
         // Enqueue invalidation instead of performing blocking persistence here.
-        enqueueModuleBytecodeInvalidation(name)
+        if (type == ModuleImportType.Js) {
+            enqueueModuleBytecodeInvalidation(name)
+        }
     }
 }
+```
 
+Pass the loader to `quickJs()` or `QuickJs.create()`:
+
+```kotlin
 quickJs(moduleLoader = loader) {
-    var result: Int? = null
-    function("returns") { result = (it.first() as Number).toInt() }
-
     evaluate<Any?>(
         """
             import { answer } from "static-answer";
+            import config from "config.json" with { type: "json" };
+            import banner from "banner.txt" with { type: "text" };
+            import raw from "payload.bin" with { type: "bytes" };
             const dynamic = await import("dynamic-answer");
-            returns(answer + dynamic.answer);
+            // ...
         """.trimIndent(),
         filename = "entry",
         asModule = true,
     )
-
-    assertEquals(42, result)
 }
 ```
-
-`normalize()` optionally maps imports to canonical names; otherwise QuickJS uses its default normalization. `load()` handles static and dynamic imports, `onCompiled()` receives bytecode for source modules, and `onLoadFailed()` receives the normalized name when loading fails. All callbacks are synchronous, so keep them fast, avoid blocking persistence, and do not re-enter the same `QuickJs` instance.
 
 Use `resolveModuleGraph()` to load and compile the static imports of cached entry bytecode without evaluating it:
 
@@ -270,8 +261,6 @@ quickJs(moduleLoader = loader) {
     evaluate<Any?>(cachedEntryBytecode)
 }
 ```
-
-QuickJS bytecode is engine-version-specific and must use the same module name. Only load bytecode from a trusted source. Cache storage and invalidation are up to the application; `onLoadFailed()` can enqueue invalidation of a failed cached module.
 
 When evaluating ES module code, no return values will be captured, you may need a function binding to receive the result.
 
@@ -352,6 +341,22 @@ quickJs.withNativeContext { context ->
 `QuickJsNativeContext` exposes native addresses on JVM/Android and typed C
 pointers on Kotlin/Native. Cleanup callbacks run before the runtime and
 context are released, in reverse registration order.
+
+### Android unit tests
+
+A desktop JVM cannot load the Android native library, so local unit tests need the
+`-jvm` artifact instead:
+
+```kotlin
+configurations.matching { it.name.endsWith("UnitTestRuntimeClasspath") }.configureEach {
+    resolutionStrategy.dependencySubstitution {
+        substitute(module("io.github.dokar3:quickjs-kt-android"))
+            .using(module("io.github.dokar3:quickjs-kt-jvm:<VERSION>"))
+    }
+}
+```
+
+Instrumented tests run on a device, they need no substitution.
 
 # Type mappings
 

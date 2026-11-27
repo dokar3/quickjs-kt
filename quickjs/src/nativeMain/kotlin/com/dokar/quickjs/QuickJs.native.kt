@@ -16,7 +16,7 @@ import com.dokar.quickjs.bridge.invokeJsFunction
 import com.dokar.quickjs.bridge.ktMemoryUsage
 import com.dokar.quickjs.bridge.objectHandleToStableRef
 import com.dokar.quickjs.bridge.resolveModuleGraph
-import com.dokar.quickjs.bridge.setModuleLoader
+import com.dokar.quickjs.bridge.installModuleLoader
 import com.dokar.quickjs.bridge.installPromiseRejectionHandler
 import com.dokar.quickjs.converter.TypeConverter
 import com.dokar.quickjs.converter.TypeConverters
@@ -58,7 +58,6 @@ import quickjs.JS_NewRuntime
 import quickjs.JS_RunGC
 import quickjs.JS_SetMaxStackSize
 import quickjs.JS_SetMemoryLimit
-import quickjs.JS_SetModuleLoaderFunc
 import quickjs.JS_UpdateStackTop
 import quickjs.JsException
 import quickjs.QJSValue
@@ -72,6 +71,9 @@ import quickjs.qjs_interrupt_install
 import quickjs.qjs_interrupt_poll
 import quickjs.qjs_interrupt_request
 import quickjs.qjs_interrupt_reset
+import quickjs.qjs_module_install_attribute_checker
+import quickjs.qjs_module_loader_free
+import quickjs.qjs_module_loader_resume
 import quickjs.qjs_promise_rejection_tracker_free
 import quickjs.qjs_promise_rejection_tracker_resume
 import quickjs.qjs_promise_rejection_tracker_suspend
@@ -163,6 +165,7 @@ actual class QuickJs private constructor(
 
     private var interruptState: COpaquePointer? = null
     private var promiseRejectionTrackerState: COpaquePointer? = null
+    private var moduleLoaderState: COpaquePointer? = null
 
     private var evalException: Throwable? = null
     private var currentEvaluationSession: EvaluationSession? = null
@@ -285,7 +288,20 @@ actual class QuickJs private constructor(
         }
         promiseRejectionTrackerState = trackerState
         if (moduleLoader != null) {
-            setModuleLoader(ref, runtime)
+            val loaderState = installModuleLoader(ref, runtime, interruptState)
+            if (loaderState == null) {
+                JS_FreeContext(context)
+                qjs_promise_rejection_tracker_free(runtime, trackerState)
+                promiseRejectionTrackerState = null
+                interruptState?.let { qjs_interrupt_free(runtime, it) }
+                interruptState = null
+                JS_FreeRuntime(runtime)
+                ref.dispose()
+                qjsError("Failed to install module loader.")
+            }
+            moduleLoaderState = loaderState
+        } else {
+            qjs_module_install_attribute_checker(runtime)
         }
     }
 
@@ -489,6 +505,10 @@ actual class QuickJs private constructor(
             objectBindings.clear()
             globalFunctions.clear()
             JS_FreeContext(context)
+            moduleLoaderState?.let {
+                qjs_module_loader_free(runtime, it)
+                moduleLoaderState = null
+            }
             promiseRejectionTrackerState?.let {
                 qjs_promise_rejection_tracker_free(runtime, it)
                 promiseRejectionTrackerState = null
@@ -723,11 +743,7 @@ actual class QuickJs private constructor(
     private fun clearInterruptedRuntime() {
         qjs_promise_rejection_tracker_suspend(runtime)
         qjs_interrupt_clear_pending_jobs(runtime, maxStackSize)
-        if (moduleLoader != null) {
-            setModuleLoader(ref, runtime)
-        } else {
-            JS_SetModuleLoaderFunc(runtime, null, null, null)
-        }
+        qjs_module_loader_resume(runtime, moduleLoaderState)
         qjs_promise_rejection_tracker_resume(runtime, promiseRejectionTrackerState)
     }
 
@@ -798,9 +814,9 @@ actual class QuickJs private constructor(
         }.normalize(baseName, requestedName)
 
     /** Loads content from the runtime-scoped module loader. */
-    internal fun loadModule(name: String): ModuleContent? {
+    internal fun loadModule(name: String, type: ModuleImportType): ModuleContent? {
         resolvingModuleNames?.add(name)
-        return moduleLoader?.load(name)
+        return moduleLoader?.load(name, type)
     }
 
     /** Delivers source-compiled bytecode to the runtime-scoped module loader. */
@@ -809,9 +825,9 @@ actual class QuickJs private constructor(
     }
 
     /** Reports a failed module loading attempt to the runtime's loader. */
-    internal fun onModuleLoadFailed(name: String) {
+    internal fun onModuleLoadFailed(name: String, type: ModuleImportType) {
         moduleLoadFailureVersion++
-        moduleLoader?.onLoadFailed(name)
+        moduleLoader?.onLoadFailed(name, type)
     }
 
     /** Loads queued modules using the legacy addModule behavior. */

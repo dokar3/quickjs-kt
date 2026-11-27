@@ -127,6 +127,7 @@ set(quickjs_sources
         "quickjs/quickjs.c"
         "common/quickjs_version.c"
         "common/quickjs_interrupt.c"
+        "common/quickjs_module_import.c"
 )
 list(APPEND all_sources ${quickjs_sources})
 

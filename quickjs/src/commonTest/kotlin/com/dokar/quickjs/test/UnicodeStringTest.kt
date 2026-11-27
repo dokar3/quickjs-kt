@@ -87,7 +87,7 @@ class UnicodeStringTest {
         val loaded = mutableListOf<String>()
         val compiled = mutableListOf<String>()
         val loader = moduleLoader {
-            load { name ->
+            load { name, _ ->
                 loaded += name
                 if (name == moduleName) {
                     ModuleContent.Source("export const value = '$unicodeText';")
