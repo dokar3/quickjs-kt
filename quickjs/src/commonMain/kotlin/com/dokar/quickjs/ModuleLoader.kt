@@ -16,15 +16,6 @@ fun interface ModuleLoader {
         get() = null
 
     /**
-     * Loads a normalized JavaScript module name requested by QuickJS.
-     */
-    @Deprecated(
-        message = "Use load(name, type) instead.",
-        replaceWith = ReplaceWith("load(name, ModuleImportType.Js)"),
-    )
-    fun load(name: String): ModuleContent? = load(name, ModuleImportType.Js)
-
-    /**
      * Loads a normalized module name requested by QuickJS for [type].
      *
      * [name] is produced by [normalizer] when configured, or by QuickJS's
@@ -69,12 +60,6 @@ fun interface ModuleLoader {
     fun onCompiled(name: String, bytecode: ByteArray) = Unit
 
     /**
-     * Reports that QuickJS could not load a requested module.
-     */
-    @Deprecated("Use onLoadFailed(name, type) instead.")
-    fun onLoadFailed(name: String) = Unit
-
-    /**
      * Reports that QuickJS could not load a requested module for [type].
      *
      * The callback is invoked when:
@@ -98,10 +83,7 @@ fun interface ModuleLoader {
      * @param name The normalized name of the module that failed to load.
      * @param type The import type that failed to load.
      */
-    fun onLoadFailed(name: String, type: ModuleImportType) {
-        @Suppress("DEPRECATION")
-        onLoadFailed(name)
-    }
+    fun onLoadFailed(name: String, type: ModuleImportType) = Unit
 }
 
 /**
